@@ -872,4 +872,4 @@ settings = {
 - **Last Updated**: December 2025
 - **Version**: 1.0
 - **Applies To**: Video processing and generation
-- **Related Docs**: BACKEND_SERVICES.md, DATA_FLOW.md, DOCKER_SETUP.md
+- **Related Docs**: BACKEND_SERVICES.md, 02_DATA_FLOW_PATTERNS.md, DOCKER_SETUP.md

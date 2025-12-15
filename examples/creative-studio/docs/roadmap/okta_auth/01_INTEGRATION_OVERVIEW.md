@@ -20,7 +20,7 @@
 - **ARCHITECTURE.md** - Current system architecture and technology stack
 - **COMPONENT_DIAGRAM.md** - Visual diagrams of all components and their interactions
 - **INFRASTRUCTURE.md** - Infrastructure setup, Terraform configuration, and GCP services
-- **DATA_FLOW.md** - Data flow and component interactions in the current system
+- **02_DATA_FLOW_PATTERNS.md** - Data flow and component interactions in the current system
 
 These documents describe the **present state** of Creative Studio. The Okta roadmap below describes the **future state** if this integration is approved and executed.
 

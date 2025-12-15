@@ -4,7 +4,7 @@ Frontend implementation guides and design patterns.
 
 ## 📖 Guides in This Section
 
-### [COMPONENTS.md](COMPONENTS.md)
+### [03_SYSTEM_01_COMPONENTS_ARCHITECTURE.md](03_SYSTEM_01_COMPONENTS_ARCHITECTURE.md)
 **Angular component architecture and organization**
 
 - Component structure and hierarchy
@@ -22,7 +22,7 @@ Frontend implementation guides and design patterns.
 
 ---
 
-### [UI_PATTERNS.md](UI_PATTERNS.md)
+### [02_UI_PATTERNS_GUIDE.md](02_UI_PATTERNS_GUIDE.md)
 **UI/UX patterns and component usage**
 
 - Design system and Material Design
@@ -65,8 +65,8 @@ ng serve
 
 ## 📚 Learn More
 
-- **Components:** [COMPONENTS.md](COMPONENTS.md)
-- **Patterns:** [UI_PATTERNS.md](UI_PATTERNS.md)
-- **API Integration:** [03-backend/API_ENDPOINTS.md](../03-backend/API_ENDPOINTS.md)
-- **Authentication:** [05-security/AUTHENTICATION.md](../05-security/AUTHENTICATION.md)
-- **Architecture:** [02-architecture/SYSTEM_DESIGN.md](../02-architecture/SYSTEM_DESIGN.md)
+- **Components:** [03_SYSTEM_01_COMPONENTS_ARCHITECTURE.md](03_SYSTEM_01_COMPONENTS_ARCHITECTURE.md)
+- **Patterns:** [02_UI_PATTERNS_GUIDE.md](02_UI_PATTERNS_GUIDE.md)
+- **API Integration:** [../03-backend/02_API_ENDPOINTS_REFERENCE.md](../03-backend/02_API_ENDPOINTS_REFERENCE.md)
+- **Authentication:** [../03-backend/03_AUTHENTICATION_FLOW.md](../03-backend/03_AUTHENTICATION_FLOW.md)
+- **Architecture:** [../02-architecture/01_SYSTEM_DESIGN.md](../02-architecture/01_SYSTEM_DESIGN.md)

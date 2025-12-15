@@ -374,27 +374,17 @@ export class GalleryService {
   private gallerySubject = new BehaviorSubject<any[]>([]);
   public gallery$ = this.gallerySubject.asObservable();
 
-  constructor(
-    private http: HttpClient,
-    private afs: AngularFirestore
-  ) {}
+  constructor(private http: HttpClient) {}
 
   /**
-   * Get gallery observable for real-time updates
+   * Get gallery observable (fetches from API)
    */
   getGallery$(): Observable<any[]> {
-    return this.afs
-      .collection('media_library', (ref) =>
-        ref
-          .where('user_email', '==', this.userEmail)
-          .orderBy('created_at', 'desc')
-          .limit(20)
-      )
-      .valueChanges({ idField: 'id' });
+    return this.gallerySubject.asObservable(); // Frontend components subscribe to this
   }
 
   /**
-   * Load gallery with filters and pagination
+   * Load gallery with filters and pagination from backend API
    */
   async loadGallery(
     pageSize: number,

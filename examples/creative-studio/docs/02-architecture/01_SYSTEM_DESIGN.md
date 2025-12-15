@@ -36,6 +36,7 @@ graph TB
         Imagen["Imagen API<br/>(Image Generation)"]
         Veo["Veo API<br/>(Video Generation)"]
         Gemini["Gemini API<br/>(Multimodal Analysis)"]
+        Chirp["Chirp API<br/>(Audio Generation)"]
     end
 
     subgraph Infrastructure["🏗️ Infrastructure - Terraform"]
@@ -189,7 +190,7 @@ graph LR
 
     Image --> ImageService["Image Service<br/>Imagen API Integration"]
     Video --> VideoService["Video Service<br/>Veo API Integration"]
-    Audio --> AudioService["Audio Service<br/>Chirp/Lyria API"]
+    Audio --> AudioService["Audio Service<br/>Chirp API"]
     Gallery --> GalleryService["Gallery Service<br/>Firestore Queries"]
     User --> UserService["User Service<br/>User Management"]
     Workspace --> WorkspaceService["Workspace Service<br/>Collaboration"]
@@ -308,8 +309,8 @@ backend/
 ## Data Layer
 
 The application uses a **hybrid database approach**:
-- **Cloud SQL PostgreSQL**: Structured relational data (users, workspaces, media items, assets)
-- **Firestore**: Real-time synchronization and mobile-friendly queries
+- **Cloud SQL PostgreSQL**: Primary structured relational data store (users, workspaces, media items, assets)
+- **Firestore**: For real-time synchronization of specific metadata and mobile-friendly queries
 - **Cloud Storage**: Binary media files (images, videos, audio)
 
 ### Cloud SQL PostgreSQL Database
@@ -633,7 +634,7 @@ graph LR
 | **Firebase Hosting** | Static frontend SPA hosting | Frontend serving |
 | **Firestore** | NoSQL document database | Primary data store |
 | **Cloud Storage** | Media file storage | GenMedia bucket |
-| **Vertex AI** | Generative AI model APIs | ML model access |
+| **Vertex AI** | Generative AI model APIs (Imagen, Veo, Gemini, Chirp) | ML model access |
 | **Cloud Build** | CI/CD automation | Deployment pipeline |
 | **Artifact Registry** | Docker image repository | Image storage |
 | **IAM** | Identity & access management | Security |

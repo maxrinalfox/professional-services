@@ -4,7 +4,7 @@ System design, data flow, and component architecture documentation.
 
 ## 📖 Guides in This Section
 
-### [SYSTEM_DESIGN.md](SYSTEM_DESIGN.md)
+### [01_SYSTEM_DESIGN.md](01_SYSTEM_DESIGN.md)
 **Complete system architecture and design**
 
 - System overview diagram (frontend, backend, databases, AI services)
@@ -22,7 +22,7 @@ System design, data flow, and component architecture documentation.
 
 ---
 
-### [DATA_FLOW.md](DATA_FLOW.md)
+### [02_DATA_FLOW_PATTERNS.md](02_DATA_FLOW_PATTERNS.md)
 **End-to-end data flows and interactions**
 
 - Image generation flow (with PostgreSQL)
@@ -41,7 +41,7 @@ System design, data flow, and component architecture documentation.
 
 ---
 
-### [COMPONENTS.md](COMPONENTS.md)
+### [03_SYSTEM_COMPONENTS.md](03_SYSTEM_COMPONENTS.md)
 **Component diagrams and relationships**
 
 - System overview with all components
@@ -210,8 +210,8 @@ FastAPI Endpoint
 
 ## 🚀 Next Steps
 
-1. **Understand data flow:** Read [DATA_FLOW.md](DATA_FLOW.md)
-2. **See components:** Check [COMPONENTS.md](COMPONENTS.md)
-3. **Backend details:** [03-backend/SERVICES_AND_ORM.md](../03-backend/SERVICES_AND_ORM.md)
-4. **Frontend details:** [04-frontend/COMPONENTS.md](../04-frontend/COMPONENTS.md)
-5. **Infrastructure:** [06-infrastructure/GCP_SETUP.md](../06-infrastructure/GCP_SETUP.md)
+1. **Understand data flow:** Read [02_DATA_FLOW_PATTERNS.md](02_DATA_FLOW_PATTERNS.md)
+2. **See components:** Check [03_SYSTEM_COMPONENTS.md](03_SYSTEM_COMPONENTS.md)
+3. **Backend details:** [03-backend/01_SERVICES_ARCHITECTURE.md](../03-backend/01_SERVICES_ARCHITECTURE.md)
+4. **Frontend details:** [04-frontend/03_SYSTEM_COMPONENTS.md](../04-frontend/03_SYSTEM_COMPONENTS.md)
+5. **Infrastructure:** [06-infrastructure/01_GCP_PROJECT_SETUP.md](../06-infrastructure/01_GCP_PROJECT_SETUP.md)

@@ -66,9 +66,8 @@ INIT_VERTEX="true"                              # Initialize Vertex AI on startu
 ### Optional Variables
 
 ```bash
-# Lyria (Audio)
-LYRIA_PROJECT_ID="your-lyria-project-id"       # Lyria project ID
-LYRIA_MODEL_VERSION="lyria-002"                 # Lyria model version
+# Chirp (Audio) - Optional, Chirp API is configured via Vertex AI
+# Note: Chirp audio generation is accessed through Vertex AI, not a separate service
 
 # Email Service
 SENDER_EMAIL="no-reply@your-domain.com"         # Email sender address

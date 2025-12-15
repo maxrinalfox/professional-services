@@ -735,4 +735,4 @@ service cloud.firestore {
 - **Last Updated**: December 2025
 - **Version**: 1.0
 - **Applies To**: Firestore database security
-- **Related Docs**: AUTH_IMPLEMENTATION.md, INFRASTRUCTURE.md, DATA_FLOW.md
+- **Related Docs**: AUTH_IMPLEMENTATION.md, INFRASTRUCTURE.md, 02_DATA_FLOW_PATTERNS.md

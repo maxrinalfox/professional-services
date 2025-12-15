@@ -1191,4 +1191,4 @@ Viewer (Read-only)
 - **Last Updated**: December 2025
 - **Version**: 1.0
 - **Applies To**: Admin panel functionality
-- **Related Docs**: FRONTEND_COMPONENTS.md, AUTH_IMPLEMENTATION.md, FIRESTORE_SECURITY.md
+- **Related Docs**: FRONTEND_03_SYSTEM_COMPONENTS.md, AUTH_IMPLEMENTATION.md, FIRESTORE_SECURITY.md

@@ -29,37 +29,47 @@ Workspaces enable teams to collaborate on creative projects together. Each works
 
 ### Workspace Data Model
 
-```json
-{
-  "workspaces": {
-    "ws-123": {
-      "name": "Q1 Campaign",
-      "description": "Spring marketing campaign",
-      "owner_id": "user-123",
-      "members": [
-        {
-          "user_id": "user-123",
-          "user_email": "john@example.com",
-          "role": "admin",
-          "joined_at": "2025-01-01T00:00:00Z"
-        },
-        {
-          "user_id": "user-456",
-          "user_email": "jane@example.com",
-          "role": "editor",
-          "joined_at": "2025-01-10T00:00:00Z"
-        }
-      ],
-      "settings": {
-        "brand_color": "#0066cc",
-        "theme": "light",
-        "allow_downloads": true,
-        "allow_sharing": true
-      },
-      "created_at": "2025-01-01T00:00:00Z",
-      "updated_at": "2025-01-15T14:30:00Z"
-    }
-  }
+Core workspace data, including its name, owner, and members, is primarily stored in **Cloud SQL PostgreSQL** for strong relational integrity and transactional consistency. Firestore may be used for real-time synchronization of certain workspace metadata or user-specific settings within a workspace.
+
+**PostgreSQL Table: `workspaces`**
+```sql
+CREATE TABLE workspaces (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name VARCHAR NOT NULL,
+    owner_id INTEGER NOT NULL REFERENCES users(id),
+    description TEXT,
+    settings JSONB, -- JSONB for flexible settings
+    created_at TIMESTAMP DEFAULT now(),
+    updated_at TIMESTAMP DEFAULT now()
+);
+
+CREATE TABLE workspace_members (
+    workspace_id INTEGER NOT NULL REFERENCES workspaces(id),
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    role VARCHAR NOT NULL,
+    joined_at TIMESTAMP DEFAULT now(),
+    PRIMARY KEY (workspace_id, user_id)
+);
+```
+
+**Frontend Workspace Model (Simplified)**
+```typescript
+interface Workspace {
+  id: string;
+  name: string;
+  description?: string;
+  ownerId: string;
+  members: WorkspaceMember[];
+  settings: { [key: string]: any };
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface WorkspaceMember {
+  userId: string;
+  userEmail: string;
+  role: 'admin' | 'editor' | 'viewer';
+  joinedAt: string;
 }
 ```
 
@@ -417,30 +427,34 @@ Delete workspace                |        |        |   ✓
 
 ## Workspace Isolation
 
-### Data Partitioning
+Workspace isolation is enforced at multiple levels to ensure data privacy and prevent unauthorized access:
 
-All workspace data is partitioned by `workspace_id`:
+### Data Partitioning (PostgreSQL & Firestore)
+
+Core workspace data and relationships (e.g., `workspaces`, `workspace_members`, `media_items`, `source_assets`, `brand_guidelines`, `media_templates`) are partitioned by `workspace_id` in **Cloud SQL PostgreSQL**. This ensures that queries retrieve only data relevant to the current workspace.
 
 ```python
-# Media library is isolated by workspace
-media = await firestore.collection('media_library') \
-    .where('workspace_id', '==', workspace_id) \
-    .get()
+# Media library is isolated by workspace via PostgreSQL query
+media_items = await session.execute(
+    select(MediaItem).where(MediaItem.workspace_id == workspace_id)
+)
 
-# Source assets are isolated
-assets = await firestore.collection('source_assets') \
-    .where('workspace_id', '==', workspace_id) \
-    .get()
+# Source assets are isolated via PostgreSQL query
+source_assets = await session.execute(
+    select(SourceAsset).where(SourceAsset.workspace_id == workspace_id)
+)
 
-# Templates are isolated
-templates = await firestore.collection('media_templates') \
-    .where('workspace_id', '==', workspace_id) \
-    .get()
+# Templates are isolated via PostgreSQL query
+media_templates = await session.execute(
+    select(MediaTemplate).where(MediaTemplate.workspace_id == workspace_id)
+)
 ```
 
-### Security Rules
+Firestore collections (such as `media_library`, `source_assets`, `media_templates`, `brand_guidelines`) may mirror or cache certain metadata for real-time synchronization with frontend clients. For data within Firestore, its security rules enforce `workspace_id` based isolation:
 
-Firestore rules enforce workspace isolation:
+### Security Rules (Firestore)
+
+Firestore rules enforce workspace isolation for documents stored within Firestore collections:
 
 ```firestore
 match /media_library/{mediaId} {
@@ -460,15 +474,17 @@ match /media_library/{mediaId} {
 
 - Users cannot see other workspace's data
 - Tokens are workspace-aware (custom claims include workspace_id)
-- API endpoints validate workspace membership before returning data
+- API endpoints validate workspace membership against PostgreSQL before returning data
 
 ---
 
 ## Shared Resources
 
+All members of a workspace share access to the same resources, with access governed by their assigned roles and permissions. The primary source of truth for these shared resources is **Cloud SQL PostgreSQL**, with some metadata potentially mirrored in Firestore for real-time updates or specific frontend queries.
+
 ### Shared Media Library
 
-All members of a workspace access the same media library:
+The media library (generation history, uploaded media) is shared among all workspace members. Access is controlled by backend service logic and PostgreSQL queries based on `workspace_id`.
 
 ```typescript
 // All workspace members see the same gallery
@@ -479,27 +495,26 @@ this.gallery$ = this.http.get('/api/galleries', {
 
 ### Shared Brand Guidelines
 
-Brand guidelines are workspace-level:
+Brand guidelines are defined at the workspace level and are accessible to all members who have the appropriate permissions. The content (extracted text, color palettes) is stored in **PostgreSQL**.
 
 ```python
-# Get workspace brand guidelines
-guidelines = await firestore.collection('brand_guidelines') \
-    .where('workspace_id', '==', workspace_id) \
-    .limit(1) \
-    .get()
+# Get workspace brand guidelines from PostgreSQL
+guidelines = await session.execute(
+    select(BrandGuideline).where(BrandGuideline.workspace_id == workspace_id)
+)
 
 # All generation requests in workspace can apply these guidelines
 ```
 
 ### Shared Templates
 
-Custom templates are created per workspace:
+Custom prompt templates are created and shared within a workspace. These templates are stored in **PostgreSQL**.
 
 ```python
-# Get workspace templates
-templates = await firestore.collection('media_templates') \
-    .where('workspace_id', '==', workspace_id) \
-    .get()
+# Get workspace templates from PostgreSQL
+templates = await session.execute(
+    select(MediaTemplate).where(MediaTemplate.workspace_id == workspace_id)
+)
 
 # Template: "Product Photography" created by admin
 # All workspace members can use it
@@ -507,13 +522,13 @@ templates = await firestore.collection('media_templates') \
 
 ### Shared Source Assets
 
-Source assets are uploaded per workspace:
+Source assets (e.g., reference images for generation) uploaded within a workspace are accessible to all its members and stored in **PostgreSQL** (metadata) and **Cloud Storage** (files).
 
 ```python
-# Assets available to all workspace members
-assets = await firestore.collection('source_assets') \
-    .where('workspace_id', '==', workspace_id) \
-    .get()
+# Assets available to all workspace members from PostgreSQL
+assets = await session.execute(
+    select(SourceAsset).where(SourceAsset.workspace_id == workspace_id)
+)
 ```
 
 ---
@@ -707,4 +722,4 @@ async def check_workspace_permission(
 - **Last Updated**: December 2025
 - **Version**: 1.0
 - **Applies To**: Workspace features and collaboration
-- **Related Docs**: AUTH_IMPLEMENTATION.md, FIRESTORE_SECURITY.md, ADMIN_FEATURES.md
+- **Related Docs**: AUTH_IMPLEMENTATION.md, FIRESTORE_SECURITY.md, 01_ADMIN_FEATURES_GUIDE.md

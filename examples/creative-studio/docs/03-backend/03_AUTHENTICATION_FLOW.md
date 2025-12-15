@@ -1427,4 +1427,4 @@ print('Is member:', workspace.is_member(user_uid))
 - **Last Updated**: December 2025
 - **Version**: 1.0
 - **Applies To**: Authentication & Authorization flows
-- **Related Docs**: ENVIRONMENT_VARIABLES.md, API_REFERENCE.md, DATA_FLOW.md
+- **Related Docs**: ENVIRONMENT_VARIABLES.md, API_REFERENCE.md, 02_DATA_FLOW_PATTERNS.md

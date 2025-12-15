@@ -4,7 +4,7 @@ Authentication, authorization, and access control documentation.
 
 ## 📖 Guides in This Section
 
-### [AUTHENTICATION.md](AUTHENTICATION.md)
+### [03_AUTHENTICATION_FLOW.md](../03-backend/03_AUTHENTICATION_FLOW.md)
 **Authentication and identity management**
 
 - Firebase Authentication setup
@@ -18,9 +18,11 @@ Authentication, authorization, and access control documentation.
 
 **For:** Backend developers, security engineers, system administrators
 
+**Location:** `docs/03-backend/03_AUTHENTICATION_FLOW.md`
+
 ---
 
-### [FIRESTORE_RULES.md](FIRESTORE_RULES.md)
+### [03_FIRESTORE_SECURITY_RULES.md](03_FIRESTORE_SECURITY_RULES.md)
 **Firestore database security rules**
 
 - Security rule structure
@@ -36,7 +38,7 @@ Authentication, authorization, and access control documentation.
 
 ---
 
-### [ACCESS_CONTROL.md](ACCESS_CONTROL.md) - *To be created*
+### [01_ACCESS_CONTROL_AND_RBAC.md](01_ACCESS_CONTROL_AND_RBAC.md)
 **Role-based access control (RBAC)**
 
 - Role definitions (Admin, Editor, Viewer)
@@ -85,6 +87,8 @@ Operation executed or denied
 
 ## 👥 Roles & Permissions
 
+For comprehensive role definitions and permissions, see [02_USER_ROLES_AND_PERMISSIONS.md](02_USER_ROLES_AND_PERMISSIONS.md)
+
 | Role | Capabilities |
 |------|-------------|
 | **Admin** | Full workspace access, user management, settings |
@@ -108,7 +112,9 @@ Operation executed or denied
 
 ## 📚 Learn More
 
-- **Authentication:** [AUTHENTICATION.md](AUTHENTICATION.md)
-- **Database Rules:** [FIRESTORE_RULES.md](FIRESTORE_RULES.md)
-- **API Security:** [03-backend/API_ENDPOINTS.md](../03-backend/API_ENDPOINTS.md#authentication)
-- **Infrastructure Security:** [06-infrastructure/GCP_SETUP.md](../06-infrastructure/GCP_SETUP.md#security-best-practices)
+- **Authentication:** [../03-backend/03_AUTHENTICATION_FLOW.md](../03-backend/03_AUTHENTICATION_FLOW.md)
+- **User Roles & Permissions:** [02_USER_ROLES_AND_PERMISSIONS.md](02_USER_ROLES_AND_PERMISSIONS.md)
+- **Access Control:** [01_ACCESS_CONTROL_AND_RBAC.md](01_ACCESS_CONTROL_AND_RBAC.md)
+- **Database Rules:** [03_FIRESTORE_SECURITY_RULES.md](03_FIRESTORE_SECURITY_RULES.md)
+- **API Security:** [../03-backend/02_API_ENDPOINTS_REFERENCE.md](../03-backend/02_API_ENDPOINTS_REFERENCE.md)
+- **Infrastructure Security:** [../06-infrastructure/01_GCP_PROJECT_SETUP.md](../06-infrastructure/01_GCP_PROJECT_SETUP.md#security-best-practices)

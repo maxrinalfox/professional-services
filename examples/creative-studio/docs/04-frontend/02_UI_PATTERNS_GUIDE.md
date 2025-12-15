@@ -1800,5 +1800,5 @@ button:focus {
 - **Last Updated**: December 2025
 - **Version**: 1.0
 - **Applies To**: Frontend UI/UX patterns and component implementation
-- **Related Docs**: FRONTEND_COMPONENTS.md, ADMIN_FEATURES.md, WORKSPACE_FEATURES.md
+- **Related Docs**: FRONTEND_03_SYSTEM_COMPONENTS.md, 01_ADMIN_FEATURES_GUIDE.md, WORKSPACE_FEATURES.md
 

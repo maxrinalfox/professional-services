@@ -4,21 +4,21 @@
 
 The Creative Studio backend uses a service-oriented architecture where business logic is isolated into focused, reusable services. Each service handles a specific domain (images, videos, users, etc.) and interacts with repositories for data access.
 
-**Service Layer Pattern**:
+Service Layer Pattern:
 ```
 Controller (HTTP endpoints)
     ↓
 Service (Business logic)
     ↓
-Repository (Data access - PostgreSQL + Firestore)
+Repository (Data access - PostgreSQL ORM)
     ↓
-Cloud SQL PostgreSQL / Firestore / GCS (External storage)
+Cloud SQL PostgreSQL / Cloud Storage (External storage)
 ```
 
 **Data Access Layer**:
-- **PostgreSQL**: Structured relational data via SQLAlchemy ORM
-- **Firestore**: Real-time document queries
-- **Cloud Storage**: Binary file operations
+- **PostgreSQL**: Structured relational data via SQLAlchemy AsyncORM (Workspaces, Source Assets, Brand Guidelines, Media Templates)
+- **Firestore**: User profiles, roles, and media item metadata (e.g., status, GCS URIs)
+- **Cloud Storage**: Binary file operations (Images, Videos, Audio)
 
 ---
 
@@ -65,55 +65,53 @@ backend/src/
 ├── common/
 │   ├── storage_service.py        # GCS wrapper
 │   └── media_utils.py            # Utility functions
-└── models/
-    └── schemas.py               # Pydantic models
+└── schema/
+    └── *.py               # Pydantic models for the respective domain
 ```
 
-### Service Initialization
+### Dependency Injection with FastAPI.Depends
 
-**File**: `backend/src/config/service_config.py`
+The Creative Studio backend leverages FastAPI's powerful dependency injection system (`FastAPI.Depends`) to manage and inject services and repositories into route handlers. This approach promotes modularity, testability, and reduces boilerplate code for service instantiation.
+
+Instead of a central service container, dependencies are declared directly in the function signature of route handlers. FastAPI automatically resolves these dependencies, instantiating the required classes and injecting them.
+
+**How it works:**
+
+1.  **Declare Dependency:** In a path operation function (route handler), declare a parameter with a type hint for the service or repository you need, and assign `Depends()` to it.
+2.  **Automatic Resolution:** FastAPI inspects the type hint, creates an instance of the class (or calls the dependency function), and passes it to your path operation function. If the dependency itself has dependencies, FastAPI recursively resolves them.
+
+**Example:**
 
 ```python
-from src.services.image_service import ImageService
-from src.services.video_service import VideoService
-from src.services.audio_service import AudioService
-from src.services.gallery_service import GalleryService
-from src.services.user_service import UserService
-from src.services.workspace_service import WorkspaceService
-from src.repositories.firestore_repository import FirestoreRepository
-from src.common.storage_service import StorageService
+from fastapi import APIRouter, Depends, HTTPException
+from src.images.imagen_service import ImagenService
+from src.workspaces.repository.workspace_repository import WorkspaceRepository
+from src.users.user_model import UserModel
+from src.auth.auth_guard import get_current_user
 
-class ServiceContainer:
-    """Central service initialization and dependency injection"""
+router = APIRouter()
 
-    def __init__(self):
-        # Core repositories
-        self.firestore = FirestoreRepository()
-        self.storage = StorageService()
-
-        # Domain services
-        self.image_service = ImageService(
-            firestore=self.firestore,
-            storage=self.storage,
-        )
-        self.video_service = VideoService(
-            firestore=self.firestore,
-            storage=self.storage,
-        )
-        self.audio_service = AudioService(
-            firestore=self.firestore,
-            storage=self.storage,
-        )
-        self.gallery_service = GalleryService(firestore=self.firestore)
-        self.user_service = UserService(firestore=self.firestore)
-        self.workspace_service = WorkspaceService(firestore=self.firestore)
-
-# Singleton instance
-_service_container = ServiceContainer()
-
-def get_services():
-    return _service_container
+@router.post("/generate-images")
+async def generate_images(
+    # FastAPI automatically injects an instance of ImagenService
+    service: ImagenService = Depends(),
+    # Similarly, an instance of WorkspaceRepository is injected
+    workspace_repo: WorkspaceRepository = Depends(),
+    # Authentication dependency, providing the current user
+    current_user: UserModel = Depends(get_current_user),
+) -> None:
+    try:
+        # Use the injected services/repositories
+        await service.start_image_generation_job(...)
+        await workspace_repo.some_method(...)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 ```
+
+This ensures that each request gets the appropriate dependencies, and services can be easily swapped or mocked for testing.
+
+
+
 
 ---
 
@@ -352,60 +350,7 @@ async def generate_image(
 7. Create media_library document in Firestore
 8. Return response with signed URL
 
-**Example Implementation**:
-
-```python
-async def generate_image(self, prompt: str, user_email: str, **kwargs):
-    # Validate
-    if not prompt or len(prompt) > 1000:
-        raise ValueError("Prompt must be 1-1000 characters")
-
-    if kwargs.get('style') not in VALID_STYLES:
-        raise ValueError(f"Invalid style: {kwargs['style']}")
-
-    # Apply brand guidelines if requested
-    if kwargs.get('apply_brand_guidelines'):
-        brand_guidelines = await self.firestore.get_document(
-            'brand_guidelines',
-            kwargs['workspace_id']
-        )
-        if brand_guidelines:
-            # Rewrite prompt using Gemini
-            prompt = await self._rewrite_prompt_for_brand(
-                prompt,
-                brand_guidelines['extracted_text']
-            )
-
-    # Call Vertex AI
-    image_uri = await self._call_imagen_api(prompt, **kwargs)
-
-    # Download and re-upload
-    image_data = await self.storage.download(image_uri)
-    gcs_uri = await self.storage.upload(
-        data=image_data,
-        bucket='genMedia',
-        path=f'media/images/{uuid4()}.png',
-    )
-
-    # Save to Firestore
-    media_doc = {
-        'user_email': user_email,
-        'model': 'imagen-3-fast',
-        'prompt': prompt,
-        'status': 'success',
-        'gcs_uri': gcs_uri,
-        'mime_type': 'image/png',
-        'created_at': datetime.utcnow().isoformat(),
-    }
-
-    doc_id = await self.firestore.create_document('media_library', media_doc)
-
-    return ImageResponse(
-        id=doc_id,
-        gcs_uri=gcs_uri,
-        status='success',
-    )
-```
+**Example Implementation**: Refer to `src/images/imagen_service.py` for the complete and up-to-date implementation, which uses PostgreSQL via `MediaRepository` and Cloud Storage for media files.
 
 #### `get_image()`
 
@@ -530,13 +475,13 @@ async def generate_video(
 
 **Async Flow**:
 ```
-1. Create media_library doc with status=pending
+1. Create media_library entry with status=pending (in PostgreSQL)
 2. Call Veo API (async, returns operation_id)
-3. Store operation_id in Firestore
+3. Store operation_id in PostgreSQL (via MediaRepository)
 4. Return immediately with request ID
 5. Frontend polls get_video_status() periodically
 6. When complete, download and store in GenMedia bucket
-7. Update Firestore with status=success
+7. Update PostgreSQL with status=success (via MediaRepository)
 ```
 
 #### `get_video_status()`
@@ -560,45 +505,7 @@ async def get_video_status(
     """
 ```
 
-**Implementation**:
-
-```python
-async def get_video_status(self, video_id: str, user_email: str):
-    # Get document
-    doc = await self.firestore.get_document('media_library', video_id)
-
-    if doc['user_email'] != user_email:
-        raise PermissionError("Not your video")
-
-    # If already complete, return cached result
-    if doc['status'] == 'success':
-        return VideoStatusResponse(
-            id=video_id,
-            status='success',
-            gcs_uri=doc['gcs_uri'],
-            signed_url=await self.storage.generate_signed_url(doc['gcs_uri']),
-        )
-
-    # If pending, check operation status
-    if doc['status'] == 'pending':
-        operation_id = doc['operation_id']
-        operation_status = await self._check_operation_status(operation_id)
-
-        if operation_status['done']:
-            # Complete the operation
-            video_uri = operation_status['result']['output_uri']
-            await self._finalize_video(video_id, video_uri)
-        else:
-            # Still processing
-            progress = operation_status.get('metadata', {}).get('progress_percentage', 0)
-            return VideoStatusResponse(
-                id=video_id,
-                status='pending',
-                progress_percentage=progress,
-            )
-
-    return VideoStatusResponse(id=video_id, status=doc['status'])
-```
+**Implementation**: Refer to `src/videos/veo_service.py` for the complete and up-to-date implementation, which uses PostgreSQL via `MediaRepository`.
 
 #### `_finalize_video()`
 
@@ -608,7 +515,7 @@ async def _finalize_video(self, video_id: str, video_uri: str):
     Called when video generation completes:
     1. Download from temporary URI
     2. Upload to GenMedia bucket
-    3. Update Firestore
+    3. Update PostgreSQL (via MediaRepository)
     """
 ```
 
@@ -724,29 +631,7 @@ async def get_gallery(
 **Implementation**:
 
 ```python
-async def get_gallery(self, user_email: str, filters=None, **kwargs):
-    query = self.firestore.collection('media_library')
-    query = query.where('user_email', '==', user_email)
-
-    # Apply filters
-    if filters:
-        if filters.get('mime_type'):
-            query = query.where('mime_type', '==', filters['mime_type'])
-        if filters.get('model'):
-            query = query.where('model', '==', filters['model'])
-        if filters.get('status'):
-            query = query.where('status', '==', filters['status'])
-
-    # Order and paginate
-    query = query.order_by('created_at', direction='DESCENDING')
-
-    if kwargs.get('start_after'):
-        last_doc = await self.firestore.get_document('media_library', kwargs['start_after'])
-        query = query.start_after(last_doc)
-
-    docs = query.limit(kwargs.get('page_size', 20) + 1).get()
-
-    return [doc.to_dict() for doc in docs]
+**Implementation**: Refer to `src/galleries/gallery_service.py` for the complete and up-to-date implementation, which uses PostgreSQL via `MediaRepository`.
 ```
 
 #### `search_gallery()`
@@ -762,8 +647,9 @@ async def search_gallery(
 
     Note:
         - Searches in prompt field
-        - Uses Firestore text search (basic substring matching)
-        - For advanced search, consider Elasticsearch
+        - Uses PostgreSQL text search (basic substring matching)
+        - For advanced search, consider dedicated search solutions
+        
     """
 ```
 
@@ -793,8 +679,12 @@ async def delete_media(self, media_id: str, user_email: str) -> None:
     Delete media and associated GCS file
 
     1. Verify user ownership
-    2. Delete from Firestore
+
+    2. Delete from PostgreSQL
+
     3. Delete from Cloud Storage
+
+    
     """
 ```
 
@@ -816,12 +706,12 @@ async def update_media_metadata(
 For efficient queries, these composite indexes are required:
 
 ```
-Collection: media_library
+Table: media_items
 Indexes:
-  1. user_email (ASC), created_at (DESC)
-  2. user_email (ASC), mime_type (ASC), created_at (DESC)
-  3. user_email (ASC), model (ASC), created_at (DESC)
-  4. user_email (ASC), status (ASC), created_at (DESC)
+  1. (user_id ASC, created_at DESC)
+  2. (user_id ASC, mime_type ASC, created_at DESC)
+  3. (user_id ASC, model ASC, created_at DESC)
+  4. (user_id ASC, status ASC, created_at DESC)
 ```
 
 ---
@@ -850,15 +740,14 @@ async def get_or_create_user(
         UserModel with roles and workspace info
 
     Flow:
-        1. Check if user exists in Firestore
+        1. Check if user exists in PostgreSQL
         2. If exists, return existing user
-        3. If new, create user document with:
+        3. If new, create user record with:
            - email
            - display_name
            - avatar_uri
            - roles: [viewer] (default)
-           - created_at
-    """
+           - created_at    """
 ```
 
 #### `get_user()`
@@ -957,10 +846,9 @@ async def create_workspace(
         WorkspaceModel with owner as admin member
 
     Creates:
-        - workspaces/{id} document
+        - workspaces/{id} record in PostgreSQL
         - Members array with owner as admin
-        - Settings document for configuration
-    """
+        - Settings record for configuration    """
 ```
 
 #### `get_workspace()`
@@ -1226,7 +1114,7 @@ async def process_brand_guidelines(
         1. Download PDF from GCS
         2. Extract text using pypdf
         3. Summarize with Gemini API
-        4. Store in Firestore with status=ready
+        4. Store in PostgreSQL with status=ready
 
     Returns:
         BrandGuidelineModel with extracted text
@@ -1236,41 +1124,7 @@ async def process_brand_guidelines(
 **Implementation**:
 
 ```python
-async def process_brand_guidelines(self, workspace_id: str, gcs_uri: str):
-    # Create initial document
-    guide_doc = {
-        'workspace_id': workspace_id,
-        'gcs_uri': gcs_uri,
-        'status': 'processing',
-        'created_at': datetime.utcnow().isoformat(),
-    }
-    guide_id = await self.firestore.create_document('brand_guidelines', guide_doc)
-
-    try:
-        # Download PDF
-        pdf_data = await self.storage.download(gcs_uri)
-
-        # Extract text
-        extracted_text = await self._extract_pdf_text(pdf_data)
-
-        # Summarize with Gemini
-        summary = await self._summarize_with_gemini(extracted_text)
-
-        # Update with results
-        await self.firestore.update_document('brand_guidelines', guide_id, {
-            'extracted_text': extracted_text,
-            'summary': summary,
-            'status': 'ready',
-            'processed_at': datetime.utcnow().isoformat(),
-        })
-
-    except Exception as e:
-        logger.error(f'Brand guideline processing failed: {e}')
-        await self.firestore.update_document('brand_guidelines', guide_id, {
-            'status': 'failed',
-            'error': str(e),
-        })
-```
+**Implementation**: Refer to `src/brand_guidelines/brand_guideline_service.py` for the complete and up-to-date implementation, which uses PostgreSQL via `BrandGuidelineRepository`.```
 
 #### `get_brand_guidelines()`
 
@@ -1521,64 +1375,7 @@ async def extract_from_image(
 
 ## Storage & Repository Services
 
-### FirestoreRepository
 
-```python
-class FirestoreRepository:
-    """Firestore CRUD operations"""
-
-    async def create_document(
-        self,
-        collection: str,
-        data: dict,
-        document_id: str = None,
-    ) -> str:
-        """Create document, return ID"""
-
-    async def get_document(
-        self,
-        collection: str,
-        document_id: str,
-    ) -> dict:
-        """Get single document"""
-
-    async def update_document(
-        self,
-        collection: str,
-        document_id: str,
-        data: dict,
-    ) -> None:
-        """Partial update"""
-
-    async def delete_document(
-        self,
-        collection: str,
-        document_id: str,
-    ) -> None:
-        """Delete document"""
-
-    async def query_documents(
-        self,
-        collection: str,
-        where_conditions: List[tuple],
-        order_by: tuple = None,
-        limit: int = 20,
-    ) -> List[dict]:
-        """Query with filters"""
-
-    async def batch_get(
-        self,
-        collection: str,
-        document_ids: List[str],
-    ) -> List[dict]:
-        """Batch retrieve multiple documents"""
-
-    async def batch_write(
-        self,
-        operations: List[dict],
-    ) -> None:
-        """Batch write multiple documents"""
-```
 
 ### StorageService
 
@@ -1643,7 +1440,7 @@ class PermissionError(ServiceException):
     pass
 
 class ExternalServiceError(ServiceException):
-    """Vertex AI, Firestore, or GCS error"""
+    """Vertex AI or GCS error"""
     pass
 
 class AsyncOperationError(ServiceException):
@@ -1693,15 +1490,15 @@ Some operations (videos, PDF processing) take time:
    - Store operation ID
    - Let operation run in background
 
-3. **Client Polling**:
+3. Client Polling:
    - Frontend polls status endpoint
-   - Check operation progress via Firestore
+   - Check operation progress via PostgreSQL
    - Query Vertex AI operation API if needed
 
-4. **Completion**:
+4. Completion:
    - Download result
    - Upload to GenMedia bucket
-   - Update Firestore with status and URI
+   - Update PostgreSQL with status and URI
 
 **Example**:
 
@@ -1726,29 +1523,7 @@ async def get_video_status(video_id: str, user_email: str):
 
 ## Caching Strategies
 
-### Service-Level Caching
 
-```python
-class CachedGalleryService(GalleryService):
-    """Gallery service with in-memory caching"""
-
-    def __init__(self, firestore):
-        super().__init__(firestore)
-        self._cache = {}
-        self._cache_ttl = 5 * 60  # 5 minutes
-
-    async def get_gallery(self, user_email: str, **kwargs):
-        cache_key = f"gallery:{user_email}"
-        cached = self._cache.get(cache_key)
-
-        if cached and (time.time() - cached['time']) < self._cache_ttl:
-            return cached['data']
-
-        data = await super().get_gallery(user_email, **kwargs)
-        self._cache[cache_key] = {'data': data, 'time': time.time()}
-
-        return data
-```
 
 ### Strategies by Service
 
@@ -1767,4 +1542,4 @@ class CachedGalleryService(GalleryService):
 - **Last Updated**: December 2025
 - **Version**: 1.0
 - **Applies To**: Backend service implementation
-- **Related Docs**: API_REFERENCE.md, AUTH_IMPLEMENTATION.md, DATA_FLOW.md
+- **Related Docs**: API_REFERENCE.md, AUTH_IMPLEMENTATION.md, 02_DATA_FLOW_PATTERNS.md

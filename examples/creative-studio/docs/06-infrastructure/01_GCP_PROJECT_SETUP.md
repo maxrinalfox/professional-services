@@ -57,7 +57,7 @@ Creative Studio uses **Google Cloud SQL with PostgreSQL 18** as the primary rela
 ### Database Purpose
 
 The PostgreSQL instance stores:
-- **Users**: User profiles, roles, metadata (replicated from Firebase)
+- **Users**: User profiles, roles, and metadata are primarily stored here
 - **Workspaces**: Workspace configurations, ownership, scopes
 - **Workspace Members**: Membership relationships and roles (admin, editor, viewer)
 - **Media Items**: Generation history, metadata, status, prompts, parameters

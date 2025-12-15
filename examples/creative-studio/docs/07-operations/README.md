@@ -4,7 +4,7 @@ Operational guidance, monitoring, logging, and troubleshooting.
 
 ## 📖 Guides in This Section
 
-### [LOGGING.md](LOGGING.md)
+### [01_LOGGING_AND_DEBUGGING.md](01_LOGGING_AND_DEBUGGING.md)
 **Application logging and debugging**
 
 - Logging setup and configuration
@@ -21,7 +21,7 @@ Operational guidance, monitoring, logging, and troubleshooting.
 
 ---
 
-### [MONITORING.md](MONITORING.md) - *To be created*
+### [02_MONITORING_AND_ALERTS.md](02_MONITORING_AND_ALERTS.md)
 **Monitoring, alerts, and observability**
 
 - Cloud Monitoring setup
@@ -37,7 +37,7 @@ Operational guidance, monitoring, logging, and troubleshooting.
 
 ---
 
-### [TROUBLESHOOTING.md](TROUBLESHOOTING.md) - *To be created*
+### [03_TROUBLESHOOTING_GUIDE.md](03_TROUBLESHOOTING_GUIDE.md)
 **Common issues and solutions**
 
 - Deployment failures and fixes
@@ -119,15 +119,15 @@ Operational guidance, monitoring, logging, and troubleshooting.
 
 ## 🚀 Next Steps
 
-1. **Setup logging:** Read [LOGGING.md](LOGGING.md)
-2. **Configure monitoring:** Create MONITORING.md
-3. **Handle issues:** Create TROUBLESHOOTING.md
+1. **Setup logging:** Read [01_LOGGING_AND_DEBUGGING.md](01_LOGGING_AND_DEBUGGING.md)
+2. **Configure monitoring:** Create 02_MONITORING_AND_ALERTS.md
+3. **Handle issues:** Create 03_TROUBLESHOOTING_GUIDE.md
 4. **Deployment:** [06-infrastructure/](../06-infrastructure/)
 
 ---
 
 ## 📚 Learn More
 
-- **Logging:** [LOGGING.md](LOGGING.md)
-- **GCP Setup:** [06-infrastructure/GCP_SETUP.md](../06-infrastructure/GCP_SETUP.md)
+- **Logging:** [01_LOGGING_AND_DEBUGGING.md](01_LOGGING_AND_DEBUGGING.md)
+- **GCP Setup:** [06-infrastructure/01_GCP_PROJECT_SETUP.md](../06-infrastructure/01_GCP_PROJECT_SETUP.md)
 - **Backend Debugging:** [03-backend/](../03-backend/)

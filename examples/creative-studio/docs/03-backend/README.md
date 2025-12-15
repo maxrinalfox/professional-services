@@ -4,7 +4,7 @@ Backend implementation guides, API reference, and database patterns.
 
 ## 📖 Guides in This Section
 
-### [SERVICES_AND_ORM.md](SERVICES_AND_ORM.md)
+### [01_SERVICES_ARCHITECTURE.md](01_SERVICES_ARCHITECTURE.md)
 **Service layer architecture and SQLAlchemy ORM**
 
 - Service layer pattern and organization
@@ -23,7 +23,7 @@ Backend implementation guides, API reference, and database patterns.
 
 ---
 
-### [API_ENDPOINTS.md](API_ENDPOINTS.md)
+### [02_API_ENDPOINTS_REFERENCE.md](02_API_ENDPOINTS_REFERENCE.md)
 **Complete REST API reference**
 
 - All 20+ API endpoints documented
@@ -105,7 +105,7 @@ docker-compose up backend
 
 ## 📊 Database Schema
 
-### Core Tables
+### Core Tables (PostgreSQL)
 
 **users**
 ```
@@ -171,7 +171,11 @@ docker-compose up backend
 - created_at, updated_at
 ```
 
-See [SERVICES_AND_ORM.md#database-schema](SERVICES_AND_ORM.md#database-schema) for full details.
+### Firebase Firestore
+
+Firestore is used for storing user profiles and authentication-related metadata that is closely integrated with Firebase Authentication, providing fast access for auth guards and user session management.
+
+See [01_SERVICES_ARCHITECTURE.md](01_SERVICES_ARCHITECTURE.md) for full details on the Database & ORM section.
 
 ---
 
@@ -232,7 +236,7 @@ alembic upgrade head
 2. Implement logic in `src/*/services/`
 3. Create route in `src/*/routers/`
 4. Register route in `main.py`
-5. Document in API_ENDPOINTS.md
+5. Document in 02_API_ENDPOINTS_REFERENCE.md
 
 ### Adding a New Database Table
 1. Create model in `src/*/schema/model.py`
@@ -246,24 +250,24 @@ alembic upgrade head
 2. Use AsyncSessionLocal context manager
 3. Execute query with await
 4. Handle None/empty results
-5. See examples in SERVICES_AND_ORM.md
+5. See examples in 01_SERVICES_ARCHITECTURE.md
 
 ---
 
 ## 🚀 Next Steps
 
 1. **Setup backend:** Follow Quick Setup above
-2. **Understand services:** Read [SERVICES_AND_ORM.md](SERVICES_AND_ORM.md)
-3. **Learn API:** Check [API_ENDPOINTS.md](API_ENDPOINTS.md)
+2. **Understand services:** Read [01_SERVICES_ARCHITECTURE.md](01_SERVICES_ARCHITECTURE.md)
+3. **Learn API:** Check [02_API_ENDPOINTS_REFERENCE.md](02_API_ENDPOINTS_REFERENCE.md)
 4. **Understand auth:** Review [AUTHENTICATION.md](AUTHENTICATION.md)
-5. **Full architecture:** [02-architecture/SYSTEM_DESIGN.md](../02-architecture/SYSTEM_DESIGN.md)
-6. **Database details:** [06-infrastructure/CLOUD_SQL.md](../06-infrastructure/CLOUD_SQL.md) (create this file)
+5. **Full architecture:** [02-architecture/01_SYSTEM_DESIGN.md](../02-architecture/01_SYSTEM_DESIGN.md)
+6. **Database details:** [06-infrastructure/03_CLOUD_SQL_DATABASE.md](../06-infrastructure/03_CLOUD_SQL_DATABASE.md)
 
 ---
 
 ## 📚 Learn More
 
-- **Data flow:** [02-architecture/DATA_FLOW.md](../02-architecture/DATA_FLOW.md)
-- **Testing:** [08-testing/TESTING_STRATEGY.md](../08-testing/TESTING_STRATEGY.md)
-- **Deployment:** [06-infrastructure/CLOUD_RUN.md](../06-infrastructure/CLOUD_RUN.md) (create this file)
-- **Environment setup:** [01-getting-started/ENVIRONMENTS.md](../01-getting-started/ENVIRONMENTS.md)
+- **Data flow:** [02-architecture/02_DATA_FLOW_PATTERNS.md](../02-architecture/02_DATA_FLOW_PATTERNS.md)
+- **Testing:** [08-testing/01_TESTING_STRATEGY_AND_PYRAMID.md](../08-testing/01_TESTING_STRATEGY_AND_PYRAMID.md)
+- **Deployment:** [06-infrastructure/04_CLOUD_RUN_BACKEND.md](../06-infrastructure/04_CLOUD_RUN_BACKEND.md)
+- **Environment setup:** [01-getting-started/02_ENVIRONMENTS_SETUP.md](../01-getting-started/02_ENVIRONMENTS_SETUP.md)

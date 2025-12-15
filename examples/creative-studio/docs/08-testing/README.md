@@ -4,7 +4,7 @@ Testing strategies, frameworks, and best practices.
 
 ## 📖 Guides in This Section
 
-### [TESTING_STRATEGY.md](TESTING_STRATEGY.md)
+### [01_TESTING_STRATEGY_AND_PYRAMID.md](01_TESTING_STRATEGY_AND_PYRAMID.md)
 **Overall testing approach and framework**
 
 - Testing pyramid and strategy
@@ -22,7 +22,7 @@ Testing strategies, frameworks, and best practices.
 
 ---
 
-### [UNIT_TESTS.md](UNIT_TESTS.md) - *To be created*
+### [02_UNIT_TESTS_GUIDE.md](02_UNIT_TESTS_GUIDE.md)
 **Unit testing guide**
 
 - Writing unit tests for services
@@ -38,7 +38,7 @@ Testing strategies, frameworks, and best practices.
 
 ---
 
-### [INTEGRATION_TESTS.md](INTEGRATION_TESTS.md) - *To be created*
+### [03_INTEGRATION_TESTS_GUIDE.md](03_INTEGRATION_TESTS_GUIDE.md)
 **Integration testing guide**
 
 - Testing service interactions
@@ -50,6 +50,18 @@ Testing strategies, frameworks, and best practices.
 - CI/CD integration test running
 
 **For:** Backend developers, QA engineers
+
+---
+
+### [04_E2E_TESTS_GUIDE.md](04_E2E_TESTS_GUIDE.md)
+**End-to-End testing guide**
+
+- Overview of E2E testing tools (e.g., Cypress, Playwright)
+- Writing E2E test scenarios
+- Setting up test environments
+- CI/CD integration for E2E tests
+
+**For:** QA engineers, full-stack developers
 
 ---
 
@@ -128,7 +140,7 @@ ng test --browsers=ChromeHeadless --watch=false
 
 ## 📚 Learn More
 
-- **Testing:** [TESTING_STRATEGY.md](TESTING_STRATEGY.md)
-- **Backend:** [03-backend/SERVICES_AND_ORM.md](../03-backend/SERVICES_AND_ORM.md)
-- **Frontend:** [04-frontend/COMPONENTS.md](../04-frontend/COMPONENTS.md)
+- **Testing:** [01_TESTING_STRATEGY_AND_PYRAMID.md](01_TESTING_STRATEGY_AND_PYRAMID.md)
+- **Backend:** [03-backend/01_SERVICES_ARCHITECTURE.md](../03-backend/01_SERVICES_ARCHITECTURE.md)
+- **Frontend:** [04-frontend/03_SYSTEM_COMPONENTS.md](../04-frontend/03_SYSTEM_COMPONENTS.md)
 - **CI/CD:** [06-infrastructure/](../06-infrastructure/)

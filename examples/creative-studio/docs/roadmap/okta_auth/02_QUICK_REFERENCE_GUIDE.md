@@ -1,7 +1,7 @@
 # Okta Integration - Quick Reference
 
 **Status**: Future Implementation Plan
-**Document**: See `OKTA_INTEGRATION_ROADMAP.md` for full details
+**Document**: See `01_INTEGRATION_OVERVIEW.md` for full details
 **Approval Required**: Yes - Before proceeding with implementation
 
 ---
@@ -218,7 +218,7 @@ A: Default is 1 hour. Okta SDK handles automatic refresh.
 ## Next Steps
 
 1. ✅ Review this quick reference
-2. ⏭️ Read full roadmap: `OKTA_INTEGRATION_ROADMAP.md`
+2. ⏭️ Read full roadmap: `01_INTEGRATION_OVERVIEW.md`
 3. ⏭️ Get stakeholder approval
 4. ⏭️ Create Jira epics for each phase
 5. ⏭️ Schedule Phase 1 kickoff

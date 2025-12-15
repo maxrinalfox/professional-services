@@ -4,7 +4,7 @@ Quick setup guides for local development and initial configuration.
 
 ## 📖 Guides in This Section
 
-### [QUICK_START.md](QUICK_START.md)
+### [01_QUICK_START.md](01_QUICK_START.md)
 **Local development setup and first steps**
 
 - Clone and setup repository
@@ -18,7 +18,7 @@ Quick setup guides for local development and initial configuration.
 
 ---
 
-### [ENVIRONMENTS.md](ENVIRONMENTS.md)
+### [02_ENVIRONMENTS_SETUP.md](02_ENVIRONMENTS_SETUP.md)
 **Environment variables and configuration**
 
 - All backend environment variables
@@ -33,7 +33,7 @@ Quick setup guides for local development and initial configuration.
 
 ---
 
-### [DOCKER_LOCAL_SETUP.md](DOCKER_LOCAL_SETUP.md)
+### [03_DOCKER_LOCAL_SETUP.md](03_DOCKER_LOCAL_SETUP.md)
 **Docker Compose for local development**
 
 - Docker Compose setup
@@ -68,14 +68,14 @@ docker-compose up
 # Backend:  http://localhost:8080/api
 ```
 
-👉 For detailed steps, see **[QUICK_START.md](QUICK_START.md)**
+👉 For detailed steps, see **[01_QUICK_START.md](01_QUICK_START.md)**
 
 ---
 
 ## ⚙️ Next Steps
 
-1. **Setup environment:** Read [ENVIRONMENTS.md](ENVIRONMENTS.md)
-2. **Run locally:** Follow [QUICK_START.md](QUICK_START.md)
+1. **Setup environment:** Read [02_ENVIRONMENTS_SETUP.md](02_ENVIRONMENTS_SETUP.md)
+2. **Run locally:** Follow [01_QUICK_START.md](01_QUICK_START.md)
 3. **Learn architecture:** Go to [02-architecture/](../02-architecture/)
 4. **Start developing:**
    - Backend? → [03-backend/](../03-backend/)
@@ -105,18 +105,18 @@ systemctl restart docker
 **Firebase auth not working?**
 - Check GOOGLE_TOKEN_AUDIENCE in .env
 - Verify OAuth credentials in Google Cloud Console
-- See [ENVIRONMENTS.md](ENVIRONMENTS.md) for setup
+- See [02_ENVIRONMENTS_SETUP.md](02_ENVIRONMENTS_SETUP.md) for setup
 
 **Database connection errors?**
 - Verify INSTANCE_CONNECTION_NAME in .env
 - For local: Use `localhost:5432`
-- See [ENVIRONMENTS.md#cloud-sql-postgresql-setup](ENVIRONMENTS.md) for details
+- See [02_ENVIRONMENTS_SETUP.md#cloud-sql-postgresql-setup](02_ENVIRONMENTS_SETUP.md) for details
 
 ---
 
 ## 📚 Learn More
 
-- **Architecture:** [02-architecture/SYSTEM_DESIGN.md](../02-architecture/SYSTEM_DESIGN.md)
-- **Backend services:** [03-backend/SERVICES_AND_ORM.md](../03-backend/SERVICES_AND_ORM.md)
-- **API reference:** [03-backend/API_ENDPOINTS.md](../03-backend/API_ENDPOINTS.md)
-- **Deployment:** [06-infrastructure/GCP_SETUP.md](../06-infrastructure/GCP_SETUP.md)
+- **Architecture:** [02-architecture/01_SYSTEM_DESIGN.md](../02-architecture/01_SYSTEM_DESIGN.md)
+- **Backend services:** [03-backend/01_SERVICES_ARCHITECTURE.md](../03-backend/01_SERVICES_ARCHITECTURE.md)
+- **API reference:** [03-backend/02_API_ENDPOINTS_REFERENCE.md](../03-backend/02_API_ENDPOINTS_REFERENCE.md)
+- **Deployment:** [06-infrastructure/01_GCP_PROJECT_SETUP.md](../06-infrastructure/01_GCP_PROJECT_SETUP.md)

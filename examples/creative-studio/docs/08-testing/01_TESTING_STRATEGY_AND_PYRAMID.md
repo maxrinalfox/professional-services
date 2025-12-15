@@ -312,7 +312,7 @@ describe('AuthService', () => {
       const expectedToken = 'test-token-123';
 
       // Act
-      service.signInWithOkta().subscribe(token => {
+      service.signInWithGoogle().subscribe(token => {
         // Assert
         expect(token).toBe(expectedToken);
         done();
@@ -576,20 +576,20 @@ steps:
 
 ## Test Categories
 
-### Unit Tests
+### [Unit Tests](02_UNIT_TESTS_GUIDE.md)
 - Test individual functions/methods in isolation
 - Mock external dependencies
 - Fast execution (< 1 second per test)
 - Location: `tests/` and `.spec.ts` files
 
-### Integration Tests
+### [Integration Tests](03_INTEGRATION_TESTS_GUIDE.md)
 - Test multiple components working together
 - Use real or test databases
 - Test API endpoints
 - Slower execution (1-10 seconds per test)
 - Mark with `@pytest.mark.integration`
 
-### End-to-End Tests
+### [End-to-End Tests](04_E2E_TESTS_GUIDE.md)
 - Test complete user workflows
 - Use real application instances
 - Simulate user interactions

@@ -4,7 +4,7 @@ Google Cloud Platform setup, Terraform configuration, and deployment guides.
 
 ## 📖 Guides in This Section
 
-### [GCP_SETUP.md](GCP_SETUP.md)
+### [01_GCP_PROJECT_SETUP.md](01_GCP_PROJECT_SETUP.md)
 **Google Cloud Platform services and provisioning**
 
 - GCP project creation and configuration
@@ -24,7 +24,7 @@ Google Cloud Platform setup, Terraform configuration, and deployment guides.
 
 ---
 
-### [TERRAFORM.md](TERRAFORM.md) - *To be created*
+### [02_TERRAFORM_INFRASTRUCTURE.md](02_TERRAFORM_INFRASTRUCTURE.md)
 **Infrastructure as Code with Terraform**
 
 - Terraform project structure
@@ -39,7 +39,7 @@ Google Cloud Platform setup, Terraform configuration, and deployment guides.
 
 ---
 
-### [CLOUD_SQL.md](CLOUD_SQL.md) - *To be created*
+### [03_CLOUD_SQL_DATABASE.md](03_CLOUD_SQL_DATABASE.md)
 **Cloud SQL PostgreSQL setup and management**
 
 - Cloud SQL instance configuration
@@ -56,7 +56,7 @@ Google Cloud Platform setup, Terraform configuration, and deployment guides.
 
 ---
 
-### [CLOUD_RUN.md](CLOUD_RUN.md) - *To be created*
+### [04_CLOUD_RUN_BACKEND.md](04_CLOUD_RUN_BACKEND.md)
 **Cloud Run backend deployment**
 
 - Cloud Run service configuration
@@ -73,7 +73,7 @@ Google Cloud Platform setup, Terraform configuration, and deployment guides.
 
 ---
 
-### [FIREBASE_HOSTING.md](FIREBASE_HOSTING.md) - *To be created*
+### [05_FIREBASE_FRONTEND_HOSTING.md](05_FIREBASE_FRONTEND_HOSTING.md)
 **Firebase Hosting frontend deployment**
 
 - Firebase project setup
@@ -207,7 +207,7 @@ firebase deploy --project=$PROJECT_ID
 | `cs-prod-trig` | Cloud Build CI/CD | Artifact Registry, Cloud Run, IAM |
 | `cs-prod-read` | Signed URLs | Cloud Storage object viewer |
 
-See [GCP_SETUP.md](GCP_SETUP.md) for detailed IAM roles.
+See [01_GCP_PROJECT_SETUP.md](01_GCP_PROJECT_SETUP.md) for detailed IAM roles.
 
 ---
 
@@ -244,18 +244,18 @@ See [GCP_SETUP.md](GCP_SETUP.md) for detailed IAM roles.
 
 ## 🚀 Next Steps
 
-1. **Setup GCP:** Read [GCP_SETUP.md](GCP_SETUP.md)
-2. **Plan infrastructure:** Create Terraform files (TERRAFORM.md)
-3. **Deploy backend:** See CLOUD_RUN.md (to create)
-4. **Deploy database:** See CLOUD_SQL.md (to create)
-5. **Deploy frontend:** See FIREBASE_HOSTING.md (to create)
+1. **Setup GCP:** Read [01_GCP_PROJECT_SETUP.md](01_GCP_PROJECT_SETUP.md)
+2. **Plan infrastructure:** Read [02_TERRAFORM_INFRASTRUCTURE.md](02_TERRAFORM_INFRASTRUCTURE.md)
+3. **Deploy backend:** Read [04_CLOUD_RUN_BACKEND.md](04_CLOUD_RUN_BACKEND.md)
+4. **Deploy database:** Read [03_CLOUD_SQL_DATABASE.md](03_CLOUD_SQL_DATABASE.md)
+5. **Deploy frontend:** Read [05_FIREBASE_FRONTEND_HOSTING.md](05_FIREBASE_FRONTEND_HOSTING.md)
 6. **Monitor:** [07-operations/](../07-operations/)
 
 ---
 
 ## 📚 Learn More
 
-- **Environment config:** [01-getting-started/ENVIRONMENTS.md](../01-getting-started/ENVIRONMENTS.md)
-- **Architecture:** [02-architecture/SYSTEM_DESIGN.md](../02-architecture/SYSTEM_DESIGN.md)
-- **Database:** [03-backend/](../03-backend/) (create CLOUD_SQL.md)
-- **Operations:** [07-operations/LOGGING.md](../07-operations/LOGGING.md)
+- **Environment config:** [01-getting-started/02_ENVIRONMENTS_SETUP.md](../01-getting-started/02_ENVIRONMENTS_SETUP.md)
+- **Architecture:** [02-architecture/01_SYSTEM_DESIGN.md](../02-architecture/01_SYSTEM_DESIGN.md)
+- **Database:** [03_CLOUD_SQL_DATABASE.md](03_CLOUD_SQL_DATABASE.md)
+- **Operations:** [07-operations/01_LOGGING_AND_DEBUGGING.md](../07-operations/01_LOGGING_AND_DEBUGGING.md)

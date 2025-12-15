@@ -763,4 +763,4 @@ if logger.isEnabledFor(logging.DEBUG):
 - **Last Updated**: December 2025
 - **Version**: 1.0
 - **Applies To**: Backend and frontend logging
-- **Related Docs**: INFRASTRUCTURE.md, DOCKER_SETUP.md, DATA_FLOW.md
+- **Related Docs**: INFRASTRUCTURE.md, DOCKER_SETUP.md, 02_DATA_FLOW_PATTERNS.md

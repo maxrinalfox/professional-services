@@ -4,7 +4,7 @@ Feature-specific documentation and implementation guides.
 
 ## 📖 Guides in This Section
 
-### [ADMIN_FEATURES.md](ADMIN_FEATURES.md)
+### [01_ADMIN_FEATURES_GUIDE.md](01_ADMIN_FEATURES_GUIDE.md)
 **Administrative features and management**
 
 - Admin dashboard overview
@@ -20,7 +20,7 @@ Feature-specific documentation and implementation guides.
 
 ---
 
-### [WORKSPACE_MANAGEMENT.md](WORKSPACE_MANAGEMENT.md)
+### [02_WORKSPACE_MANAGEMENT_GUIDE.md](02_WORKSPACE_MANAGEMENT_GUIDE.md)
 **Workspace collaboration and management**
 
 - Creating and managing workspaces
@@ -35,7 +35,7 @@ Feature-specific documentation and implementation guides.
 
 ---
 
-### [VIDEO_PROCESSING.md](VIDEO_PROCESSING.md)
+### [03_VIDEO_PROCESSING_WORKFLOW.md](03_VIDEO_PROCESSING_WORKFLOW.md)
 **Video generation with Veo API**
 
 - Video generation workflow
@@ -92,14 +92,14 @@ Feature-specific documentation and implementation guides.
 
 | Feature | Status | Documentation |
 |---------|--------|---------------|
-| Image Generation | ✅ Production | ADMIN_FEATURES.md |
-| Video Generation | ✅ Production | VIDEO_PROCESSING.md |
-| Audio Generation | ✅ Production | ADMIN_FEATURES.md |
-| Workspaces | ✅ Production | WORKSPACE_MANAGEMENT.md |
-| Brand Guidelines | ✅ Production | ADMIN_FEATURES.md |
-| Virtual Try-On | ✅ Production | ADMIN_FEATURES.md |
-| Templates | ✅ Production | ADMIN_FEATURES.md |
-| Okta Integration | 🛣️ Roadmap | [roadmap/OKTA_INTEGRATION.md](../roadmap/OKTA_INTEGRATION.md) |
+| Image Generation | ✅ Production | [01_SERVICES_ARCHITECTURE.md](../03-backend/01_SERVICES_ARCHITECTURE.md) |
+| Video Generation | ✅ Production | 03_VIDEO_PROCESSING_WORKFLOW.md |
+| Audio Generation | ✅ Production | [01_SERVICES_ARCHITECTURE.md](../03-backend/01_SERVICES_ARCHITECTURE.md) |
+| Workspaces | ✅ Production | 02_WORKSPACE_MANAGEMENT_GUIDE.md |
+| Brand Guidelines | ✅ Production | [01_SERVICES_ARCHITECTURE.md](../03-backend/01_SERVICES_ARCHITECTURE.md) |
+| Virtual Try-On | ✅ Production | [01_SERVICES_ARCHITECTURE.md](../03-backend/01_SERVICES_ARCHITECTURE.md) |
+| Templates | ✅ Production | [01_SERVICES_ARCHITECTURE.md](../03-backend/01_SERVICES_ARCHITECTURE.md) |
+| Okta Integration | 🛣️ Roadmap | [roadmap/okta_auth/](../roadmap/okta_auth/) |
 
 ---
 
@@ -124,7 +124,7 @@ See relevant section for detailed guides:
 
 ## 📚 Learn More
 
-- **Admin Features:** [ADMIN_FEATURES.md](ADMIN_FEATURES.md)
-- **Workspaces:** [WORKSPACE_MANAGEMENT.md](WORKSPACE_MANAGEMENT.md)
-- **Video:** [VIDEO_PROCESSING.md](VIDEO_PROCESSING.md)
-- **Architecture:** [02-architecture/SYSTEM_DESIGN.md](../02-architecture/SYSTEM_DESIGN.md)
+- **Admin Features:** [01_ADMIN_FEATURES_GUIDE.md](01_ADMIN_FEATURES_GUIDE.md)
+- **Workspaces:** [02_WORKSPACE_MANAGEMENT_GUIDE.md](02_WORKSPACE_MANAGEMENT_GUIDE.md)
+- **Video:** [03_VIDEO_PROCESSING_WORKFLOW.md](03_VIDEO_PROCESSING_WORKFLOW.md)
+- **Architecture:** [02-architecture/01_SYSTEM_DESIGN.md](../02-architecture/01_SYSTEM_DESIGN.md)
