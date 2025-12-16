@@ -249,6 +249,107 @@ No response body.
 
 ---
 
+### Upscale Image
+
+**POST** `/api/images/upscale`
+
+Upscale an image to higher resolution using AI upscaling.
+
+**Request Body**:
+```json
+{
+  "image_uri": "gs://bucket/media/image-abc123.png",
+  "upscale_factor": 2,
+  "model": "real-esrgan"
+}
+```
+
+**Query Parameters**:
+- None
+
+**Response** (200 OK):
+```json
+{
+  "success": true,
+  "data": {
+    "id": "media-gen-upscale123",
+    "original_image_uri": "gs://bucket/media/image-abc123.png",
+    "upscaled_image_uri": "gs://bucket/media/image-upscale-abc123.png",
+    "upscale_factor": 2,
+    "original_size": {"width": 512, "height": 512},
+    "upscaled_size": {"width": 1024, "height": 1024},
+    "model": "real-esrgan",
+    "status": "success",
+    "created_at": "2025-01-15T10:35:00Z",
+    "completed_at": "2025-01-15T10:36:30Z"
+  },
+  "message": "Image upscaled successfully"
+}
+```
+
+**Error Responses**:
+- 400: Invalid upscale_factor (must be 2 or 4) or invalid image URI
+- 401: Invalid authentication token
+- 503: Upscaling service temporarily unavailable
+
+**Validation Rules**:
+- `image_uri`: Required, must be valid GCS URI
+- `upscale_factor`: Required, one of: 2, 4
+- `model`: Optional, default: real-esrgan
+
+---
+
+### Convert Image Format
+
+**POST** `/api/images/convert`
+
+Convert image to PNG or other supported formats.
+
+**Request Body**:
+```json
+{
+  "image_uri": "gs://bucket/media/image-abc123.jpg",
+  "target_format": "png",
+  "quality": 95
+}
+```
+
+**Query Parameters**:
+- None
+
+**Response** (200 OK):
+```json
+{
+  "success": true,
+  "data": {
+    "id": "media-gen-convert123",
+    "original_image_uri": "gs://bucket/media/image-abc123.jpg",
+    "converted_image_uri": "gs://bucket/media/image-abc123.png",
+    "original_format": "jpg",
+    "target_format": "png",
+    "quality": 95,
+    "original_size": {"width": 1024, "height": 1024, "bytes": 250000},
+    "converted_size": {"width": 1024, "height": 1024, "bytes": 180000},
+    "status": "success",
+    "created_at": "2025-01-15T10:40:00Z",
+    "completed_at": "2025-01-15T10:40:15Z"
+  },
+  "message": "Image converted successfully"
+}
+```
+
+**Error Responses**:
+- 400: Invalid target_format or unsupported conversion
+- 401: Invalid authentication token
+- 503: Conversion service temporarily unavailable
+
+**Validation Rules**:
+- `image_uri`: Required, must be valid GCS URI
+- `target_format`: Required, one of: png, jpg, webp, gif
+- `quality`: Optional (1-100, default: 95, used for lossy formats)
+
+---
+
 ## Video Generation Endpoints
 
 ### Generate Video
@@ -351,6 +452,65 @@ Retrieve paginated list of video generation requests.
 
 ---
 
+### Concatenate Videos
+
+**POST** `/api/videos/concatenate`
+
+Combine multiple video clips into a single video with optional transitions.
+
+**Request Body**:
+```json
+{
+  "video_uris": [
+    "gs://bucket/media/video-1.mp4",
+    "gs://bucket/media/video-2.mp4",
+    "gs://bucket/media/video-3.mp4"
+  ],
+  "transition_type": "fade",
+  "transition_duration_ms": 500,
+  "output_format": "mp4",
+  "workspace_id": "optional-workspace-id"
+}
+```
+
+**Query Parameters**:
+- None
+
+**Response** (202 Accepted):
+```json
+{
+  "success": true,
+  "data": {
+    "id": "video-concat-abc123",
+    "status": "pending",
+    "input_video_count": 3,
+    "transition_type": "fade",
+    "transition_duration_ms": 500,
+    "output_format": "mp4",
+    "created_at": "2025-01-15T10:45:00Z"
+  },
+  "message": "Video concatenation started"
+}
+```
+
+**Error Responses**:
+- 400: Invalid video URIs or too many videos (max 10)
+- 401: Invalid authentication token
+- 503: Video concatenation service temporarily unavailable
+
+**Validation Rules**:
+- `video_uris`: Required array, 2-10 valid GCS URIs
+- `transition_type`: Optional, one of: none, fade, wipe, crossfade (default: fade)
+- `transition_duration_ms`: Optional, 100-2000ms (default: 500)
+- `output_format`: Optional, one of: mp4, webm, mov (default: mp4)
+
+**Notes**:
+- All input videos should have the same resolution and frame rate for best results
+- Processing time depends on total video duration and transition complexity
+- Check status using the returned ID (see Get Video Status endpoint)
+
+---
+
 ## Audio Generation Endpoints
 
 ### Generate Audio
@@ -419,6 +579,51 @@ Retrieve status and details of audio generation.
   }
 }
 ```
+
+---
+
+### Transcribe Audio
+
+**POST** `/api/audios/transcribe`
+
+Transcribe audio to text using speech-to-text service.
+
+**Request Body**:
+```json
+{
+  "audio_uri": "gs://bucket/media/audio-lmn456.mp3",
+  "language": "en",
+  "workspace_id": "optional-workspace-id"
+}
+```
+
+**Response** (200 OK):
+```json
+{
+  "success": true,
+  "data": {
+    "id": "transcription-abc123",
+    "audio_uri": "gs://bucket/media/audio-lmn456.mp3",
+    "transcription": "This is the transcribed text from the audio file",
+    "language": "en",
+    "confidence": 0.95,
+    "duration_seconds": 30,
+    "word_count": 45,
+    "created_at": "2025-01-15T10:40:00Z",
+    "completed_at": "2025-01-15T10:42:30Z"
+  },
+  "message": "Audio transcribed successfully"
+}
+```
+
+**Error Responses**:
+- 400: Invalid audio URI or unsupported format
+- 401: Invalid authentication token
+- 503: Transcription service temporarily unavailable
+
+**Validation Rules**:
+- `audio_uri`: Required, must be valid GCS URI (mp3, wav, m4a, webm formats supported)
+- `language`: Optional, language code (en, es, fr, de, etc., default: en)
 
 ---
 
