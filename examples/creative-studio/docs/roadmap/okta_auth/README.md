@@ -54,32 +54,76 @@
 
 ---
 
+### 3. 🔴 03_CURRENT_AUTHENTICATION_ISSUES.md
+**Technical analysis of current authentication implementation issues**
+
+- **Purpose**: Document why current Firebase/Google Identity implementation prevents Okta federation and what needs to change
+- **Length**: ~8 pages
+- **Time to read**: 20-30 minutes
+- **Status**: Critical (blocks Okta integration)
+- **Priority**: High
+- **Best For**: Engineering leads, architects, frontend developers, security team
+- **Contains**:
+  - Executive summary of architectural problems
+  - Current implementation flow and why it's incompatible with Okta
+  - Detailed technical analysis of each issue
+  - Code references and file locations
+  - Impact assessment (immediate and long-term)
+  - Prerequisites for Okta integration
+  - Implementation path (Phase 1 & 2 breakdown)
+  - Official documentation references
+  - Security best practices
+
+**Why this exists**: Okta integration **cannot happen** without first refactoring the authentication system to use Firebase's provider federation APIs instead of direct Google Identity Services. This document explains the technical debt and provides a clear path forward.
+
+**When to read**:
+- **Before** deciding on Okta integration timeline
+- **Required reading** for anyone implementing Okta changes
+- Start here to understand what "MUST CHANGE FIRST"
+
+---
+
 ## 🎯 Reading Paths by Role
 
 ### 👨‍💼 Executives / Decision-Makers
-**Total Time**: 15-20 minutes
+**Total Time**: 20-30 minutes
 
-1. Read: `02_QUICK_REFERENCE_GUIDE.md` (10 min)
-2. Optional: Section "Should We Do Okta?" from `01_INTEGRATION_OVERVIEW.md` (10 min)
+1. Read: `03_CURRENT_AUTHENTICATION_ISSUES.md` - Executive Summary section only (5 min)
+2. Read: `02_QUICK_REFERENCE_GUIDE.md` (10 min)
+3. Optional: Section "Should We Do Okta?" from `01_INTEGRATION_OVERVIEW.md` (10 min)
 
-**Decision to make**: Is Okta integration part of v2.0 roadmap?
+**Decision to make**:
+- Is Okta integration part of v2.0 roadmap?
+- Do we allocate time for Phase 1 (auth refactoring) first?
 
 ---
 
 ### 👨‍💻 Engineering / Architecture Team
-**Total Time**: 45-60 minutes
+**Total Time**: 60-90 minutes
 
-1. Start: `01_INTEGRATION_OVERVIEW.md` - Full document (30-40 min)
-2. Reference: `02_QUICK_REFERENCE_GUIDE.md` (10-15 min)
+1. **REQUIRED**: `03_CURRENT_AUTHENTICATION_ISSUES.md` - Full document (20-30 min)
+   - Understand why Okta cannot be integrated with current architecture
+   - Learn what changes are required first
+2. Start: `01_INTEGRATION_OVERVIEW.md` - Full document (30-40 min)
+3. Reference: `02_QUICK_REFERENCE_GUIDE.md` (10-15 min)
 
-**Outcome**: Understand implementation requirements and effort
+**Outcome**:
+- Understand current architectural issues
+- Know implementation prerequisites
+- Understand full Okta integration scope
 
 ---
 
 ### 🚀 Implementation Team
-**Total Time**: Depends on implementation phase
+**Total Time**: Variable (phases 1-2)
 
-1. Use: `01_INTEGRATION_OVERVIEW.md` - Implementation Plan section (reference)
+**Phase 1 (Auth Refactoring - PREREQUISITE)**:
+1. Read: `03_CURRENT_AUTHENTICATION_ISSUES.md` - Full document
+2. Read: `03_CURRENT_AUTHENTICATION_ISSUES.md` - "Implementation Path" section
+3. Create Phase 1 implementation plan based on this document
+
+**Phase 2 (Okta Integration)**:
+1. Use: `01_INTEGRATION_OVERVIEW.md` - Implementation Plan section
 2. Check: `02_QUICK_REFERENCE_GUIDE.md` - Okta setup steps
 3. Follow: Detailed implementation guide from 01_INTEGRATION_OVERVIEW.md
 
@@ -89,17 +133,20 @@
 
 | Metric | Value |
 |--------|-------|
-| **Total Documents** | 2 files |
-| **Total Lines** | ~2,000 lines |
-| **Status** | Future Implementation |
-| **Implementation Timeline** | 2-4 weeks (estimated) |
-| **Risk Level** | Low (staged rollout possible) |
-| **Current Auth** | Google Identity Platform + Firebase Auth |
-| **Planned Auth** | Okta (complete replacement) |
-| **Frontend Impact** | ✅ YES - auth.service.ts rewrite |
-| **Backend Impact** | ✅ YES - Token validation logic |
+| **Total Documents** | 3 files |
+| **Total Lines** | ~2,500 lines |
+| **Status** | Critical Technical Debt + Future Implementation |
+| **Blocker Status** | 🔴 BLOCKS Okta Integration - Phase 1 auth refactoring required first |
+| **Implementation Timeline** | Phase 1: 1-2 weeks (refactor) + Phase 2: 2-4 weeks (Okta) |
+| **Risk Level** | Phase 1: Medium (touches auth) | Phase 2: Low (Firebase handles federation) |
+| **Current Auth** | Google Identity Platform + Firebase Auth (direct API) |
+| **Needed Auth** | Firebase Auth with provider federation |
+| **Planned Auth** | Okta (complete replacement via federation) |
+| **Frontend Impact** | ✅ YES - Complete auth.service.ts rewrite |
+| **Backend Impact** | ✅ YES - Token validation logic updates |
 | **Database Impact** | ❌ NO - User structure unchanged |
 | **Secrets Storage** | Google Secret Manager |
+| **Prerequisite** | Phase 1: Refactor to use Firebase federation APIs |
 
 ---
 
@@ -192,7 +239,7 @@ User → Okta Auth → OAuth2 PKCE → ID Token → API → Database
 ## 🔗 Related Documentation
 
 From main docs folder:
-- **Current Auth**: `docs/05-security/AUTHENTICATION.md` - Current Firebase/Google Identity implementation
+- **Current Auth**: `docs/03-backend/03_AUTHENTICATION_FLOW.md` - Current Firebase/Google Identity implementation
 - **Access Control**: `docs/05-security/01_ACCESS_CONTROL_AND_RBAC.md` - Role-based access control
 - **User Roles**: `docs/05-security/02_USER_ROLES_AND_PERMISSIONS.md` - Complete role guide
 - **Architecture**: `docs/02-architecture/01_SYSTEM_DESIGN.md` - System overview

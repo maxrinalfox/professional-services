@@ -4,7 +4,7 @@ Frontend implementation guides and design patterns.
 
 ## 📖 Guides in This Section
 
-### [03_SYSTEM_01_COMPONENTS_ARCHITECTURE.md](03_SYSTEM_01_COMPONENTS_ARCHITECTURE.md)
+### [01_COMPONENTS_ARCHITECTURE.md](01_COMPONENTS_ARCHITECTURE.md)
 **Angular component architecture and organization**
 
 - Component structure and hierarchy
@@ -65,7 +65,7 @@ ng serve
 
 ## 📚 Learn More
 
-- **Components:** [03_SYSTEM_01_COMPONENTS_ARCHITECTURE.md](03_SYSTEM_01_COMPONENTS_ARCHITECTURE.md)
+- **Components:** [01_COMPONENTS_ARCHITECTURE.md](01_COMPONENTS_ARCHITECTURE.md)
 - **Patterns:** [02_UI_PATTERNS_GUIDE.md](02_UI_PATTERNS_GUIDE.md)
 - **API Integration:** [../03-backend/02_API_ENDPOINTS_REFERENCE.md](../03-backend/02_API_ENDPOINTS_REFERENCE.md)
 - **Authentication:** [../03-backend/03_AUTHENTICATION_FLOW.md](../03-backend/03_AUTHENTICATION_FLOW.md)

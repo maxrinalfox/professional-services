@@ -22,16 +22,16 @@ Complete documentation for the **Creative Studio** - A comprehensive Generative 
 - **[03-backend/](03-backend/)** - Backend implementation guides
   - `01_SERVICES_ARCHITECTURE.md` - FastAPI services and SQLAlchemy ORM
   - `02_API_ENDPOINTS_REFERENCE.md` - Complete API reference
-  - `AUTHENTICATION.md` - Auth implementation and JWT
+  - `03_AUTHENTICATION_FLOW.md` - Auth implementation and JWT
 
 ### 🎨 Frontend Development
 - **[04-frontend/](04-frontend/)** - Frontend implementation
-  - `03_SYSTEM_COMPONENTS.md` - Angular component architecture
+  - `01_COMPONENTS_ARCHITECTURE.md` - Angular component architecture
   - `02_UI_PATTERNS_GUIDE.md` - UI/UX patterns and component usage
 
 ### 🔐 Security
 - **[05-security/](05-security/)** - Security and access control
-  - `AUTHENTICATION.md` - Firebase/OAuth implementation (in `03-backend/`)
+  - `03_AUTHENTICATION_FLOW.md` - Firebase/OAuth implementation (in `03-backend/`)
   - `03_FIRESTORE_SECURITY_RULES.md` - Firestore security rules
   - `01_ACCESS_CONTROL_AND_RBAC.md` - RBAC and workspace isolation
   - `02_USER_ROLES_AND_PERMISSIONS.md` - Complete role guide and permissions
@@ -80,10 +80,11 @@ Complete documentation for the **Creative Studio** - A comprehensive Generative 
 **Status**: ✅ Research Complete | **ROI**: < 1 month | **Effort**: 1-3 weeks depending on option chosen
 
 #### 🔮 Okta Authentication Integration (Future Work)
-- **[roadmap/okta_auth/](roadmap/okta_auth/)** - Complete Okta authentication integration research and roadmap (2 documents)
+- **[roadmap/okta_auth/](roadmap/okta_auth/)** - Complete Okta authentication integration research and roadmap (3 documents)
   - **[README.md](roadmap/okta_auth/README.md)** ← **START HERE** - Master index for Okta documentation
   - `01_INTEGRATION_OVERVIEW.md` - Comprehensive integration roadmap
   - `02_QUICK_REFERENCE_GUIDE.md` - Quick reference guide
+  - **🔴 [03_CURRENT_AUTHENTICATION_ISSUES.md](roadmap/okta_auth/03_CURRENT_AUTHENTICATION_ISSUES.md) - CRITICAL** - Technical analysis of why Okta cannot be integrated without first refactoring authentication system
 
 ---
 
@@ -99,15 +100,15 @@ Complete documentation for the **Creative Studio** - A comprehensive Generative 
 1. Architecture: [02-architecture/01_SYSTEM_DESIGN.md](02-architecture/01_SYSTEM_DESIGN.md)
 2. Services: [03-backend/01_SERVICES_ARCHITECTURE.md](03-backend/01_SERVICES_ARCHITECTURE.md)
 3. API: [03-backend/02_API_ENDPOINTS_REFERENCE.md](03-backend/02_API_ENDPOINTS_REFERENCE.md)
-4. Auth: [03-backend/AUTHENTICATION.md](03-backend/AUTHENTICATION.md)
+4. Auth: [03-backend/03_AUTHENTICATION_FLOW.md](03-backend/03_AUTHENTICATION_FLOW.md)
 5. Database: [06-infrastructure/03_CLOUD_SQL_DATABASE.md](06-infrastructure/03_CLOUD_SQL_DATABASE.md)
 
 ### For **Frontend Developers**
 1. Architecture: [02-architecture/01_SYSTEM_DESIGN.md](02-architecture/01_SYSTEM_DESIGN.md)
-2. Components: [04-frontend/03_SYSTEM_COMPONENTS.md](04-frontend/03_SYSTEM_COMPONENTS.md)
+2. Components: [04-frontend/01_COMPONENTS_ARCHITECTURE.md](04-frontend/01_COMPONENTS_ARCHITECTURE.md)
 3. Patterns: [04-frontend/02_UI_PATTERNS_GUIDE.md](04-frontend/02_UI_PATTERNS_GUIDE.md)
 4. API: [03-backend/02_API_ENDPOINTS_REFERENCE.md](03-backend/02_API_ENDPOINTS_REFERENCE.md)
-5. Auth: [03-backend/AUTHENTICATION.md](03-backend/AUTHENTICATION.md)
+5. Auth: [03-backend/03_AUTHENTICATION_FLOW.md](03-backend/03_AUTHENTICATION_FLOW.md)
 
 ### For **DevOps / Infrastructure Engineers**
 1. Setup: [06-infrastructure/01_GCP_PROJECT_SETUP.md](06-infrastructure/01_GCP_PROJECT_SETUP.md)
@@ -119,7 +120,7 @@ Complete documentation for the **Creative Studio** - A comprehensive Generative 
 
 ### For **Security / Architects**
 1. System Design: [02-architecture/01_SYSTEM_DESIGN.md](02-architecture/01_SYSTEM_DESIGN.md)
-2. Authentication: [03-backend/AUTHENTICATION.md](03-backend/AUTHENTICATION.md)
+2. Authentication: [03-backend/03_AUTHENTICATION_FLOW.md](03-backend/03_AUTHENTICATION_FLOW.md)
 3. Data Security: [05-security/03_FIRESTORE_SECURITY_RULES.md](05-security/03_FIRESTORE_SECURITY_RULES.md)
 4. Access Control: [05-security/01_ACCESS_CONTROL_AND_RBAC.md](05-security/01_ACCESS_CONTROL_AND_RBAC.md)
 5. GCP Setup: [06-infrastructure/01_GCP_PROJECT_SETUP.md](06-infrastructure/01_GCP_PROJECT_SETUP.md)

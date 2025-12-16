@@ -307,7 +307,7 @@ Must complete before implementation:
 From main docs folder:
 - **Security**: `docs/05-security/01_ACCESS_CONTROL_AND_RBAC.md` - Role-based access control
 - **User Management**: `docs/05-security/02_USER_ROLES_AND_PERMISSIONS.md` - Complete role guide
-- **Authentication**: `docs/05-security/AUTHENTICATION.md` - Current auth implementation
+- **Authentication**: `docs/03-backend/03_AUTHENTICATION_FLOW.md` - Current auth implementation
 - **Architecture**: `docs/02-architecture/01_SYSTEM_DESIGN.md` - System overview
 
 ---

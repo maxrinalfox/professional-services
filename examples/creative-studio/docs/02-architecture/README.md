@@ -213,5 +213,5 @@ FastAPI Endpoint
 1. **Understand data flow:** Read [02_DATA_FLOW_PATTERNS.md](02_DATA_FLOW_PATTERNS.md)
 2. **See components:** Check [03_SYSTEM_COMPONENTS.md](03_SYSTEM_COMPONENTS.md)
 3. **Backend details:** [03-backend/01_SERVICES_ARCHITECTURE.md](../03-backend/01_SERVICES_ARCHITECTURE.md)
-4. **Frontend details:** [04-frontend/03_SYSTEM_COMPONENTS.md](../04-frontend/03_SYSTEM_COMPONENTS.md)
+4. **Frontend details:** [04-frontend/01_COMPONENTS_ARCHITECTURE.md](../04-frontend/01_COMPONENTS_ARCHITECTURE.md)
 5. **Infrastructure:** [06-infrastructure/01_GCP_PROJECT_SETUP.md](../06-infrastructure/01_GCP_PROJECT_SETUP.md)

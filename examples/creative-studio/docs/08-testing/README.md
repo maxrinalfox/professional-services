@@ -142,5 +142,5 @@ ng test --browsers=ChromeHeadless --watch=false
 
 - **Testing:** [01_TESTING_STRATEGY_AND_PYRAMID.md](01_TESTING_STRATEGY_AND_PYRAMID.md)
 - **Backend:** [03-backend/01_SERVICES_ARCHITECTURE.md](../03-backend/01_SERVICES_ARCHITECTURE.md)
-- **Frontend:** [04-frontend/03_SYSTEM_COMPONENTS.md](../04-frontend/03_SYSTEM_COMPONENTS.md)
+- **Frontend:** [04-frontend/01_COMPONENTS_ARCHITECTURE.md](../04-frontend/01_COMPONENTS_ARCHITECTURE.md)
 - **CI/CD:** [06-infrastructure/](../06-infrastructure/)

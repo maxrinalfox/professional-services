@@ -21,7 +21,7 @@ Complete comprehensive documentation for Creative Studio has been created with *
 1. **04-frontend/README.md** → Frontend Architecture overview
 2. **02-architecture/01_SYSTEM_DESIGN.md** → Frontend Architecture diagram
 3. **02-architecture/02_DATA_FLOW_PATTERNS.md** → Image/Video generation flows
-4. **04-frontend/03_SYSTEM_COMPONENTS.md** → Component structure and patterns
+4. **04-frontend/01_COMPONENTS_ARCHITECTURE.md** → Component structure and patterns
 
 **Key Files**: Frontend router, component structure, HTTP interceptors
 
@@ -127,7 +127,7 @@ Complete comprehensive documentation for Creative Studio has been created with *
 → **06-infrastructure/01_GCP_PROJECT_SETUP.md** (IAM Configuration section)
 
 ### "I need frontend component structure"
-→ **04-frontend/03_SYSTEM_COMPONENTS.md** (Component Architecture section)
+→ **04-frontend/01_COMPONENTS_ARCHITECTURE.md** (Component Architecture section)
 
 ### "I need backend API overview"
 → **02-architecture/01_SYSTEM_DESIGN.md** (Backend Architecture diagram)
@@ -204,7 +204,7 @@ Complete comprehensive documentation for Creative Studio has been created with *
 - [ ] 03-backend/01_SERVICES_ARCHITECTURE.md - Data Access Patterns
 
 ### Must Know About Security
-- [ ] 03-backend/AUTHENTICATION.md - Authentication & Security Flow
+- [ ] 03-backend/03_AUTHENTICATION_FLOW.md - Authentication & Security Flow
 - [ ] 02-architecture/01_SYSTEM_DESIGN.md - Security Boundaries
 - [ ] 05-security/01_ACCESS_CONTROL_AND_RBAC.md - Access Control Patterns
 

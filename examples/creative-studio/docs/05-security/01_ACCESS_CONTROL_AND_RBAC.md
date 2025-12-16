@@ -232,7 +232,7 @@ async def generate_images(
   - Real-world scenarios
   - Troubleshooting guide
 
-- **Authentication**: [../03-backend/AUTHENTICATION.md](../03-backend/AUTHENTICATION.md)
+- **Authentication**: [../03-backend/03_AUTHENTICATION_FLOW.md](../03-backend/03_AUTHENTICATION_FLOW.md)
   - Token verification details
   - JIT provisioning
   - Organization filtering

@@ -43,7 +43,7 @@ Backend implementation guides, API reference, and database patterns.
 
 ---
 
-### [AUTHENTICATION.md](AUTHENTICATION.md)
+### [03_AUTHENTICATION_FLOW.md](03_AUTHENTICATION_FLOW.md)
 **Authentication and authorization implementation**
 
 - Firebase Authentication integration
@@ -259,7 +259,7 @@ alembic upgrade head
 1. **Setup backend:** Follow Quick Setup above
 2. **Understand services:** Read [01_SERVICES_ARCHITECTURE.md](01_SERVICES_ARCHITECTURE.md)
 3. **Learn API:** Check [02_API_ENDPOINTS_REFERENCE.md](02_API_ENDPOINTS_REFERENCE.md)
-4. **Understand auth:** Review [AUTHENTICATION.md](AUTHENTICATION.md)
+4. **Understand auth:** Review [03_AUTHENTICATION_FLOW.md](03_AUTHENTICATION_FLOW.md)
 5. **Full architecture:** [02-architecture/01_SYSTEM_DESIGN.md](../02-architecture/01_SYSTEM_DESIGN.md)
 6. **Database details:** [06-infrastructure/03_CLOUD_SQL_DATABASE.md](../06-infrastructure/03_CLOUD_SQL_DATABASE.md)
 
