@@ -20,6 +20,7 @@ Phase 1 solves the **critical blocking issue**: Current hybrid authentication sy
 |------|------|---------|
 | `03_CURRENT_AUTHENTICATION_ISSUES.md` ⭐ | 45 min | Understand why current auth is broken |
 | `06_PHASE1_TWO_ALTERNATIVES.md` ⭐⭐ | 60 min | **DECIDE**: Firebase vs Pure OIDC |
+| `07_IAP_AUTHORIZATION_LAYER.md` | 30 min | Optional: Infrastructure-layer access control |
 | `04_DEMO_APP_COMPARISON.md` | 30 min | See reference implementations |
 
 ### Reference Documents (Optional Deep Dives)

@@ -183,6 +183,42 @@ Creative Studio has a **hybrid broken authentication implementation**:
 
 ---
 
+## Complementary: Identity-Aware Proxy (IAP) Authorization Layer
+
+### Important Distinction
+
+**Phase 1 choices above are AUTHENTICATION** (answers: "Who are you?")
+
+**IAP is AUTHORIZATION** (answers: "Can you access this service?")
+
+**These are complementary, not mutually exclusive.**
+
+### What is IAP?
+
+Identity-Aware Proxy (IAP) provides infrastructure-layer access control:
+
+- ✅ Intercepts all requests to Cloud Run
+- ✅ Checks if user is in IAM group
+- ✅ Only authorized users reach backend
+- ✅ No application-level access control needed (though RBAC still recommended)
+
+### When to Use IAP
+
+Use IAP if:
+- You need centralized access control (via IAM groups)
+- You want infrastructure-layer filtering
+- You need to scale beyond 100 users
+- Your company manages users via Google Workspace / Cloud Identity groups
+- You prefer infrastructure team to manage access vs. application code
+
+**See**: `07_IAP_AUTHORIZATION_LAYER.md` for complete details, including:
+- How IAP works with both Firebase and Pure OIDC
+- Terraform configuration from secondary app
+- Permission management comparison
+- When IAP is sufficient vs. when you need application RBAC
+
+---
+
 ## How to Choose
 
 ### Choose **Firebase** if:

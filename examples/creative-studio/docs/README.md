@@ -93,8 +93,10 @@ Complete documentation for the **Creative Studio** - A comprehensive Generative 
 
 **Phase 1: Fix Authentication Architecture** (1-2 weeks) - REQUIRED
 - **[roadmap/okta_auth/](roadmap/okta_auth/)** - Architecture refactoring (blocks all other auth work)
+  - ⭐ **[06_PHASE1_TWO_ALTERNATIVES.md](roadmap/okta_auth/06_PHASE1_TWO_ALTERNATIVES.md)** - **DECIDE**: Firebase vs Pure OIDC
   - ⭐ **[03_CURRENT_AUTHENTICATION_ISSUES.md](roadmap/okta_auth/03_CURRENT_AUTHENTICATION_ISSUES.md)** - Technical problem analysis
-  - ⭐ **[04_DEMO_APP_COMPARISON.md](roadmap/okta_auth/04_DEMO_APP_COMPARISON.md)** - Proven solution pattern
+  - **[07_IAP_AUTHORIZATION_LAYER.md](roadmap/okta_auth/07_IAP_AUTHORIZATION_LAYER.md)** - Infrastructure-layer access control (optional complement)
+  - **[04_DEMO_APP_COMPARISON.md](roadmap/okta_auth/04_DEMO_APP_COMPARISON.md)** - Proven solution pattern
   - **[README.md](roadmap/okta_auth/README.md)** - Phase 1 overview
 
 **Phase 2: Add OIDC + Groups Support** (1-2 weeks) - After Phase 1

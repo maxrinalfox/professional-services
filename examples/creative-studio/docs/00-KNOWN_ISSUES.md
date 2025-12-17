@@ -402,7 +402,7 @@ User Data Stored In:
 
 ## 🛠️ Working Around Issues
 
-### Temporary Workaround: Adding a New OIDC Provider
+### Temporary Workaround #1: Adding a New OIDC Provider
 
 **Current State**: Cannot easily add Okta/SAML/custom OIDC
 
@@ -413,6 +413,36 @@ User Data Stored In:
 4. Not maintainable long-term
 
 **Proper Solution**: Complete Phase 1 refactoring
+
+---
+
+### Temporary Workaround #2: User Provisioning & Access Control
+
+**Current State**:
+- External application = any Google user can login (no control)
+- Internal application = manually add up to 100 users in GCP (operational burden)
+
+**Better Temporary Approach: Use Identity-Aware Proxy (IAP)**:
+
+1. Keep application external (allow any Google user to sign in)
+2. Deploy backend on Cloud Run with IAP enabled
+3. Add users to IAM groups (managed by identity team, not application)
+4. Only users in authorized IAM group can reach backend
+5. Application user provisioning still happens, but infrastructure controls access
+
+**Advantages**:
+- ✅ No manual user limit (100+ users supported)
+- ✅ Scales with company directory
+- ✅ Delegated to identity/security team
+- ✅ Infrastructure-layer control (more robust)
+- ✅ Works with both Firebase and Pure OIDC approaches
+
+**Implementation**:
+- Enable IAP in Terraform (see secondary app: `/vertex-ai-creative-studio/main.tf`)
+- Create IAM groups in Cloud Identity
+- Grant group members `roles/iap.httpsResourceAccessor` role
+
+**See**: `docs/roadmap/okta_auth/07_IAP_AUTHORIZATION_LAYER.md` for complete details including Terraform configuration
 
 ---
 
