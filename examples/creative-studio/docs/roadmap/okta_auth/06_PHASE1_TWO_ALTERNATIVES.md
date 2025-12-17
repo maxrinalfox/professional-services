@@ -90,70 +90,88 @@ Creative Studio has a **hybrid broken authentication implementation**:
 
 ---
 
-## Alternative B: Implement Pure OAuth 2.0 OIDC
+## Alternative B: Implement Pure OAuth 2.0 Authorization Code Flow
 
 ### What This Means
 
-**Implement standard OAuth 2.0 / OIDC authentication without Firebase Authentication.**
+**Implement standard OAuth 2.0 / OIDC Authentication Code Flow without Firebase Authentication.**
 
+**Key Point**: Uses **backend-driven Authorization Code Flow** (NOT PKCE), where:
+- Backend handles OAuth client credentials (`clientId` + `clientSecret`)
+- Backend exchanges authorization code for tokens
+- Tokens stored securely in backend (session, encrypted cookies)
+- Frontend never handles raw tokens directly
+- Much more secure than frontend-only PKCE approach
+
+**Architecture**:
 - Direct OIDC integration with identity providers (Google, Okta, custom)
 - PostgreSQL as single user directory
 - Firestore for real-time metadata/sync only
-- Standard OIDC PKCE flow (proven, portable)
+- OAuth 2.0 Authorization Code Flow with backend token management
 
 ### Implementation Approach
 
 **Frontend Changes**:
-1. Replace Firebase SDK + google.accounts.id with standard OIDC client
+1. Replace Firebase SDK + google.accounts.id with OIDC redirect (to backend)
 2. Implement provider selector UI (dropdown for Google, Okta, generic OIDC)
-3. Use PKCE flow (proven secure for SPAs)
-4. Tokens stored in secure HTTP-only cookies
+3. Login flow: Frontend → Backend → OAuth Provider → Backend → Frontend
+4. Frontend communicates with backend (not OIDC provider directly)
+5. Tokens **NOT exposed** to frontend (stored securely in backend)
 
 **Backend Changes**:
-1. **NEW**: Implement OIDC token validation (verify JWT signature from provider)
-2. **Remove**: Firebase Admin SDK dependency (no longer needed)
-3. **Keep**: Custom claims in JWT tokens
-4. Create/update users in PostgreSQL (single source of truth)
-5. Sync user metadata to Firestore for real-time features
+1. **NEW**: Implement OIDC authorization code exchange (using `clientSecret`)
+2. **NEW**: Implement token validation and refresh (verify JWT signature from provider)
+3. **NEW**: Implement secure session management (HTTP-only cookies or secure tokens)
+4. **Remove**: Firebase Admin SDK dependency (no longer needed)
+5. Create/update users in PostgreSQL (single source of truth)
+6. Sync user metadata to Firestore for real-time features
 
 **Database Changes**:
 - **User directory**: PostgreSQL (single source of truth)
 - **Metadata**: Firestore (real-time sync, permissions)
 - **No Firebase Auth**: Completely removed
+- **Session/Tokens**: Stored securely in backend (NOT in frontend)
 
 ### Code Reference
 
 **Working Example**: `/home/rinal/Desktop/temp/oauth_auth_pkce/`
-- Direct OIDC integration
-- Standard OAuth 2.0 PKCE flow
-- Portable to any provider
+- Direct OIDC integration (OAuth 2.0 Authorization Code Flow)
+- Backend handles `clientSecret` securely
+- Works with any OIDC provider (Google, Okta, Auth0, etc.)
+- Seamless SSO support
+- Provider-agnostic configuration
 
 ### Timeline
 
-- **Frontend**: 1-2 weeks (OIDC client + provider UI)
-- **Backend**: 1-2 weeks (JWT validation + user creation)
+- **Frontend**: 1-2 weeks (Login/callback UI, no token handling)
+- **Backend**: 2-3 weeks (Auth code exchange, token management, session/cookie handling)
 - **Testing**: 1 week
-- **Total**: 3-5 weeks
+- **Total**: 4-6 weeks (slightly longer due to backend complexity)
 
 ### Pros
 
-✅ Standard OIDC (portable, works with any provider)
-✅ Single user directory (PostgreSQL)
-✅ No Firebase dependency
-✅ Complete control over user data
-✅ No vendor lock-in
-✅ Works with any OIDC provider (Okta, Auth0, Keycloak, custom)
-✅ Can support SAML if needed (add SAML adapter)
-✅ Simpler data model (all user data in one place)
+✅ **Most Secure**: Backend handles `clientSecret`, frontend never sees tokens
+✅ **Standard OAuth 2.0 Authorization Code Flow**: Industry standard, proven secure
+✅ **Works with any OIDC provider**: Google, Okta, Auth0, Keycloak, custom
+✅ **Single user directory**: PostgreSQL is source of truth
+✅ **No Firebase dependency**: Complete independence
+✅ **Complete control over tokens**: Backend manages lifecycle, refresh, validation
+✅ **No vendor lock-in**: Fully portable
+✅ **Can support SAML**: Add SAML adapter layer
+✅ **Seamless SSO**: Built-in support for silent authentication (prompt=none)
+✅ **Better for enterprises**: Aligns with enterprise authentication patterns
+✅ **Simpler data model**: All user data in one place
 
 ### Cons
 
-❌ More code to write + maintain
+❌ More code to write + maintain (especially backend complexity)
+❌ Must handle OAuth 2.0 state management (`state` parameter)
+❌ Must implement token refresh logic (background token refresh)
 ❌ Must handle provider discovery + configuration
-❌ Must implement token validation (verify signatures)
-❌ Self-hosted responsibility (password resets, user verification, etc.)
-❌ Longer implementation time
+❌ Must implement secure session/cookie management
+❌ Longer implementation time than Firebase
 ❌ Need to handle provider-specific claim mappings
+❌ Session timeout management more complex
 
 ### Phase 2 Impact
 
@@ -166,20 +184,24 @@ Creative Studio has a **hybrid broken authentication implementation**:
 
 ## Decision Matrix
 
-| Aspect | Firebase | Pure OIDC |
+| Aspect | Firebase | Pure OAuth 2.0 Auth Code |
 |--------|----------|----------|
-| **Learning Curve** | Medium (Firebase concepts) | Medium (OIDC concepts) |
-| **Implementation Time** | 3-4 weeks | 3-5 weeks |
+| **Learning Curve** | Medium (Firebase concepts) | Medium-High (OIDC + OAuth 2.0 concepts) |
+| **Implementation Time** | 3-4 weeks | 4-6 weeks |
+| **Security Level** | ✅ High (Firebase managed) | ✅✅ Highest (Backend-driven, no frontend tokens) |
+| **Token Handling** | Firebase SDK on frontend | Backend only (HTTP-only cookies/secure session) |
+| **Client Secret** | Not needed on frontend | **Required** - Backend only |
 | **Multi-Provider** | ✅ Easy (Firebase federation) | ✅ Standard (OIDC protocol) |
-| **Okta Support** | ✅ Via OIDC provider | ✅ Native OIDC |
-| **SAML Support** | ⚠️ Not built-in | ✅ Can add adapter |
-| **User Directory** | Firebase Auth | PostgreSQL |
-| **Code Complexity** | Medium | High |
+| **Okta Support** | ✅ Via OIDC provider config | ✅ Native OIDC (no intermediate needed) |
+| **SAML Support** | ⚠️ Not built-in | ✅ Can add adapter layer |
+| **User Directory** | Firebase Authentication | PostgreSQL (single source of truth) |
+| **Code Complexity** | Medium | High (backend token management) |
 | **Maintenance** | Google (Firebase) | You (custom code) |
 | **Cost** | Free → paid (50K+ users) | Free (pay for hosting) |
-| **Vendor Lock-in** | ✅ Google/Firebase | ❌ None |
-| **Data Control** | ⚠️ Split | ✅ Single source |
-| **Enterprise Ready** | ✅ Yes | ✅ Yes |
+| **Vendor Lock-in** | ✅ Google/Firebase | ❌ None (fully portable) |
+| **Data Control** | ⚠️ Split (Firebase + PostgreSQL) | ✅ Single source (PostgreSQL) |
+| **Enterprise Ready** | ✅ Yes | ✅✅ Yes (aligns with enterprise patterns) |
+| **Seamless SSO** | ⚠️ Requires configuration | ✅ Built-in (prompt=none support) |
 
 ---
 
@@ -233,13 +255,16 @@ Use IAP if:
 - You need automatic provider federation
 - Users > 50K (after that, cost matters)
 
-### Choose **Pure OIDC** if:
-- You need complete data control
-- You want no vendor lock-in
-- You need SAML support
-- You prefer standard protocols over proprietary solutions
+### Choose **Pure OAuth 2.0 Authorization Code** if:
+- You need **highest security** (backend manages all tokens and secrets)
+- You need complete data control (PostgreSQL single source of truth)
+- You want no vendor lock-in (fully portable)
+- You need SAML support (via adapter layer)
+- You need **enterprise-grade authentication** (aligns with enterprise patterns)
+- You prefer standard OAuth 2.0 over proprietary solutions
 - You have internal/custom OIDC providers
-- Team is familiar with OAuth/OIDC
+- Team is familiar with OAuth 2.0 and OIDC
+- You need seamless SSO with multiple providers
 
 ---
 
@@ -260,20 +285,32 @@ Use IAP if:
 
 ---
 
-### Pure OIDC: File Changes Required
+### Pure OAuth 2.0 Authorization Code: File Changes Required
 
-**Frontend**:
-- `src/app/login/login.component.ts` - Implement OIDC flow
-- `src/app/common/services/auth.service.ts` - Replace Firebase with OIDC client lib
-- `src/environments/environment.ts` - Add OIDC provider configs
-- `src/index.html` - Remove Firebase script
-- New file: `src/app/common/services/oidc.service.ts` - OIDC integration
+**Frontend** (Simpler - No Token Management):
+- `src/app/login/login.component.ts` - Implement OAuth 2.0 login redirect (to backend)
+- `src/app/auth/callback.component.ts` - Handle OAuth callback from backend
+- `src/app/common/services/auth.service.ts` - Replace Firebase with backend calls
+- `src/environments/environment.ts` - Add provider selector config
+- `src/index.html` - Remove Firebase script, remove Google script
+- **Important**: Frontend does NOT handle tokens directly
 
-**Backend**:
-- `src/auth/` - New OIDC validation module
-- `src/auth/firebase_client_service.py` - Remove (no longer needed)
-- `src/auth/jwt_validator.py` - Implement JWT signature verification
+**Backend** (More Complex - Token Management):
+- `src/auth/oauth_provider.py` - New OAuth 2.0 provider integration
+  - Implement authorization code exchange
+  - Implement token refresh logic
+  - Handle provider discovery
+- `src/auth/auth_guard.py` - Update to use backend session/tokens
+  - Verify session validity
+  - Refresh tokens if needed
+  - Extract user info from backend session (not from JWT directly)
+- `src/auth/session_manager.py` - New session/cookie management
+  - Secure session storage
+  - Token refresh strategy
+  - Session timeout handling
+- `src/auth/jwt_validator.py` - JWT signature verification from provider
 - Keep: PostgreSQL user creation and management
+- Remove: Firebase Admin SDK dependency
 
 ---
 
@@ -288,14 +325,15 @@ Phase 2 will involve:
 4. Update backend: Parse custom claims for roles
 5. **Time**: 1-2 weeks
 
-### If You Choose Pure OIDC (Phase 1)
+### If You Choose Pure OAuth 2.0 Authorization Code (Phase 1)
 
 Phase 2 will involve:
-1. Configure Okta as OIDC provider in backend
-2. Add provider discovery endpoint
-3. Map Okta groups to PostgreSQL roles table
-4. Update frontend: Add Okta to provider selector
-5. **Time**: 1-2 weeks
+1. Add Okta as OIDC provider in backend configuration
+2. Implement Okta-specific claim mapping (groups → roles)
+3. Add Okta to provider selector UI (frontend)
+4. Test seamless SSO with Okta (prompt=none support already built-in)
+5. Map Okta groups to PostgreSQL roles table
+6. **Time**: 1-2 weeks (simpler because backend already supports any OIDC provider)
 
 ---
 
@@ -303,26 +341,43 @@ Phase 2 will involve:
 
 **For Creative Studio specifically:**
 
-Choose **Pure OIDC** because:
-1. You already have PostgreSQL for user data (don't need Firebase Auth)
-2. You need to support custom/internal OIDC providers (for enterprise customers)
-3. You want complete data control (important for SaaS)
-4. No Firebase lock-in (more portable)
-5. Simpler data model (single source of truth in PostgreSQL)
+Choose **Pure OAuth 2.0 Authorization Code Flow** because:
 
-**However**: If you prefer Google-managed user infrastructure and don't mind firebase, **Firebase is valid too**.
+1. **Security First**: Backend manages `clientSecret` and all tokens - frontend never exposed to credentials
+2. **Enterprise Ready**: Aligns with enterprise authentication patterns (how Okta, Google Workspace, etc. work)
+3. **PostgreSQL Native**: Already have PostgreSQL for user data (single source of truth)
+4. **Multi-Provider Support**: Works with any OIDC provider (Okta, Auth0, Google, Keycloak, custom)
+5. **No Vendor Lock-in**: Fully portable, not tied to Firebase ecosystem
+6. **Seamless SSO**: Built-in support for silent authentication (prompt=none)
+7. **Complete Control**: Manage token lifecycle, refresh, and validation
+8. **Future-Proof**: Standard OAuth 2.0 (industry standard, not proprietary)
+9. **Better for SaaS**: Single user directory in PostgreSQL (important for multi-tenant applications)
+
+**Why not Firebase?**
+- Firebase Authentication adds vendor lock-in
+- Would split user data (Firebase + PostgreSQL)
+- More complex for enterprise SSO scenarios
+- Less control over token management
+
+**However**: If you prefer simplified implementation and accept Google ecosystem lock-in, **Firebase is a valid alternative** (simpler but less secure and less enterprise-friendly).
 
 ---
 
 ## Next Steps
 
 1. **Decide**: Which alternative fits your needs best?
+   - Recommended: **Pure OAuth 2.0 Authorization Code Flow** (most secure, enterprise-ready)
+   - Alternative: **Firebase** (simpler, but vendor lock-in)
 2. **Review**: Reference implementations
    - Firebase: `/home/rinal/Desktop/temp/firebase_auth/`
-   - OIDC: `/home/rinal/Desktop/temp/oauth_auth_pkce/`
+   - **OAuth 2.0 Auth Code** (Recommended): `/home/rinal/Desktop/temp/oauth_auth_pkce/`
+     - Shows backend-driven flow with `clientSecret`
+     - Session management pattern
+     - Token refresh logic
+     - Seamless SSO support
 3. **Plan**: Create implementation tickets based on choice
-4. **Execute**: Phase 1 refactoring
-5. **Then**: Phase 2 adds Okta + groups support
+4. **Execute**: Phase 1 refactoring (4-6 weeks recommended approach)
+5. **Then**: Phase 2 adds Okta + groups support (1-2 weeks)
 
 ---
 
