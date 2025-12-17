@@ -4,6 +4,26 @@ Complete documentation for the **Creative Studio** - A comprehensive Generative 
 
 > 🚀 This documentation covers the current state of the application including Cloud SQL PostgreSQL, SQLAlchemy ORM, and all GCP resources.
 
+---
+
+## 🚨 **IMPORTANT: Known Issues & Roadmap**
+
+**Before reading other docs, review these critical documents:**
+
+1. **[00-KNOWN_ISSUES.md](00-KNOWN_ISSUES.md)** ⭐ **START HERE** - List of current blockers and issues
+   - Authentication system is hybrid/broken (Phase 1 required)
+   - Data consistency across user storage
+   - API and performance issues
+
+2. **[roadmap/IMPLEMENTATION_STRATEGY_MASTER_INDEX.md](roadmap/IMPLEMENTATION_STRATEGY_MASTER_INDEX.md)** - 3-Phase plan to fix issues
+   - Phase 1: Choose authentication architecture (Firebase OR Pure OIDC)
+   - Phase 2: Add OIDC + groups support
+   - Phase 3: Enterprise auto-provisioning
+
+3. **[roadmap/okta_auth/06_PHASE1_TWO_ALTERNATIVES.md](roadmap/okta_auth/06_PHASE1_TWO_ALTERNATIVES.md)** - Detailed alternatives for Phase 1
+
+---
+
 ## 📚 Quick Navigation
 
 ### 🎯 Getting Started (Start Here!)
@@ -55,6 +75,7 @@ Complete documentation for the **Creative Studio** - A comprehensive Generative 
   - `01_TESTING_STRATEGY_AND_PYRAMID.md` - Overall testing approach
   - `02_UNIT_TESTS_GUIDE.md` - Unit testing guide
   - `03_INTEGRATION_TESTS_GUIDE.md` - Integration testing
+  - `04_E2E_TESTS_GUIDE.md` - End-to-End testing
 
 ### ✨ Features
 - **[09-features/](09-features/)** - Feature-specific documentation
@@ -64,27 +85,30 @@ Complete documentation for the **Creative Studio** - A comprehensive Generative 
 
 ### 🛣️ Roadmap & Future Work
 - **[roadmap/](roadmap/)** - Future enhancements, research, and planned work
+- **📌 [IMPLEMENTATION_STRATEGY_MASTER_INDEX.md](roadmap/IMPLEMENTATION_STRATEGY_MASTER_INDEX.md)** ← **MASTER INDEX - START HERE**
 
-#### 🔐 Auto-Provisioning Research & Implementation
-- **[roadmap/auto_provisioning/](roadmap/auto_provisioning/)** - Complete research for disabling auto-provisioning (9 documents, 5,800+ lines)
-  - **[README.md](roadmap/auto_provisioning/README.md)** ← **START HERE** - Master index for all documents
-  - `01_RESEARCH_OVERVIEW.md` - Main navigation guide
-  - `02_QUICK_REFERENCE_DECISION_GUIDE.md` - Fast 10-min decision reference
-  - `03_SECURITY_AND_COST_ANALYSIS.md` - Cost/security analysis ($50k+ risk identified)
-  - `04_IMPLEMENTATION_OPTIONS.md` - 4 implementation options with code examples
-  - `05_EDGE_CASES_AND_EFFORT_ESTIMATION.md` - Edge cases, effort breakdown, risk assessment
-  - `07_IMPLEMENTATION_GUIDE.md` - Phase 1 step-by-step implementation guide
-  - `06_PRE_IMPLEMENTATION_CHECKLIST.md` - SQL queries, code audit tasks, verification steps
-  - `08_DECISION_SUMMARY_AND_NEXT_STEPS.md` - Summary, decision framework, next steps
+#### 🔐 3-Phase Authentication Evolution
 
-**Status**: ✅ Research Complete | **ROI**: < 1 month | **Effort**: 1-3 weeks depending on option chosen
+**Status**: Phase 1 is BLOCKING (must complete first). Phases 2 & 3 are dependent.
 
-#### 🔮 Okta Authentication Integration (Future Work)
-- **[roadmap/okta_auth/](roadmap/okta_auth/)** - Complete Okta authentication integration research and roadmap (3 documents)
-  - **[README.md](roadmap/okta_auth/README.md)** ← **START HERE** - Master index for Okta documentation
-  - `01_INTEGRATION_OVERVIEW.md` - Comprehensive integration roadmap
-  - `02_QUICK_REFERENCE_GUIDE.md` - Quick reference guide
-  - **🔴 [03_CURRENT_AUTHENTICATION_ISSUES.md](roadmap/okta_auth/03_CURRENT_AUTHENTICATION_ISSUES.md) - CRITICAL** - Technical analysis of why Okta cannot be integrated without first refactoring authentication system
+**Phase 1: Fix Authentication Architecture** (1-2 weeks) - REQUIRED
+- **[roadmap/okta_auth/](roadmap/okta_auth/)** - Architecture refactoring (blocks all other auth work)
+  - ⭐ **[03_CURRENT_AUTHENTICATION_ISSUES.md](roadmap/okta_auth/03_CURRENT_AUTHENTICATION_ISSUES.md)** - Technical problem analysis
+  - ⭐ **[04_DEMO_APP_COMPARISON.md](roadmap/okta_auth/04_DEMO_APP_COMPARISON.md)** - Proven solution pattern
+  - **[README.md](roadmap/okta_auth/README.md)** - Phase 1 overview
+
+**Phase 2: Add OIDC + Groups Support** (1-2 weeks) - After Phase 1
+- **[roadmap/authentication_options/](roadmap/authentication_options/)** - OIDC provider integration
+  - **[README.md](roadmap/authentication_options/README.md)** - Phase 2 overview
+  - **[01_AUTHENTICATION_COMPARISON.md](roadmap/authentication_options/01_AUTHENTICATION_COMPARISON.md)** - 3 approaches compared
+  - **[02_FIREBASE_OIDC_IMPLEMENTATION_GUIDE.md](roadmap/authentication_options/02_FIREBASE_OIDC_IMPLEMENTATION_GUIDE.md)** - Implementation guide
+
+**Phase 3: Enterprise Auto-Provisioning** (1-3 weeks) - After Phases 1 & 2 (Optional)
+- **[roadmap/auto_provisioning/](roadmap/auto_provisioning/)** - Automatic user/workspace provisioning
+  - **[README.md](roadmap/auto_provisioning/README.md)** - Phase 3 overview
+  - **[02_QUICK_REFERENCE_DECISION_GUIDE.md](roadmap/auto_provisioning/02_QUICK_REFERENCE_DECISION_GUIDE.md)** - 10-min decision guide
+  - **[04_IMPLEMENTATION_OPTIONS.md](roadmap/auto_provisioning/04_IMPLEMENTATION_OPTIONS.md)** - 4 implementation options
+  - **[03_SECURITY_AND_COST_ANALYSIS.md](roadmap/auto_provisioning/03_SECURITY_AND_COST_ANALYSIS.md)** - Cost analysis ($50k+ risk)
 
 ---
 
@@ -132,14 +156,16 @@ Complete documentation for the **Creative Studio** - A comprehensive Generative 
 **Frontend:**
 - Angular 18 + TypeScript
 - Material Design + Tailwind CSS
-- Firebase Authentication
+- Google Sign-In only (via deprecated `google.accounts.id` API in production)
+  - ⚠️ **Status**: Hardcoded to Google, no multi-provider support (see roadmap)
 - RxJS for state management
 
 **Backend:**
 - FastAPI (Python 3.12+)
-- SQLAlchemy AsyncORM
-- Cloud SQL PostgreSQL 18
-- Firestore NoSQL database
+- SQLAlchemy AsyncORM + PostgreSQL (primary user database)
+- Cloud SQL PostgreSQL 18 (structured data)
+- Firestore NoSQL database (metadata + real-time sync)
+- Firebase Admin SDK (token validation only, not user creation)
 - Vertex AI APIs (Imagen, Veo, Gemini, Chirp)
 
 **Infrastructure:**
@@ -195,7 +221,15 @@ Complete documentation for the **Creative Studio** - A comprehensive Generative 
 
 ## 🔄 Documentation Status
 
-### ✅ Updated for Current Architecture
+### ✅ December 2025 Updates
+- [x] **CRITICAL**: Known Issues document created
+- [x] **CRITICAL**: Authentication reality corrected (hybrid system documented)
+- [x] **CRITICAL**: Phase 1 Two Alternatives document (Firebase vs Pure OIDC)
+- [x] Backend authentication flow diagram (actual current state)
+- [x] Roadmap navigation structure fixed
+- [x] Cross-references validated (no orphaned files)
+
+### ✅ Current Architecture Documented
 - [x] Cloud SQL PostgreSQL implementation
 - [x] SQLAlchemy AsyncORM patterns
 - [x] Cloud SQL Python Connector
@@ -204,6 +238,8 @@ Complete documentation for the **Creative Studio** - A comprehensive Generative 
 - [x] Environment variables (including DB vars)
 - [x] Data flow diagrams (with PostgreSQL)
 - [x] Backend services (with ORM section)
+- [x] **Authentication (actual current state)**
+- [x] User data split across PostgreSQL/Firestore/Firebase noted
 
 ### 🏗️ Reorganized Structure
 - [x] Hierarchical folder organization
@@ -211,13 +247,18 @@ Complete documentation for the **Creative Studio** - A comprehensive Generative 
 - [x] Navigation README files
 - [x] Consolidated overlapping content
 - [x] Future work separated to roadmap folder
+- [x] **Known Issues at top level**
+- [x] **Roadmap clearly organized with Phase 1 decision point**
 
-### 📊 Consistency
-- [x] All files reference current architecture
-- [x] Database documentation consolidated
-- [x] GCP resources accurately documented
-- [x] No dead links or references
-- [x] Consistent terminology throughout
+### ❌ KNOWN ISSUES (Require Phase 1 Implementation)
+- [ ] Authentication system (hybrid, deprecated API) → Phase 1 required
+- [ ] Data consistency across user storage → Phase 1/Phase 2
+- [ ] API error handling inconsistent → Medium priority
+- [ ] Component performance optimization → Medium priority
+- [ ] Query performance tuning → Medium priority
+- [ ] Video processing error handling → Medium priority
+
+See [00-KNOWN_ISSUES.md](00-KNOWN_ISSUES.md) for complete details
 
 ---
 

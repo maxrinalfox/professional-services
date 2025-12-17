@@ -42,18 +42,26 @@ Phase 2 adds **OIDC provider support + automatic user group/role management** to
 
 ## Prerequisites
 
-**This phase depends on Phase 1 being complete!**
+**Phase 2 DEPENDS on Phase 1 completion!**
 
-See: `../okta_auth/03_CURRENT_AUTHENTICATION_ISSUES.md` (why it's blocking)
+Phase 1 involves choosing between two architectures:
+- **Option A** (Phase 1): Firebase Authentication (user dir in Firebase)
+  - Phase 2 for Option A: Configure OIDC providers in Firebase Console
+- **Option B** (Phase 1): Pure OAuth 2.0 (user dir in PostgreSQL)
+  - Phase 2 for Option B: Implement OIDC service + group mapping in backend
+
+**See Phase 1 docs**: `../okta_auth/06_PHASE1_TWO_ALTERNATIVES.md`
 
 ---
 
-## Next Steps
+## Next Steps (AFTER Phase 1 Complete)
 
-1. Understand Phase 1 prerequisite
-2. Review all 3 approaches
-3. Approve Phase 2 timeline
-4. Follow implementation guide
+1. Phase 1 must be complete (auth architecture decided)
+2. Read: `QUICK_START.md` (understand Phase 2 goal)
+3. Read: `01_AUTHENTICATION_COMPARISON.md` (implementation details for your Phase 1 choice)
+4. Read: `02_FIREBASE_OIDC_IMPLEMENTATION_GUIDE.md` (if you chose Firebase Option A)
+5. Follow implementation guide based on Phase 1 choice
+6. Then proceed to Phase 3: `../auto_provisioning/`
 
 ---
 

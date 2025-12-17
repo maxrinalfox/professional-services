@@ -1,15 +1,28 @@
 # Authentication & Authorization Implementation
 
-## Overview
+## ⚠️ CURRENT STATE: Hybrid Implementation (Needs Refactoring)
 
-Creative Studio implements a comprehensive authentication and authorization system using Firebase Authentication for user identity and a role-based access control (RBAC) model for resource permissions.
+Creative Studio currently has a **hybrid authentication setup** that is not optimal:
 
 **Current Stack**:
-- **Identity Provider**: Firebase Authentication (Google Sign-In)
-- **Token Format**: Firebase ID tokens (JWT)
-- **Backend Auth**: OAuth2PasswordBearer with Firebase Admin SDK verification
+- **Frontend (Local Dev)**: Firebase SDK + Google provider via `signInWithPopup()`
+- **Frontend (Production)**: Deprecated `google.accounts.id` API (hardcoded Google only)
+- **User Directory**: PostgreSQL (NOT Firebase Authentication)
+- **Token Validation**: Firebase Admin SDK (verifies token authenticity)
+- **Metadata Storage**: Firestore (user roles, workspace info)
 - **Authorization**: Role-based access control (RBAC) + Workspace-level permissions
-- **User Provisioning**: Just-In-Time (JIT) user creation on first sign-in
+
+**Critical Issues**:
+- ❌ No users created in Firebase Authentication
+- ❌ No multi-provider support (hardcoded to Google)
+- ❌ Deprecated API in production
+- ❌ Can't add Okta/SAML without major refactoring
+
+**See Roadmap**: `docs/roadmap/` for Phase 1 alternatives to fix this
+
+---
+
+## Current Implementation (As-Is)
 
 ---
 
@@ -30,72 +43,117 @@ Creative Studio implements a comprehensive authentication and authorization syst
 
 ## Architecture Overview
 
-### Authentication Flow Diagram
+### Current Authentication Flow (Actual Implementation)
 
 ```
-┌─────────────┐
-│   User      │
-│   Browser   │
-└──────┬──────┘
-       │
-       │ 1. Click "Sign In with Google"
-       │
-       ▼
-┌──────────────────────────┐
-│   Firebase Auth UI       │
-│ (Google OAuth Dialog)    │
-└──────┬───────────────────┘
-       │
-       │ 2. User authenticates with Google
-       │
-       ▼
-┌──────────────────────────┐
-│   Firebase Admin SDK     │
-│ (Verifies Google Token)  │
-└──────┬───────────────────┘
-       │
-       │ 3. Creates/Updates Firebase User
-       │
-       ▼
-┌──────────────────────────┐
-│   Firebase Auth Service  │
-│ (Frontend SDK)           │
-└──────┬───────────────────┘
-       │
-       │ 4. Retrieves ID Token (JWT)
-       │
-       ▼
-┌──────────────────────────┐
-│   Angular Frontend       │
-│ (Stores Token in Memory) │
-└──────┬───────────────────┘
-       │
-       │ 5. Includes Bearer Token
-       │    in API requests
-       │
-       ▼
-┌──────────────────────────────┐
-│   FastAPI Backend            │
-│ (OAuth2PasswordBearer)       │
-└──────┬───────────────────────┘
-       │
-       │ 6. Verifies Token with
-       │    Firebase Admin SDK
-       │
-       ▼
-┌──────────────────────────────┐
-│   Firestore Database         │
-│ (Check user roles/workspace) │
-└──────┬───────────────────────┘
-       │
-       │ 7. Execute request if authorized
-       │
-       ▼
-┌──────────────────────────┐
-│   Return Response        │
-│   to Frontend            │
-└──────────────────────────┘
+┌─────────────────────────────────────┐
+│        User Browser                 │
+│   Click "Sign In with Google"       │
+└──────────────────┬──────────────────┘
+                   │
+        ┌──────────┴──────────┐
+        │                     │
+        ▼ (Local Dev)         ▼ (Production)
+┌──────────────────┐  ┌─────────────────────┐
+│  Firebase SDK    │  │ google.accounts.id  │
+│ signInWithPopup()│  │   (DEPRECATED API)  │
+└────────┬─────────┘  └────────┬────────────┘
+         │                     │
+         └──────────┬──────────┘
+                    │
+                    ▼
+        ┌──────────────────────┐
+        │  Google OAuth Server │
+        │  (Validates Google   │
+        │   credentials)       │
+        └──────────┬───────────┘
+                   │
+                   ▼
+        ┌──────────────────────┐
+        │  Get JWT Token       │
+        │  (Google ID Token)   │
+        └──────────┬───────────┘
+                   │
+                   ▼
+        ┌──────────────────────┐
+        │  Angular Frontend    │
+        │  (Store Token)       │
+        └──────────┬───────────┘
+                   │
+        ┌──────────┴──────────────────┐
+        │ 5. Include in API requests  │
+        │    Authorization: Bearer X  │
+        │                             │
+        ▼                             ▼
+┌─────────────────────────┐  ┌──────────────────────┐
+│    FastAPI Backend      │  │  Firebase Admin SDK  │
+│  (OAuth2PasswordBearer) │  │  (Verify Token is    │
+│                         │  │   authentic - verify │
+│                         │  │   signature only)    │
+└────────┬────────────────┘  └──────────┬───────────┘
+         │                             │
+         │                             ▼
+         │                   ┌─────────────────────┐
+         │                   │ Token Valid?        │
+         │                   │ (Signature OK?)     │
+         │                   └────────┬────────────┘
+         │                            │
+         ├─────────────────────────────┘
+         │
+         ▼
+    ┌──────────────────────────────┐
+    │ Extract user email from      │
+    │ token payload                │
+    └────────┬─────────────────────┘
+             │
+             ▼
+    ┌──────────────────────────────┐
+    │ Query PostgreSQL:            │
+    │ SELECT user WHERE email=X    │
+    │ (NOT Firebase Auth!)         │
+    └────────┬─────────────────────┘
+             │
+             ├─ If not found:
+             │  └─→ INSERT new user in PostgreSQL (JIT)
+             │     Set default role (Viewer)
+             │
+             ├─ If found:
+             │  └─→ Continue
+             │
+             ▼
+    ┌──────────────────────────────┐
+    │ Query Firestore:             │
+    │ Get user roles + workspace   │
+    │ permissions                  │
+    └────────┬─────────────────────┘
+             │
+             ▼
+    ┌──────────────────────────────┐
+    │ Check RBAC permissions       │
+    │ (Admin/Editor/Viewer)        │
+    └────────┬─────────────────────┘
+             │
+    ┌────────┴──────────┐
+    │                   │
+    ▼ (Authorized)      ▼ (Denied)
+┌─────────────────┐  ┌──────────────┐
+│ Execute Request │  │ 403 Forbidden│
+└────────┬────────┘  └──────────────┘
+         │
+         ▼
+┌─────────────────────────┐
+│ Return Response         │
+│ to Frontend             │
+└─────────────────────────┘
 ```
+
+### Key Points About Current Implementation
+
+- **No Firebase Authentication User Directory**: Users are stored in PostgreSQL, not Firebase Auth
+- **Token Validation Only**: Firebase Admin SDK only verifies token signature, doesn't create Firebase users
+- **Deprecated API in Production**: Uses `google.accounts.id` which is deprecated by Google
+- **Google-Only**: No provider federation, can't add Okta/SAML without major changes
+- **JIT Provisioning in PostgreSQL**: Creates user record on first sign-in, but in PostgreSQL not Firebase
 
 ---
 
