@@ -217,6 +217,11 @@ Use IAP if:
 - Permission management comparison
 - When IAP is sufficient vs. when you need application RBAC
 
+**See**: `08_IAP_INTEGRATION_TROUBLESHOOTING.md` if you encounter:
+- "Invalid bearer token. Invalid jwt audience." error
+- JWT audience mismatches with IAP enabled
+- Configuration issues when enabling IAP
+
 ---
 
 ## How to Choose

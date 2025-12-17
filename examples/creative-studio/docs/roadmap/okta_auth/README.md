@@ -23,6 +23,12 @@ Phase 1 solves the **critical blocking issue**: Current hybrid authentication sy
 | `07_IAP_AUTHORIZATION_LAYER.md` | 30 min | Optional: Infrastructure-layer access control |
 | `04_DEMO_APP_COMPARISON.md` | 30 min | See reference implementations |
 
+### Troubleshooting
+
+| File | Time | Purpose |
+|------|------|---------|
+| `08_IAP_INTEGRATION_TROUBLESHOOTING.md` | 30 min | Fix JWT audience errors with IAP enabled |
+
 ### Reference Documents (Optional Deep Dives)
 
 | File | Time | Purpose |
