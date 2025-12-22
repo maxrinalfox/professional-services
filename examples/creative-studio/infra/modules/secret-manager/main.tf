@@ -26,6 +26,15 @@ resource "google_secret_manager_secret" "this" {
 }
 
 # 2. Grant the accessor role for each secret to the specified service account
+#
+# IMPORTANT: This binding intelligently handles both formats:
+# - If accessor_sa_email contains ":" (full member format), use as-is
+#   Example: "serviceAccount:my-sa@project.iam.gserviceaccount.com"
+# - If accessor_sa_email is just email, prefix with "serviceAccount:"
+#   Example: "my-sa@project.iam.gserviceaccount.com" → "serviceAccount:my-sa@project.iam.gserviceaccount.com"
+#
+# Best practice: Pass the .member attribute of service account resources for consistency:
+#   accessor_sa_email = google_service_account.my_sa.member
 resource "google_secret_manager_secret_iam_member" "accessor" {
   provider = google-beta
   for_each = toset(var.secret_names) # Loop over the same list
@@ -33,5 +42,6 @@ resource "google_secret_manager_secret_iam_member" "accessor" {
   project   = google_secret_manager_secret.this[each.key].project
   secret_id = google_secret_manager_secret.this[each.key].secret_id
   role      = "roles/secretmanager.secretAccessor"
-  member    = "serviceAccount:${var.accessor_sa_email}"
+  # Intelligently detect format: if it contains ":", assume it's full member format; otherwise prefix with "serviceAccount:"
+  member = contains(var.accessor_sa_email, ":") ? var.accessor_sa_email : "serviceAccount:${var.accessor_sa_email}"
 }

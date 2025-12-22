@@ -12,7 +12,29 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# 1. Creates the Firebase Hosting site to deploy to
+# --- Firebase Hosting Site Configuration ---
+# Creates the Firebase Hosting site infrastructure for deploying the frontend application.
+#
+# IMPORTANT: Firebase Hosting site is created empty/placeholder state.
+# Actual frontend application is deployed via Cloud Build CI/CD pipeline (cloudbuild-deploy.yaml).
+#
+# Deployment Pattern:
+# 1. Terraform creates Firebase Hosting site (infrastructure setup)
+# 2. Cloud Build trigger monitors GitHub repository for code changes
+# 3. On push to configured branch, Cloud Build:
+#    a. Installs frontend dependencies (npm ci)
+#    b. Injects configuration and secrets:
+#       - Backend API URL (from _BACKEND_URL substitution)
+#       - Firebase SDK config (FIREBASE_API_KEY, FIREBASE_AUTH_DOMAIN, etc. from Secret Manager)
+#       - Google OAuth Client ID (from Secret Manager)
+#    c. Builds Angular application (npm run build --configuration=production)
+#    d. Deploys to Firebase Hosting (firebase deploy)
+# 4. Firebase Hosting serves the built static files (HTML, CSS, JS)
+#
+# Note: Unlike Cloud Run (which has container images), Firebase Hosting directly
+# deploys built static files. No placeholder file replacement needed - Cloud Build
+# handles entire build and deployment cycle.
+
 resource "google_firebase_hosting_site" "this" {
   provider = google-beta
   project = var.firebase_project_id
@@ -25,7 +47,29 @@ resource "google_service_account" "trigger_sa" {
   display_name = "SA for ${var.service_name} Trigger (${var.environment})"
 }
 
-# 3. Create the build trigger
+# --- Cloud Build CI/CD Trigger for Frontend ---
+# Automatically builds and deploys frontend whenever code is pushed to GitHub.
+#
+# How it works:
+# 1. Cloud Build monitors the GitHub repository for pushes to the configured branch
+# 2. On code push, Cloud Build executes cloudbuild-deploy.yaml steps:
+#    - Step 1: npm ci (install dependencies from package-lock.json)
+#    - Step 2: Inject configuration (backend URL, Firebase SDK config, OAuth Client ID)
+#      * Uses build_substitutions for non-secret values (e.g., _BACKEND_URL)
+#      * Uses Secret Manager for sensitive values (e.g., FIREBASE_API_KEY)
+#    - Step 3: npm run build (compile Angular application for production)
+#    - Step 4: firebase deploy (deploy built files to Firebase Hosting)
+#
+# build_substitutions:
+#   - Contains Terraform-managed values (backend URL, service IDs)
+#   - These are injected into application config files (environment.prod.ts, firebase.json)
+#   - Allows frontend to dynamically reference infrastructure values
+#
+# availableSecrets (in cloudbuild-deploy.yaml):
+#   - Retrieved from Google Secret Manager during build
+#   - Never exposed in git or Terraform logs
+#   - Examples: FIREBASE_API_KEY, FIREBASE_AUTH_DOMAIN, GOOGLE_CLIENT_ID
+
 resource "google_cloudbuild_trigger" "this" {
   name            = "${var.service_name}-trigger"
   location        = var.gcp_region
@@ -47,12 +91,12 @@ resource "google_cloudbuild_trigger" "this" {
 resource "google_project_iam_member" "firebase_admin" {
   project = var.gcp_project_id
   role    = "roles/firebasehosting.admin"
-  member  = "serviceAccount:${google_service_account.trigger_sa.email}"
+  member  = google_service_account.trigger_sa.member
 }
 
 # 5. Give the trigger SA permission to write logs
 resource "google_project_iam_member" "logging_writer" {
   project = var.gcp_project_id
   role    = "roles/logging.logWriter"
-  member  = "serviceAccount:${google_service_account.trigger_sa.email}"
+  member  = google_service_account.trigger_sa.member
 }

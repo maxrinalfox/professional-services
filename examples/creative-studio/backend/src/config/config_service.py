@@ -69,6 +69,10 @@ class ConfigService(BaseSettings):
     USE_CLOUD_SQL_AUTH_PROXY: bool = False
     DB_HOST: str = "localhost"
     DB_PORT: str = "5432"
+    # Use private IP for Cloud SQL connection (only used when INSTANCE_CONNECTION_NAME is set)
+    # When False (default): Uses public IP for backward compatibility
+    # When True: Uses private IP (requires VPC Connector in Cloud Run)
+    USE_CLOUD_SQL_PRIVATE_IP: bool = False
 
     # --- Veo ---
     VEO_MODEL_ID: str = "veo-2.0-generate-001"

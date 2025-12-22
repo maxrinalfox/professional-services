@@ -118,6 +118,14 @@ variable "runtime_secrets" {
   default     = {}
 }
 
+# VPC and Networking
+variable "vpc_connector_id" {
+  description = "VPC Connector ID for Cloud Run to access private Cloud SQL"
+  type        = string
+  nullable    = true
+  default     = null
+}
+
 # database
 variable "cloud_sql_connection_name" {
   description = "Cloud SQL Instance Connection Name"
@@ -129,3 +137,19 @@ variable "db_secret_id" {
 }
 variable "db_name" { type = string }
 variable "db_user" { type = string }
+
+# --- Cloud Run Access Control ---
+variable "invoker_identities" {
+  type        = list(string)
+  description = <<-EOT
+    List of user, group, or service account identities that have Cloud Run invoker (roles/run.invoker) access.
+
+    Format examples:
+    - "user:john@example.com"
+    - "group:developers@example.com"
+    - "serviceAccount:my-sa@project.iam.gserviceaccount.com"
+
+    Leave empty to grant invoker access to allUsers (public access).
+  EOT
+  default     = []
+}

@@ -12,6 +12,70 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# --- Enable Required Google Cloud APIs ---
+# These APIs are foundational for all platform infrastructure
+locals {
+  required_apis = [
+    # ========== FIREBASE CORE APIs (Required for Phase 2 automation) ==========
+    "firebase.googleapis.com",             # Firebase Management API - REQUIRED for google_firebase_project
+    "firebasehosting.googleapis.com",      # Firebase Hosting API
+    "identitytoolkit.googleapis.com",      # Firebase Identity Toolkit - Required for Identity Platform auth
+    "cloudresourcemanager.googleapis.com", # Cloud Resource Manager - REQUIRED for Firebase project linking
+
+    # ========== CORE INFRASTRUCTURE APIs ==========
+    "serviceusage.googleapis.com",   # Service Usage API - REQUIRED to enable other APIs
+    "iam.googleapis.com",            # IAM Management - REQUIRED for service accounts & roles
+    "iamcredentials.googleapis.com", # IAM Credentials
+
+    # ========== CLOUD BUILD & DEPLOYMENT APIs ==========
+    "cloudbuild.googleapis.com",       # Cloud Build - REQUIRED for CI/CD triggers
+    "artifactregistry.googleapis.com", # Artifact Registry - Required for container images
+
+    # ========== CLOUD RUN APIs ==========
+    "run.googleapis.com", # Cloud Run - REQUIRED for serverless backend
+
+    # ========== NETWORKING & VPC APIs ==========
+    "compute.googleapis.com",           # Compute Engine - REQUIRED for VPC resources
+    "servicenetworking.googleapis.com", # Service Networking - REQUIRED for Cloud SQL private IP
+    "vpcaccess.googleapis.com",         # Serverless VPC Connector - REQUIRED for VPC access
+
+    # ========== DATABASE APIs ==========
+    "sqladmin.googleapis.com", # Cloud SQL Admin - REQUIRED for Cloud SQL management
+
+    # ========== DATA & STORAGE APIs ==========
+    "firestore.googleapis.com",      # Firestore Database
+    "cloudfunctions.googleapis.com", # Cloud Functions (optional, for advanced features)
+    "aiplatform.googleapis.com",     # Vertex AI (for ML features)
+    "texttospeech.googleapis.com",   # Text-to-Speech (if used by backend)
+
+    # ========== SECRETS & SECURITY APIs ==========
+    "secretmanager.googleapis.com", # Secret Manager - REQUIRED for storing credentials
+  ]
+}
+
+resource "google_project_service" "apis" {
+  # Use a for_each loop to enable each API from the variable list
+  for_each = toset(local.required_apis)
+
+  project = var.gcp_project_id
+  service = each.key
+
+  # This prevents Terraform from disabling APIs when you run `terraform destroy`
+  disable_on_destroy = false
+}
+
+# --- API Initialization Delay ---
+# Google Cloud APIs take time to fully initialize after being enabled.
+# This is especially important for Identity Toolkit which is needed for Identity Platform.
+# Without this delay, "SERVICE_DISABLED" errors can occur even though the API is enabled.
+# Reference: https://cloud.google.com/docs/authentication/adc-troubleshooting/user-creds
+resource "time_sleep" "api_initialization" {
+  create_duration = "10s"
+  depends_on = [
+    google_project_service.apis
+  ]
+}
+
 # --- Shared Platform Resources ---
 
 resource "google_storage_bucket" "genmedia" {
@@ -35,40 +99,105 @@ resource "google_service_account" "bucket_reader_sa" {
 resource "google_storage_bucket_iam_member" "bucket_viewer_binding" {
   bucket = google_storage_bucket.genmedia.name
   role   = "roles/storage.objectViewer"
-  member = "serviceAccount:${google_service_account.bucket_reader_sa.email}"
+  member = google_service_account.bucket_reader_sa.member
 }
 
 resource "google_storage_bucket_iam_member" "bucket_creator_binding" {
   bucket = google_storage_bucket.genmedia.name
   role   = "roles/storage.objectCreator"
-  member = "serviceAccount:${google_service_account.bucket_reader_sa.email}"
+  member = google_service_account.bucket_reader_sa.member
 }
 
 data "google_project" "project" {
   project_id = var.gcp_project_id
 }
 
+# --- Firebase Web App Configuration (Auto-Discovery) ---
+# This data source retrieves the Firebase web app configuration automatically
+# instead of requiring manual population via bootstrap scripts.
+#
+# IMPORTANT: The Firebase web app must already exist in the Firebase project.
+# This typically happens when:
+# 1. Firebase project is created via GCP Console (or via google_firebase_project resource in Phase 2)
+# 2. A web app is created in Firebase (manually or via google_firebase_web_app resource in Phase 2)
+# 3. This data source reads the app's configuration
+#
+# The data source extracts all 7 Firebase SDK values needed by the frontend,
+# eliminating the need to manually enter them via bootstrap scripts or .tfvars.
+#
+# Note: This data source requires the google-beta provider as it's in beta
+# Phase 1 & 2 Compatible: Works with both manually created and auto-created web apps
+#
+# When Cloud Build is disabled (enable_cloud_build = false):
+# - This data source is not evaluated
+# - Firebase SDK config is not auto-discovered
+# - Frontend service is not created
+data "google_firebase_web_app_config" "default" {
+  count    = var.enable_cloud_build ? 1 : 0
+  provider = google-beta
+
+  # Determine which web app ID to use:
+  # - Phase 1 Manual: Use provided firebase_web_app_id
+  # - Phase 2 Automation: Use auto-created google_firebase_web_app.default app_id
+  web_app_id = var.firebase_web_app_id != null ? var.firebase_web_app_id : google_firebase_web_app.default[0].app_id
+
+  project = var.gcp_project_id
+}
+
 # --- Predictable URLs & Environment Variables ---
 locals {
-  region_code  = join("", [for s in split("-", var.gcp_region) : substr(s, 0, 1)])
+  region_code = join("", [for s in split("-", var.gcp_region) : substr(s, 0, 1)])
   backend_url = "https://${var.backend_service_name}-${data.google_project.project.number}.${var.gcp_region}.run.app"
 
   frontend_url = "https://${var.gcp_project_id}.web.app" # Predictable Firebase URL
 
+  # Auto-computed Firebase SDK configuration from data source
+  # These values are extracted from the Firebase web app configuration
+  # No manual entry in .tfvars or bootstrap script needed!
+  # Only evaluated when Cloud Build is enabled (data source has count = var.enable_cloud_build)
+  firebase_sdk_config = var.enable_cloud_build ? {
+    FIREBASE_API_KEY             = data.google_firebase_web_app_config.default[0].api_key
+    FIREBASE_AUTH_DOMAIN         = data.google_firebase_web_app_config.default[0].auth_domain
+    FIREBASE_PROJECT_ID          = data.google_firebase_web_app_config.default[0].project
+    FIREBASE_STORAGE_BUCKET      = data.google_firebase_web_app_config.default[0].storage_bucket
+    FIREBASE_MESSAGING_SENDER_ID = data.google_firebase_web_app_config.default[0].messaging_sender_id
+    FIREBASE_MEASUREMENT_ID      = data.google_firebase_web_app_config.default[0].measurement_id
+  } : {}
+
+  # Extract secret names from auto-computed Firebase config
+  # This replaces the need to manually list frontend_secrets in .tfvars
+  frontend_secrets_auto = keys(local.firebase_sdk_config)
+
+  # Auto-populate custom audiences with GCP Project ID (gcp_project_id is always included)
+  # Optionally include OAuth Client ID if provided
+  # Uses compact() to filter out empty/null values
+  backend_custom_audiences_computed = compact(concat(
+    [var.gcp_project_id],        # Always include project ID
+    var.backend_custom_audiences # Add any additional audiences (e.g., OAuth Client ID)
+  ))
+
+  frontend_custom_audiences_computed = compact(concat(
+    [var.gcp_project_id],         # Always include project ID
+    var.frontend_custom_audiences # Add any additional audiences (e.g., OAuth Client ID)
+  ))
+
   backend_env_vars = merge(
-    lookup(var.be_env_vars, "common", {}),
-    lookup(var.be_env_vars, var.environment, {}),
+    var.be_env_vars,
     {
       "CORS_ORIGINS"     = "[\"${local.frontend_url}\"]"
       "GENMEDIA_BUCKET"  = google_storage_bucket.genmedia.name
       "SIGNING_SA_EMAIL" = google_service_account.bucket_reader_sa.email
     }
   )
+
+  # Reference to source repo, handling conditional creation
+  source_repository_id = var.enable_cloud_build ? google_cloudbuildv2_repository.source_repo[0].id : ""
 }
 
 
 # --- Cloud Build Repository Connection ---
 resource "google_cloudbuildv2_repository" "source_repo" {
+  count             = var.enable_cloud_build ? 1 : 0
   provider          = google-beta
   name              = var.github_repo_name
   location          = var.gcp_region
@@ -76,26 +205,72 @@ resource "google_cloudbuildv2_repository" "source_repo" {
   remote_uri        = "https://github.com/${var.github_repo_owner}/${var.github_repo_name}.git"
 }
 
-# Postgres Database related
-# 1. Read the Secret (Created by Bootstrap script)
-data "google_secret_manager_secret_version" "db_password" {
-  secret  = "creative-studio-db-password"
-  project = var.gcp_project_id
-  version = "latest"
+# --- VPC Network Setup ---
+module "vpc_network" {
+  count                 = var.vpc_enable ? 1 : 0
+  source                = "../vpc_network"
+  project_id            = var.gcp_project_id
+  gcp_region            = var.gcp_region
+  name                  = "cs-${var.environment}"
+  primary_subnet_cidr   = var.vpc_primary_subnet_cidr
+  connector_subnet_cidr = var.vpc_connector_subnet_cidr
+
+  depends_on = [google_project_service.apis]
 }
 
-# 2. Call PostgreSQL Module
+# Postgres Database related
+# 1. Generate a secure random password for Cloud SQL
+resource "random_password" "db_password" {
+  length  = 32
+  special = true
+}
+
+# 2. Create Secret Manager secret for database password
+resource "google_secret_manager_secret" "db_password" {
+  secret_id = "creative-studio-db-password"
+  project   = var.gcp_project_id
+
+  replication {
+    user_managed {
+      replicas {
+        location = var.gcp_region
+      }
+    }
+  }
+
+  depends_on = [google_project_service.apis]
+}
+
+# 3. Store the generated password in Secret Manager
+resource "google_secret_manager_secret_version" "db_password" {
+  secret      = google_secret_manager_secret.db_password.id
+  secret_data = random_password.db_password.result
+}
+
+# 4. Call PostgreSQL Module
 module "postgresql" {
-  source      = "../postgresql"
-  project_id  = var.gcp_project_id
-  region      = var.gcp_region
-  
-  # Pass the ACTUAL value to create the user
-  db_password = data.google_secret_manager_secret_version.db_password.secret_data
+  source     = "../postgresql"
+  project_id = var.gcp_project_id
+  gcp_region = var.gcp_region
+
+  # Pass the generated password
+  db_password = google_secret_manager_secret_version.db_password.secret_data
+
+  # Control whether the instance has a public IP
+  public_ip_enabled = var.cloud_sql_public_ip_enabled
+
+  # Private network configuration (always pass, will be null if vpc_enable=false)
+  vpc_network_id = var.vpc_enable ? module.vpc_network[0].network_id : null
+
+  depends_on = [
+    google_project_service.apis,
+    module.vpc_network,
+  ]
 }
 
 # --- Service Module Calls ---
 module "backend_service" {
+  count  = var.enable_cloud_build ? 1 : 0
   source = "../cloud-run-service"
 
   gcp_project_id        = var.gcp_project_id
@@ -110,40 +285,111 @@ module "backend_service" {
   cloudbuild_yaml_path  = "examples/creative-studio/backend/cloudbuild.yaml"
   included_files_glob   = ["**/creative-studio/backend/**"]
   container_env_vars    = local.backend_env_vars
-  runtime_secrets = var.backend_runtime_secrets
-  custom_audiences      = var.backend_custom_audiences
+  runtime_secrets       = var.backend_runtime_secrets
+  custom_audiences      = local.backend_custom_audiences_computed # Auto-populated with gcp_project_id
   scaling_min_instances = 1
-  source_repository_id = google_cloudbuildv2_repository.source_repo.id
-  cpu = var.be_cpu
-  memory = var.be_memory
-  build_substitutions   = merge(var.be_build_substitutions,
+  source_repository_id  = local.source_repository_id
+  cpu                   = var.be_cpu
+  memory                = var.be_memory
+  build_substitutions = merge(var.be_build_substitutions,
     {
-      _REGION = var.gcp_region
+      _REGION       = var.gcp_region
       _SERVICE_NAME = var.backend_service_name
     }
   )
+
+  # VPC configuration
+  vpc_connector_id = var.vpc_enable ? module.vpc_network[0].vpc_connector_id : null
 
   # database
   cloud_sql_connection_name = module.postgresql.connection_name
   db_name                   = module.postgresql.db_name
   db_user                   = module.postgresql.db_user
-  
+
   # Pass the Secret ID reference (NOT the value) for Cloud Run
-  db_secret_id              = "creative-studio-db-password"
+  db_secret_id = "creative-studio-db-password"
+
+  # Cloud Run access control - grant invoker role to specified identities
+  invoker_identities = var.backend_invoker_identities
+
+  depends_on = [google_project_service.apis]
 }
 
 resource "google_firebase_project" "default" {
+  # Firebase project is needed for:
+  # - Firebase Hosting (frontend deployment)
+  # - Identity Platform (user authentication)
+  # - Firestore database
+  #
+  # Should be created whenever ANY of these features are enabled:
+  count    = (var.enable_cloud_build || var.enable_identity_platform) ? 1 : 0
   provider = google-beta
-  project = var.gcp_project_id
+  project  = var.gcp_project_id
+
+  depends_on = [
+    time_sleep.api_initialization  # Wait for all APIs to fully initialize
+  ]
+}
+
+# --- Identity Platform Configuration (Phase 3) ---
+# Enables Firebase Authentication and Google Cloud Identity Platform
+# Provides authentication services for both frontend and backend
+#
+# IMPORTANT: This resource is now controlled by enable_identity_platform variable
+# which is INDEPENDENT of enable_cloud_build. This allows you to:
+# - Have authentication without CI/CD deployment (enable_identity_platform=true, enable_cloud_build=false)
+# - Have CI/CD without authentication (enable_identity_platform=false, enable_cloud_build=true)
+# - Control infrastructure and authentication separately
+#
+# Reference: https://firebase.google.com/docs/projects/terraform/get-started#tf-sample-auth
+resource "google_identity_platform_config" "default" {
+  count    = var.enable_identity_platform ? 1 : 0
+  provider = google-beta
+  project  = var.gcp_project_id
+
+  # Identity Platform configuration is intentionally minimal
+  # Sign-in methods and other settings are managed via GCP Console
+  # or can be configured separately as needed
+
+  # Ignore changes to attributes managed by Google Cloud
+  # Google Cloud manages fields like multi_tenant, phone_number, sign_in, etc.
+  # These appear in the config but are not managed by Terraform
+  # Without this, every terraform plan will show spurious changes
+  lifecycle {
+    ignore_changes = all  # Ignore all changes since configuration is managed externally
+  }
+
+  depends_on = [
+    google_firebase_project.default[0],
+    time_sleep.api_initialization  # Wait for all APIs (including Identity Toolkit) to fully initialize
+  ]
+}
+
+# --- Google OAuth IDP Configuration ---
+# OAuth configuration for Google Sign-In is managed via GCP Console
+# This allows greater flexibility and better integration with Google's authentication systems
+# Reference: https://firebase.google.com/docs/auth/social/google
+
+# Phase 2: Automated Firebase Web App Creation
+# Creates a Firebase web app automatically (if enable_cloud_build = true and firebase_web_app_id not provided)
+resource "google_firebase_web_app" "default" {
+  count           = (var.enable_cloud_build && var.firebase_web_app_id == null) ? 1 : 0
+  provider        = google-beta
+  project         = var.gcp_project_id
+  display_name    = "Creative Studio Frontend"
+  deletion_policy = "DELETE"
+
+  depends_on = [google_firebase_project.default]
 }
 
 module "frontend_service" {
+  count  = var.enable_cloud_build ? 1 : 0
   source = "../firebase-hosting-service"
 
-  source_repository_id = google_cloudbuildv2_repository.source_repo.id
+  source_repository_id = local.source_repository_id
   gcp_project_id       = var.gcp_project_id
-  gcp_region            = var.gcp_region
-  firebase_project_id  = google_firebase_project.default.project
+  gcp_region           = var.gcp_region
+  firebase_project_id  = google_firebase_project.default[0].project
   service_name         = var.gcp_project_id
   environment          = var.environment
   resource_prefix      = "cs-fe"
@@ -155,28 +401,34 @@ module "frontend_service" {
     var.fe_build_substitutions,
     {
       # This block should ONLY contain non-secret, underscore-prefixed values
-      _BACKEND_URL         = local.frontend_url # The frontend will redirect the api calls to the backend
+      _BACKEND_URL         = local.backend_url # Backend Cloud Run URL for frontend API calls
       _FE_SERVICE_NAME     = var.frontend_service_name
       _BACKEND_SERVICE_ID  = var.backend_service_name
       _FIREBASE_PROJECT_ID = var.gcp_project_id
     }
   )
+
+  depends_on = [google_project_service.apis]
 }
 
 module "frontend_secrets" {
+  count  = var.enable_cloud_build ? 1 : 0
   source = "../secret-manager"
 
-  gcp_project_id    = var.gcp_project_id
-  secret_names      = var.frontend_secrets
-  accessor_sa_email = module.frontend_service.trigger_sa_email
+  gcp_project_id = var.gcp_project_id
+  # Use auto-computed Firebase secrets instead of manual input
+  # These are automatically extracted from the Firebase web app configuration
+  secret_names      = concat(local.frontend_secrets_auto, var.frontend_secrets_additional)
+  accessor_sa_email = module.frontend_service[0].trigger_sa_member
 }
 
 module "backend_secrets" {
+  count  = var.enable_cloud_build ? 1 : 0
   source = "../secret-manager"
 
   gcp_project_id    = var.gcp_project_id
   secret_names      = var.backend_secrets
-  accessor_sa_email = module.backend_service.trigger_sa_email
+  accessor_sa_email = module.backend_service[0].trigger_sa_member
 }
 
 # --- Cross-Module Permissions ---
@@ -184,10 +436,11 @@ module "backend_secrets" {
 # Grant the Frontend's deploy trigger (which runs `firebase deploy`)
 # permission to "get" the Backend's Cloud Run service to validate the rewrite rule.
 resource "google_cloud_run_v2_service_iam_member" "fe_trigger_can_view_backend" {
+  count    = var.enable_cloud_build ? 1 : 0
   provider = google-beta
   project  = var.gcp_project_id
-  name     = module.backend_service.service_name
-  location = module.backend_service.location
+  name     = module.backend_service[0].service_name
+  location = module.backend_service[0].location
   role     = "roles/run.viewer"
-  member   = "serviceAccount:${module.frontend_service.trigger_sa_email}"
+  member   = module.frontend_service[0].trigger_sa_member
 }

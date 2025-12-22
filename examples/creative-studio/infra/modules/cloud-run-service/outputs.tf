@@ -22,6 +22,11 @@ output "trigger_sa_email" {
   value       = google_service_account.trigger_sa.email
 }
 
+output "trigger_sa_member" {
+  description = "The member identifier (formatted for IAM bindings) of the build trigger service account."
+  value       = google_service_account.trigger_sa.member
+}
+
 output "service_name" {
   description = "The name of the Cloud Run service."
   value       = google_cloud_run_v2_service.this.name

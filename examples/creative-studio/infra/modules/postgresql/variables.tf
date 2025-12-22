@@ -13,7 +13,20 @@
 # limitations under the License.
 
 variable "project_id" {}
-variable "region" {}
+variable "gcp_region" {}
 variable "db_name" { default = "creative_studio" }
 variable "db_user" { default = "studio_user" }
 variable "db_password" { sensitive = true }
+
+variable "public_ip_enabled" {
+  description = "Whether this Cloud SQL instance should be assigned a public IPV4 address"
+  type        = bool
+  default     = true
+}
+
+variable "vpc_network_id" {
+  description = "VPC network ID for private Cloud SQL instance"
+  type        = string
+  nullable    = true
+  default     = null
+}

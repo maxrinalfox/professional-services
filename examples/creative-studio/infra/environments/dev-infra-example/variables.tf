@@ -72,8 +72,8 @@ variable "frontend_custom_audiences" {
 
 # --- Service-Specific Environment Variables ---
 variable "be_env_vars" {
-  type        = map(map(string))
-  description = "A map containing common and environment-specific variables for the backend."
+  type        = map(string)
+  description = "Backend environment variables (flat map of key-value pairs). Each directory handles one environment, so no nesting needed."
 }
 
 variable "be_build_substitutions" {
@@ -105,16 +105,108 @@ variable "backend_runtime_secrets" {
   description = "Secrets to mount in the backend container at runtime."
 }
 
-
-# --- List of APIs to enable ---
-variable "apis_to_enable" {
-  type        = list(string)
-  description = "A list of Google Cloud APIs to enable on the project."
-  default = [
-    "serviceusage.googleapis.com",     # Required to enable other APIs
-    "iam.googleapis.com",              # Required for IAM management
-    "cloudbuild.googleapis.com",       # Required for Cloud Build
-    "artifactregistry.googleapis.com", # Required for Artifact Registry
-    "run.googleapis.com"               # Required for Cloud Run
-  ]
+variable "be_cpu" {
+  type        = string
+  description = "CPU allocation for backend Cloud Run service (e.g., '2000m' = 2 CPUs)"
+  default     = "2000m"
 }
+
+variable "be_memory" {
+  type        = string
+  description = "Memory allocation for backend Cloud Run service (e.g., '2048Mi' = 2 GB)"
+  default     = "2048Mi"
+}
+
+variable "fe_cpu" {
+  type        = string
+  description = "CPU allocation for frontend Cloud Run build runner"
+  default     = "2000m"
+}
+
+variable "fe_memory" {
+  type        = string
+  description = "Memory allocation for frontend Cloud Run build runner"
+  default     = "2048Mi"
+}
+
+variable "firebase_web_app_id" {
+  type        = string
+  nullable    = true
+  default     = null
+  description = <<-EOT
+    The Firebase web app ID to auto-discover SDK configuration.
+
+    Phase 2 Automation (NEW - RECOMMENDED):
+    - Leave as null to enable automatic Firebase web app creation via Terraform
+    - Terraform will automatically create the web app and discover its configuration
+    - No manual Firebase Console steps needed!
+    - Reference: https://firebase.google.com/docs/projects/terraform/get-started
+
+    Phase 1 Manual Creation (Legacy):
+    - Provide the web app ID if using manually created Firebase web app
+    - Format: '1:PROJECT_NUMBER:web:HASH'
+    - Find via: gcloud firebase apps list --project=YOUR_PROJECT
+  EOT
+}
+
+variable "frontend_secrets_additional" {
+  type        = list(string)
+  description = "Additional secret names (beyond auto-computed Firebase SDK config) required by the frontend build. Firebase SDK secrets (API_KEY, AUTH_DOMAIN, etc.) are automatically discovered."
+  default     = ["GOOGLE_CLIENT_ID"]
+}
+
+variable "enable_cloud_build" {
+  type        = bool
+  description = "Whether to create Cloud Build triggers and connections"
+  default     = true
+}
+
+variable "cloud_sql_public_ip_enabled" {
+  type        = bool
+  description = "Whether the Cloud SQL instance should have a public IP address"
+  default     = true
+}
+
+variable "enable_identity_platform" {
+  type        = bool
+  description = "Whether to enable Firebase Identity Platform for user authentication (independent of Cloud Build)"
+  default     = true
+}
+
+# --- VPC Network Configuration ---
+variable "vpc_enable" {
+  type        = bool
+  description = "Whether to create and use VPC for private Cloud SQL"
+  default     = false
+}
+
+variable "vpc_primary_subnet_cidr" {
+  type        = string
+  description = "Primary subnetwork IP address range for Cloud Run and services"
+  default     = "10.0.0.0/24"
+}
+
+variable "vpc_connector_subnet_cidr" {
+  type        = string
+  description = "Subnetwork IP address range for Serverless VPC Connector"
+  default     = "10.0.1.0/28"
+}
+
+# --- Cloud Run Access Control ---
+variable "backend_invoker_identities" {
+  type        = list(string)
+  description = <<-EOT
+    List of user, group, or service account identities that have Cloud Run invoker (roles/run.invoker) access to the backend service.
+
+    Format examples:
+    - "user:john@example.com"
+    - "group:developers@example.com"
+    - "serviceAccount:my-sa@project.iam.gserviceaccount.com"
+
+    Leave empty to grant invoker access to allUsers (public access).
+
+    Note: Identity Platform authentication is controlled separately via identity_platform_* variables.
+  EOT
+  default     = []
+}
+

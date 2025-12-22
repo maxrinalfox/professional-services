@@ -2,6 +2,13 @@ gcp_project_id = "YOUR_GCP_PROJECT_ID"
 gcp_region     = "us-central1"
 environment    = "development"
 
+# --- Firebase Configuration (PHASE 1: AUTO-DISCOVERY) ---
+# Firebase web app ID for auto-discovering SDK configuration
+# Find via: gcloud firebase apps list --project=YOUR_GCP_PROJECT_ID
+# Format: '1:PROJECT_NUMBER:web:HASH' (e.g., '1:123456789:web:abc123xyz')
+# Firebase SDK secrets (API_KEY, AUTH_DOMAIN, etc.) are now AUTO-DISCOVERED!
+firebase_web_app_id = "YOUR_FIREBASE_WEB_APP_ID"
+
 # --- Service Names ---
 backend_service_name  = "cstudio-backend-dev"
 frontend_service_name = "cstudio-frontend-dev"
@@ -13,62 +20,84 @@ github_repo_name   = "repo-owner-vertex-ai-creative-studio"
 github_branch_name = "develop"
 
 # --- Custom Audiences ---
-backend_custom_audiences  = ["YOUR_OAUTH_WEB_CLIENT_ID_HERE", "YOUR_GCP_PROJECT_ID"]
-frontend_custom_audiences = ["YOUR_OAUTH_WEB_CLIENT_ID_HERE", "YOUR_GCP_PROJECT_ID"]
+# AUTO-POPULATED: GCP Project ID is always included
+# OPTIONAL: OAuth Client ID added later in Phase 3 when Firebase is ready
+backend_custom_audiences  = []  # Will auto-include gcp_project_id + optional OAuth Client ID
+frontend_custom_audiences = []  # Will auto-include gcp_project_id + optional OAuth Client ID
 
-# --- Service-Specific Environment Variables ---
+# --- Backend Environment Variables ---
+# Flat map of environment variables for the backend service.
+# Each environment directory provides its own flat configuration.
+#
+# BUILT-IN (Auto-Set by Terraform, DO NOT CHANGE):
+#   - CORS_ORIGINS: Auto-populated with Frontend URL
+#   - GENMEDIA_BUCKET: Auto-populated with storage bucket name
+#   - SIGNING_SA_EMAIL: Auto-populated with service account email
+#
+# CHANGE AS NEEDED:
+#   - LOG_LEVEL: Logging level (INFO, DEBUG, WARNING)
+#   - ENVIRONMENT: Current environment name
+#   - FIREBASE_DB: Your Firestore database name
+#   - IDENTITY_PLATFORM_ALLOWED_ORGS: Comma-separated org list or empty for any
+
 be_env_vars = {
-  common = {
-    LOG_LEVEL = "INFO"
-  }
-  development = {
-    ENVIRONMENT  = "development"
-    FIREBASE_DB = "cstudio-development"
-    GOOGLE_TOKEN_AUDIENCE = "YOUR_OAUTH_WEB_CLIENT_ID_HERE"
-    IDENTITY_PLATFORM_ALLOWED_ORGS = "" # If empty then any org is allowed
-  }
-  production = {
-    ENVIRONMENT  = "production"
-    FIREBASE_DB = "cstudio-development"
-    GOOGLE_TOKEN_AUDIENCE = "YOUR_OAUTH_WEB_CLIENT_ID_HERE"
-    IDENTITY_PLATFORM_ALLOWED_ORGS = "" # If empty then any org is allowed
-  }
+  LOG_LEVEL                       = "INFO"
+  ENVIRONMENT                     = "development"
+  FIREBASE_DB                     = "cstudio-development"
+  IDENTITY_PLATFORM_ALLOWED_ORGS  = ""
+}
+
+be_build_substitutions = {
+  # Add any backend-specific build substitutions here
 }
 
 fe_build_substitutions = {
   _ANGULAR_BUILD_COMMAND = "build-dev"
 }
 
-frontend_secrets = [
-  "FIREBASE_API_KEY",          # Your Firebase Web API Key
-  "FIREBASE_AUTH_DOMAIN",      # Your Firebase Auth Domain (e.g., project-id.firebaseapp.com)
-  "FIREBASE_PROJECT_ID",       # Your Firebase Project ID
-  "FIREBASE_STORAGE_BUCKET",   # Your Firebase Storage Bucket (e.g., project-id.appspot.com)
-  "FIREBASE_MESSAGING_SENDER_ID", # Your Firebase Cloud Messaging Sender ID
-  "FIREBASE_APP_ID",           # Your Firebase Web App ID
-  "FIREBASE_MEASUREMENT_ID",   # Your Google Analytics Measurement ID
-  "GOOGLE_CLIENT_ID",          # Your Google OAuth 2.0 Client ID for web
+# --- Cloud Run Resource Sizing ---
+be_cpu    = "2000m"    # Backend CPU (default: 2 CPUs)
+be_memory = "2048Mi"   # Backend Memory (default: 2 GB)
+fe_cpu    = "2000m"    # Frontend CPU (default: 2 CPUs)
+fe_memory = "2048Mi"   # Frontend Memory (default: 2 GB)
+
+# --- Frontend Secrets ---
+# Firebase SDK secrets (API_KEY, AUTH_DOMAIN, PROJECT_ID, STORAGE_BUCKET, MESSAGING_SENDER_ID, MEASUREMENT_ID)
+# are now AUTO-DISCOVERED from the Firebase web app configuration via firebase_web_app_id.
+# Only specify ADDITIONAL secrets needed beyond the standard Firebase SDK config
+frontend_secrets_additional = [
+  "GOOGLE_CLIENT_ID",  # Your Google OAuth 2.0 Client ID for web (if using OAuth)
 ]
 
+# --- Backend Secrets ---
 backend_secrets = [
-  "GOOGLE_TOKEN_AUDIENCE",
+  "GOOGLE_TOKEN_AUDIENCE",  # JWT audience for backend API authentication
 ]
 
 backend_runtime_secrets = {
   "GOOGLE_TOKEN_AUDIENCE" = "GOOGLE_TOKEN_AUDIENCE"
 }
 
-apis_to_enable = [
-  "serviceusage.googleapis.com",     # Required to enable other APIs
-  "iam.googleapis.com",              # Required for IAM management
-  "cloudbuild.googleapis.com",       # Required for Cloud Build
-  "artifactregistry.googleapis.com", # Required for Artifact Registry
-  "run.googleapis.com",              # Required for Cloud Run
-  "cloudresourcemanager.googleapis.com",
-  "compute.googleapis.com",
-  "cloudfunctions.googleapis.com",
-  "iamcredentials.googleapis.com",
-  "aiplatform.googleapis.com",
-  "firestore.googleapis.com",
-  "texttospeech.googleapis.com",
-]
+# Identity Platform configuration is managed via GCP Console (sign-in methods, OAuth settings, etc.)
+
+# --- Cloud Run Access Control ---
+# List of identities that can invoke the backend Cloud Run service
+# Leave empty to allow public access (allUsers)
+# Examples:
+#   - "user:john@example.com"
+#   - "group:developers@example.com"
+#   - "serviceAccount:backend-sa@project.iam.gserviceaccount.com"
+#
+# Note: This controls who can invoke the service via API
+# Authentication (Identity Platform) is configured separately via identity_platform_* variables
+backend_invoker_identities = []
+
+# --- VPC Configuration ---
+vpc_enable                = false           # Set to true for private Cloud SQL
+vpc_primary_subnet_cidr   = "10.0.0.0/24"   # Primary subnet CIDR
+vpc_connector_subnet_cidr = "10.0.1.0/28"   # VPC Connector subnet CIDR
+
+# --- Build & Deployment ---
+enable_cloud_build          = true    # Set to true to deploy services via Cloud Build
+cloud_sql_public_ip_enabled = true    # Set to false for private database access
+enable_identity_platform    = true    # Set to true to enable Firebase Authentication

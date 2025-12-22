@@ -93,6 +93,7 @@ class DatabaseConnector:
 async def get_connection():
     """
     Helper function to get a connection object for the AsyncEngine.
+    Supports both public and private IP connections via environment configuration.
     """
     if config_service.USE_CLOUD_SQL_AUTH_PROXY:
         import asyncpg
@@ -107,13 +108,17 @@ async def get_connection():
 
     connector = DatabaseConnector.get_instance().get_connector()
 
+    # Determine IP type based on configuration
+    # Default to PUBLIC for backward compatibility
+    ip_type = IPTypes.PRIVATE if config_service.USE_CLOUD_SQL_PRIVATE_IP else IPTypes.PUBLIC
+
     conn = await connector.connect_async(
         config_service.INSTANCE_CONNECTION_NAME,
         "asyncpg",
         user=config_service.DB_USER,
         password=config_service.DB_PASS,
         db=config_service.DB_NAME,
-        ip_type=IPTypes.PUBLIC,  # Adjust if using Private IP
+        ip_type=ip_type,
     )
         
     return conn
@@ -169,6 +174,10 @@ class WorkerDatabase:
             # Create a fresh Connector for the current (worker) loop
             self.connector = Connector(loop=asyncio.get_running_loop())
 
+            # Determine IP type based on configuration
+            # Default to PUBLIC for backward compatibility
+            ip_type = IPTypes.PRIVATE if config_service.USE_CLOUD_SQL_PRIVATE_IP else IPTypes.PUBLIC
+
             async def get_conn():
                 return await self.connector.connect_async(
                     config_service.INSTANCE_CONNECTION_NAME,
@@ -176,7 +185,7 @@ class WorkerDatabase:
                     user=config_service.DB_USER,
                     password=config_service.DB_PASS,
                     db=config_service.DB_NAME,
-                    ip_type=IPTypes.PUBLIC,
+                    ip_type=ip_type,
                 )
 
             self.engine = create_async_engine(

@@ -24,5 +24,15 @@ variable "secret_names" {
 
 variable "accessor_sa_email" {
   type        = string
-  description = "The email of the service account that will be granted accessor permission."
+  description = <<-EOT
+    The member identifier (email or .member format) of the service account that will be granted
+    Secret Manager Accessor permission.
+
+    Accepts two formats:
+    - Email format (will be prefixed with "serviceAccount:"): "my-sa@project.iam.gserviceaccount.com"
+    - Full member format (used as-is): "serviceAccount:my-sa@project.iam.gserviceaccount.com"
+
+    Recommendation: Pass the .member attribute of a service account resource for consistency:
+    accessor_sa_email = google_service_account.my_sa.member
+  EOT
 }

@@ -26,3 +26,8 @@ output "trigger_sa_email" {
   description = "The email of the service account used by the build trigger."
   value       = google_service_account.trigger_sa.email
 }
+
+output "trigger_sa_member" {
+  description = "The member identifier (formatted for IAM bindings) of the build trigger service account."
+  value       = google_service_account.trigger_sa.member
+}

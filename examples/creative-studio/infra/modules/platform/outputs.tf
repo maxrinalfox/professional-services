@@ -16,15 +16,46 @@
 
 output "backend_service_url" {
   description = "The URL of the deployed backend service."
-  value       = module.backend_service.service_url # This one is correct
+  value       = try(module.backend_service[0].service_url, null)
 }
 
 output "frontend_service_url" {
   description = "The URL of the deployed frontend service."
-  value       = module.frontend_service.url
+  value       = try(module.frontend_service[0].url, null)
 }
 
 output "cloud_sql_connection_name" {
   description = "The connection name of the Cloud SQL instance to be used by the bootstrap script."
   value       = module.postgresql.connection_name
+}
+
+output "vpc_network_id" {
+  description = "VPC network ID (if VPC is enabled)"
+  value       = try(module.vpc_network[0].network_id, null)
+}
+
+output "vpc_connector_id" {
+  description = "VPC Connector ID for Cloud Run (if VPC is enabled)"
+  value       = try(module.vpc_network[0].vpc_connector_id, null)
+}
+
+output "vpc_connector_name" {
+  description = "VPC Connector name for Cloud Run (if VPC is enabled)"
+  value       = try(module.vpc_network[0].vpc_connector_name, null)
+}
+
+# --- Identity Platform Outputs (Phase 3) ---
+output "identity_platform_config_created" {
+  description = "Whether Identity Platform configuration was created (true if enable_cloud_build=true)"
+  value       = var.enable_cloud_build ? true : false
+}
+
+output "firebase_project_id" {
+  description = "The Firebase Project ID (same as GCP Project ID)"
+  value       = var.enable_cloud_build ? var.gcp_project_id : null
+}
+
+output "identity_platform_auth_domain" {
+  description = "The Firebase Auth domain for authentication (predictable format)"
+  value       = var.enable_cloud_build ? "${var.gcp_project_id}.firebaseapp.com" : null
 }
