@@ -56,4 +56,6 @@ CMD ["gunicorn", "main:app", "--workers=4", "--worker-class=uvicorn.workers.Uvic
 
 # Bootstrap stage - for database initialization (migrations, seeding)
 FROM base as bootstrap
+# Install dependencies system-wide (not in venv) for bootstrap job
+RUN uv pip install --no-cache-dir --system -e .
 ENTRYPOINT ["python", "-m", "alembic", "upgrade", "head"]
