@@ -18,8 +18,17 @@ variable "firebase_project_id" { type = string }
 variable "service_name" { type = string }
 variable "environment" { type = string }
 variable "resource_prefix" { type = string }
-variable "source_repository_id" { type = string }
+variable "source_repository_id" {
+  type = string
+  nullable = true
+  default = null
+}
 variable "github_branch_name" { type = string }
 variable "cloudbuild_yaml_path" { type = string }
 variable "included_files_glob" { type = list(string) }
 variable "build_substitutions" { type = map(string) }
+variable "enable_cloud_build_trigger" {
+  type = bool
+  description = "Whether to create a Cloud Build trigger for Firebase Hosting deployments"
+  default = true
+}

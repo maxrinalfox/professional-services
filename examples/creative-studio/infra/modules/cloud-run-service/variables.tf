@@ -100,6 +100,14 @@ variable "scaling_max_instances" {
 variable "source_repository_id" {
   type        = string
   description = "The ID of the Cloud Build V2 source repository."
+  nullable    = true
+  default     = null
+}
+
+variable "enable_cloud_build_trigger" {
+  type        = bool
+  description = "Whether to create a Cloud Build trigger for automatic deployments. When false, the Cloud Run service is still created but no automatic deployments are configured."
+  default     = true
 }
 
 variable "cpu" {

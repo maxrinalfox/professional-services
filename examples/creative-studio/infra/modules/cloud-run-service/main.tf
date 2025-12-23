@@ -166,6 +166,7 @@ resource "google_cloud_run_v2_service" "this" {
 }
 
 resource "google_cloudbuild_trigger" "this" {
+  count           = var.enable_cloud_build_trigger ? 1 : 0
   name            = "${var.service_name}-trigger"
   location        = var.gcp_region
   service_account = google_service_account.trigger_sa.id
@@ -190,14 +191,18 @@ resource "google_cloudbuild_trigger" "this" {
 # - Push container images to Artifact Registry
 # - Deploy to Cloud Run
 # - Impersonate the Cloud Run runtime service account
+#
+# Only created when Cloud Build trigger is enabled
 
 resource "google_project_iam_member" "trigger_sa_logging_writer" {
+  count   = var.enable_cloud_build_trigger ? 1 : 0
   project = var.gcp_project_id
   role    = "roles/logging.logWriter"
   member  = google_service_account.trigger_sa.member
 }
 
 resource "google_artifact_registry_repository_iam_member" "trigger_sa_ar_writer" {
+  count      = var.enable_cloud_build_trigger ? 1 : 0
   location   = var.gcp_region
   repository = google_artifact_registry_repository.repo.name
   role       = "roles/artifactregistry.writer"
@@ -205,6 +210,7 @@ resource "google_artifact_registry_repository_iam_member" "trigger_sa_ar_writer"
 }
 
 resource "google_cloud_run_v2_service_iam_member" "trigger_sa_run_developer" {
+  count    = var.enable_cloud_build_trigger ? 1 : 0
   name     = google_cloud_run_v2_service.this.name
   location = google_cloud_run_v2_service.this.location
   role     = "roles/run.developer"
@@ -212,6 +218,7 @@ resource "google_cloud_run_v2_service_iam_member" "trigger_sa_run_developer" {
 }
 
 resource "google_service_account_iam_member" "trigger_sa_impersonate_run_sa" {
+  count              = var.enable_cloud_build_trigger ? 1 : 0
   service_account_id = google_service_account.run_sa.name
   role               = "roles/iam.serviceAccountUser"
   member             = google_service_account.trigger_sa.member

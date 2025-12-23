@@ -128,12 +128,13 @@ data "google_project" "project" {
 # Note: This data source requires the google-beta provider as it's in beta
 # Phase 1 & 2 Compatible: Works with both manually created and auto-created web apps
 #
-# When Cloud Build is disabled (enable_cloud_build = false):
-# - This data source is not evaluated
-# - Firebase SDK config is not auto-discovered
-# - Frontend service is not created
+# IMPORTANT: This is ALWAYS evaluated (not conditional on enable_cloud_build)
+# Firebase web app configuration is needed for:
+# - Frontend service deployment (Firebase Hosting)
+# - Identity Platform setup
+# The Cloud Build trigger is optional, but the web app itself is required infrastructure
 data "google_firebase_web_app_config" "default" {
-  count    = var.enable_cloud_build ? 1 : 0
+  count    = (var.firebase_web_app_id != null || (var.enable_cloud_build && var.firebase_web_app_id == null)) ? 1 : 0
   provider = google-beta
 
   # Determine which web app ID to use:
@@ -154,8 +155,8 @@ locals {
   # Auto-computed Firebase SDK configuration from data source
   # These values are extracted from the Firebase web app configuration
   # No manual entry in .tfvars or bootstrap script needed!
-  # Only evaluated when Cloud Build is enabled (data source has count = var.enable_cloud_build)
-  firebase_sdk_config = var.enable_cloud_build ? {
+  # Always available if Firebase web app exists (regardless of Cloud Build setting)
+  firebase_sdk_config = length(data.google_firebase_web_app_config.default) > 0 ? {
     FIREBASE_API_KEY             = data.google_firebase_web_app_config.default[0].api_key
     FIREBASE_AUTH_DOMAIN         = data.google_firebase_web_app_config.default[0].auth_domain
     FIREBASE_PROJECT_ID          = data.google_firebase_web_app_config.default[0].project
@@ -269,8 +270,9 @@ module "postgresql" {
 }
 
 # --- Service Module Calls ---
+# IMPORTANT: Cloud Run services are ALWAYS created
+# Cloud Build triggers are CONDITIONAL based on enable_cloud_build
 module "backend_service" {
-  count  = var.enable_cloud_build ? 1 : 0
   source = "../cloud-run-service"
 
   gcp_project_id        = var.gcp_project_id
@@ -312,7 +314,12 @@ module "backend_service" {
   # Cloud Run access control - grant invoker role to specified identities
   invoker_identities = var.backend_invoker_identities
 
-  depends_on = [google_project_service.apis]
+  # Cloud Build trigger configuration - only create trigger when CI/CD is enabled
+  enable_cloud_build_trigger = var.enable_cloud_build
+
+  depends_on = [
+    google_project_service.apis
+  ]
 }
 
 resource "google_firebase_project" "default" {
@@ -383,7 +390,6 @@ resource "google_firebase_web_app" "default" {
 }
 
 module "frontend_service" {
-  count  = var.enable_cloud_build ? 1 : 0
   source = "../firebase-hosting-service"
 
   source_repository_id = local.source_repository_id
@@ -408,27 +414,42 @@ module "frontend_service" {
     }
   )
 
+  # Cloud Build trigger configuration - only create trigger when CI/CD is enabled
+  enable_cloud_build_trigger = var.enable_cloud_build
+
   depends_on = [google_project_service.apis]
 }
 
 module "frontend_secrets" {
-  count  = var.enable_cloud_build ? 1 : 0
   source = "../secret-manager"
 
   gcp_project_id = var.gcp_project_id
   # Use auto-computed Firebase secrets instead of manual input
   # These are automatically extracted from the Firebase web app configuration
   secret_names      = concat(local.frontend_secrets_auto, var.frontend_secrets_additional)
-  accessor_sa_email = module.frontend_service[0].trigger_sa_member
+  accessor_sa_email = module.frontend_service.trigger_sa_member
 }
 
 module "backend_secrets" {
-  count  = var.enable_cloud_build ? 1 : 0
   source = "../secret-manager"
 
   gcp_project_id    = var.gcp_project_id
   secret_names      = var.backend_secrets
-  accessor_sa_email = module.backend_service[0].trigger_sa_member
+  accessor_sa_email = module.backend_service.trigger_sa_member
+}
+
+# Grant the backend Cloud Run runtime service account access to backend secrets
+# The runtime service account needs secret access to read GOOGLE_TOKEN_AUDIENCE at runtime
+resource "google_secret_manager_secret_iam_member" "backend_runtime_secret_accessor" {
+  for_each = toset(var.backend_secrets)
+
+  provider  = google-beta
+  project   = var.gcp_project_id
+  secret_id = each.value
+  role      = "roles/secretmanager.secretAccessor"
+  member    = module.backend_service.run_sa_member
+
+  depends_on = [module.backend_secrets]
 }
 
 # --- Cross-Module Permissions ---
@@ -439,8 +460,15 @@ resource "google_cloud_run_v2_service_iam_member" "fe_trigger_can_view_backend" 
   count    = var.enable_cloud_build ? 1 : 0
   provider = google-beta
   project  = var.gcp_project_id
-  name     = module.backend_service[0].service_name
-  location = module.backend_service[0].location
+  name     = module.backend_service.service_name
+  location = module.backend_service.location
   role     = "roles/run.viewer"
-  member   = module.frontend_service[0].trigger_sa_member
+  member   = module.frontend_service.trigger_sa_member
+
+  # Wait for all backend service resources to be fully created and IAM policies stabilized
+  # This prevents ETag conflicts from concurrent policy modifications
+  depends_on = [
+    module.backend_service,
+    google_secret_manager_secret_iam_member.backend_runtime_secret_accessor
+  ]
 }

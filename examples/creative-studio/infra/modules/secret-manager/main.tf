@@ -43,5 +43,22 @@ resource "google_secret_manager_secret_iam_member" "accessor" {
   secret_id = google_secret_manager_secret.this[each.key].secret_id
   role      = "roles/secretmanager.secretAccessor"
   # Intelligently detect format: if it contains ":", assume it's full member format; otherwise prefix with "serviceAccount:"
-  member = contains(var.accessor_sa_email, ":") ? var.accessor_sa_email : "serviceAccount:${var.accessor_sa_email}"
+  member = strcontains(var.accessor_sa_email, ":") ? var.accessor_sa_email : "serviceAccount:${var.accessor_sa_email}"
+}
+
+# 3. Create a placeholder version for each secret
+# This ensures Cloud Run (and other services) can reference the secret path
+# even if the actual secret data will be added later or already exists
+resource "google_secret_manager_secret_version" "this" {
+  provider    = google-beta
+  for_each    = toset(var.secret_names)
+
+  secret      = google_secret_manager_secret.this[each.key].id
+  secret_data = "placeholder_${each.key}_will_be_updated"
+
+  lifecycle {
+    # Once created, subsequent applies won't overwrite the secret data
+    # This allows manual updates via gcloud or GCP console
+    ignore_changes = [secret_data]
+  }
 }
