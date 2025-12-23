@@ -1,0 +1,88 @@
+# Copyright 2025 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Cloud Build pipeline for database bootstrap/initialization
+#
+# Purpose: Automatically run database initialization (migrations, seeding, asset creation)
+# whenever bootstrap files change, via a Cloud Run Job with private Cloud SQL access.
+#
+# Trigger: On push to configured branch (features_docs) when backend/bootstrap/** files change
+#
+# Process:
+#   1. Build separate bootstrap container image
+#   2. Push image to Artifact Registry
+#   3. Update Cloud Run Job definition with new image
+#   4. Execute the Cloud Run Job
+#
+# The Cloud Run Job connects to private Cloud SQL via VPC Connector and runs:
+#   - Alembic migrations (database schema)
+#   - Seed data population
+#   - Admin user creation
+#   - Asset initialization
+
+steps:
+  # Step 1: Build bootstrap container image (separate from main backend)
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'Build Bootstrap Image'
+    env: ['DOCKER_BUILDKIT=1']
+    args:
+      - 'build'
+      - '-t'
+      - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO_NAME}/${_BOOTSTRAP_IMAGE_NAME}:$SHORT_SHA'
+      - '--target=bootstrap'
+      - '.'
+    dir: 'examples/creative-studio/backend'
+
+  # Step 2: Push bootstrap image to Google Artifact Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'Push Bootstrap Image'
+    args:
+      - 'push'
+      - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO_NAME}/${_BOOTSTRAP_IMAGE_NAME}:$SHORT_SHA'
+
+  # Step 3: Update Cloud Run Job definition with the new bootstrap image
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    id: 'Update Job Image'
+    entrypoint: 'gcloud'
+    args:
+      - 'run'
+      - 'jobs'
+      - 'update'
+      - '${_BOOTSTRAP_JOB_NAME}'
+      - '--image=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO_NAME}/${_BOOTSTRAP_IMAGE_NAME}:$SHORT_SHA'
+      - '--region=${_REGION}'
+      - '--project=${PROJECT_ID}'
+
+  # Step 4: Execute the Cloud Run Job
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    id: 'Execute Bootstrap Job'
+    entrypoint: 'gcloud'
+    args:
+      - 'run'
+      - 'jobs'
+      - 'execute'
+      - '${_BOOTSTRAP_JOB_NAME}'
+      - '--region=${_REGION}'
+      - '--project=${PROJECT_ID}'
+
+# Substitution variables (defaults, can be overridden by Cloud Build trigger)
+substitutions:
+  _BOOTSTRAP_IMAGE_NAME: 'cstudio-bootstrap'
+  _REPO_NAME: 'cs-be-sandbox-repo'
+  _REGION: 'us-central1'
+  _BOOTSTRAP_JOB_NAME: 'cstudio-bootstrap-sandbox'
+
+# Logging configuration
+options:
+  logging: CLOUD_LOGGING_ONLY

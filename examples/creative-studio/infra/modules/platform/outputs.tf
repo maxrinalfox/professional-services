@@ -59,3 +59,30 @@ output "identity_platform_auth_domain" {
   description = "The Firebase Auth domain for authentication (predictable format)"
   value       = var.enable_cloud_build ? "${var.gcp_project_id}.firebaseapp.com" : null
 }
+
+# --- Cloud Run Job (Bootstrap) Outputs ---
+
+output "bootstrap_job_name" {
+  description = "Name of the Cloud Run Job for database bootstrap"
+  value       = var.enable_cloud_run_job ? module.cloud_run_job_bootstrap[0].job_name : null
+}
+
+output "bootstrap_job_id" {
+  description = "ID of the Cloud Run Job for database bootstrap"
+  value       = var.enable_cloud_run_job ? module.cloud_run_job_bootstrap[0].job_id : null
+}
+
+output "bootstrap_service_account_email" {
+  description = "Email of the service account used by the bootstrap job"
+  value       = var.enable_cloud_run_job ? google_service_account.bootstrap_sa[0].email : null
+}
+
+output "bootstrap_artifact_repository" {
+  description = "Name of the Artifact Registry repository for bootstrap images"
+  value       = var.enable_cloud_run_job ? google_artifact_registry_repository.bootstrap_repo[0].repository_id : null
+}
+
+output "bootstrap_trigger_name" {
+  description = "Name of the Cloud Build trigger for bootstrap job"
+  value       = (var.enable_cloud_build && var.enable_cloud_run_job) ? google_cloudbuild_trigger.bootstrap[0].name : null
+}

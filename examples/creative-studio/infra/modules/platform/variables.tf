@@ -178,3 +178,59 @@ variable "backend_invoker_identities" {
   EOT
   default     = []
 }
+
+# --- Cloud Run Job Configuration (Database Bootstrap) ---
+# Cloud Run Job handles database initialization (migrations, seeding, asset creation)
+# Connects to private Cloud SQL via VPC Connector
+# Triggered via Cloud Build on code push to bootstrap files
+
+variable "enable_cloud_run_job" {
+  type        = bool
+  description = "Whether to create and execute Cloud Run Job for database bootstrap"
+  default     = false
+}
+
+variable "bootstrap_job_name" {
+  type        = string
+  description = "Name of the Cloud Run Job for database bootstrap"
+  nullable    = true
+  default     = null
+}
+
+variable "bootstrap_image_name" {
+  type        = string
+  description = "Name of the bootstrap container image in Artifact Registry (without tag or project)"
+  default     = "cstudio-bootstrap"
+}
+
+variable "bootstrap_job_environment_variables" {
+  type        = map(string)
+  description = "Environment variables for the Cloud Run Job bootstrap container"
+  default     = {}
+}
+
+variable "bootstrap_job_secrets" {
+  type = map(object({
+    secret_id = string
+  }))
+  description = "Secrets from Secret Manager to inject into Cloud Run Job as environment variables"
+  default     = {}
+}
+
+variable "bootstrap_job_cpu" {
+  type        = string
+  description = "CPU allocation for bootstrap Cloud Run Job"
+  default     = "2000m"
+}
+
+variable "bootstrap_job_memory" {
+  type        = string
+  description = "Memory allocation for bootstrap Cloud Run Job"
+  default     = "2048Mi"
+}
+
+variable "bootstrap_job_timeout" {
+  type        = number
+  description = "Timeout in seconds for bootstrap Cloud Run Job"
+  default     = 3600
+}

@@ -452,6 +452,150 @@ resource "google_secret_manager_secret_iam_member" "backend_runtime_secret_acces
   depends_on = [module.backend_secrets]
 }
 
+# --- Cloud Run Job Support Resources ---
+# Service account and Artifact Registry for bootstrap job
+
+resource "google_service_account" "bootstrap_sa" {
+  count        = var.enable_cloud_run_job ? 1 : 0
+  account_id   = "cs-bootstrap-${var.environment}"
+  display_name = "Service Account for Bootstrap Job (${var.environment})"
+  project      = var.gcp_project_id
+}
+
+resource "google_artifact_registry_repository" "bootstrap_repo" {
+  count         = var.enable_cloud_run_job ? 1 : 0
+  location      = var.gcp_region
+  repository_id = "cs-bootstrap-${var.environment}-repo"
+  description   = "Docker repository for Creative Studio bootstrap images (${var.environment})"
+  format        = "DOCKER"
+  project       = var.gcp_project_id
+}
+
+# Grant bootstrap service account access to bootstrap artifact repository
+resource "google_artifact_registry_repository_iam_member" "bootstrap_sa_ar_writer" {
+  count      = var.enable_cloud_run_job ? 1 : 0
+  location   = var.gcp_region
+  repository = google_artifact_registry_repository.bootstrap_repo[0].name
+  role       = "roles/artifactregistry.writer"
+  member     = google_service_account.bootstrap_sa[0].member
+  project    = var.gcp_project_id
+}
+
+# Grant bootstrap service account Cloud SQL client access
+resource "google_project_iam_member" "bootstrap_sa_cloudsql_client" {
+  count   = var.enable_cloud_run_job ? 1 : 0
+  project = var.gcp_project_id
+  role    = "roles/cloudsql.client"
+  member  = google_service_account.bootstrap_sa[0].member
+}
+
+# Grant bootstrap service account Secret Manager access for runtime secrets
+resource "google_project_iam_member" "bootstrap_sa_secret_accessor" {
+  count   = var.enable_cloud_run_job ? 1 : 0
+  project = var.gcp_project_id
+  role    = "roles/secretmanager.secretAccessor"
+  member  = google_service_account.bootstrap_sa[0].member
+}
+
+# --- Cloud Run Job Module (Database Bootstrap) ---
+# Handles database initialization (migrations, seeding, asset creation)
+# Connects to private Cloud SQL via VPC Connector
+# Only created when enable_cloud_run_job = true
+
+module "cloud_run_job_bootstrap" {
+  count  = var.enable_cloud_run_job ? 1 : 0
+  source = "../cloud-run-job"
+
+  project_id           = var.gcp_project_id
+  region               = var.gcp_region
+  job_name             = var.bootstrap_job_name != null ? var.bootstrap_job_name : "cstudio-bootstrap-${var.environment}"
+  service_account_email = google_service_account.bootstrap_sa[0].email
+  container_image      = "${var.gcp_region}-docker.pkg.dev/${var.gcp_project_id}/${google_artifact_registry_repository.bootstrap_repo[0].repository_id}/${var.bootstrap_image_name}:latest"
+
+  environment_variables = var.bootstrap_job_environment_variables
+  secrets               = var.bootstrap_job_secrets
+
+  cpu    = var.bootstrap_job_cpu
+  memory = var.bootstrap_job_memory
+  timeout = var.bootstrap_job_timeout
+
+  # VPC connectivity to private Cloud SQL
+  vpc_connector_id = var.vpc_enable ? google_compute_network_connector.vpc_connector[0].id : null
+
+  depends_on = [
+    google_project_service.apis,
+    google_artifact_registry_repository.bootstrap_repo
+  ]
+}
+
+# --- Cloud Build Trigger for Bootstrap Job ---
+# Automatically executes bootstrap job when backend/bootstrap/** files change
+# Only created when enable_cloud_build = true
+
+resource "google_service_account" "bootstrap_trigger_sa" {
+  count        = (var.enable_cloud_build && var.enable_cloud_run_job) ? 1 : 0
+  account_id   = "cs-bootstrap-trig-${var.environment}"
+  display_name = "Cloud Build Trigger Service Account for Bootstrap (${var.environment})"
+  project      = var.gcp_project_id
+}
+
+# Grant bootstrap trigger SA permission to execute Cloud Run Job
+resource "google_project_iam_member" "bootstrap_trigger_job_runner" {
+  count   = (var.enable_cloud_build && var.enable_cloud_run_job) ? 1 : 0
+  project = var.gcp_project_id
+  role    = "roles/run.admin"
+  member  = google_service_account.bootstrap_trigger_sa[0].member
+}
+
+# Grant bootstrap trigger SA permission to use Cloud Build
+resource "google_project_iam_member" "bootstrap_trigger_cloudbuild_service_agent" {
+  count   = (var.enable_cloud_build && var.enable_cloud_run_job) ? 1 : 0
+  project = var.gcp_project_id
+  role    = "roles/cloudbuild.builds.editor"
+  member  = google_service_account.bootstrap_trigger_sa[0].member
+}
+
+# Grant bootstrap trigger SA permission to write logs
+resource "google_project_iam_member" "bootstrap_trigger_logging_writer" {
+  count   = (var.enable_cloud_build && var.enable_cloud_run_job) ? 1 : 0
+  project = var.gcp_project_id
+  role    = "roles/logging.logWriter"
+  member  = google_service_account.bootstrap_trigger_sa[0].member
+}
+
+# Cloud Build trigger for bootstrap job
+# Triggers on push to configured branch when backend/bootstrap/** files change
+resource "google_cloudbuild_trigger" "bootstrap" {
+  count           = (var.enable_cloud_build && var.enable_cloud_run_job) ? 1 : 0
+  name            = "cstudio-bootstrap-trigger"
+  location        = var.gcp_region
+  service_account = google_service_account.bootstrap_trigger_sa[0].id
+  filename        = "examples/creative-studio/backend/cloudbuild-bootstrap.yaml"
+  project         = var.gcp_project_id
+
+  repository_event_config {
+    repository = local.source_repository_id
+    push {
+      branch = "^${var.github_branch_name}$"
+    }
+  }
+
+  # Only trigger when bootstrap files change (not on every push)
+  included_files = ["**/creative-studio/backend/bootstrap/**"]
+
+  substitutions = {
+    _BOOTSTRAP_JOB_NAME    = var.bootstrap_job_name != null ? var.bootstrap_job_name : "cstudio-bootstrap-${var.environment}"
+    _BOOTSTRAP_IMAGE_NAME  = var.bootstrap_image_name
+    _REPO_NAME             = google_artifact_registry_repository.bootstrap_repo[0].repository_id
+    _REGION                = var.gcp_region
+  }
+
+  depends_on = [
+    module.cloud_run_job_bootstrap,
+    google_service_account.bootstrap_trigger_sa
+  ]
+}
+
 # --- Cross-Module Permissions ---
 
 # Grant the Frontend's deploy trigger (which runs `firebase deploy`)
