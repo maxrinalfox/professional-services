@@ -520,7 +520,7 @@ module "cloud_run_job_bootstrap" {
   timeout = var.bootstrap_job_timeout
 
   # VPC connectivity to private Cloud SQL
-  vpc_connector_id = var.vpc_enable ? google_compute_network_connector.vpc_connector[0].id : null
+  vpc_connector_id = var.vpc_enable ? module.vpc_network[0].vpc_connector_id : null
 
   depends_on = [
     google_project_service.apis,
