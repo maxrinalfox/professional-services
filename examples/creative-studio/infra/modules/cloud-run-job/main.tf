@@ -35,6 +35,7 @@ resource "google_cloud_run_v2_job" "bootstrap" {
   name     = var.job_name
   location = var.region
   project  = var.project_id
+  deletion_protection = false
 
   template {
     task_count = 1
@@ -98,13 +99,5 @@ resource "google_cloud_run_v2_job" "bootstrap" {
   }
 }
 
-# Cloud Logging sink for bootstrap job logs (optional)
-# Captures all logs from this specific job
-resource "google_logging_project_sink" "bootstrap_logs" {
-  name        = "${var.job_name}-logs"
-  destination = "logging.googleapis.com/projects/${var.project_id}/logs/${var.job_name}"
-
-  filter = "resource.type=\"cloud_run_job\" AND resource.labels.job_name=\"${var.job_name}\""
-
-  unique_writer_identity = true
-}
+# Note: Cloud Logging for this job is available in Cloud Run Logs tab
+# No explicit sink needed - Cloud Run Jobs automatically log to Cloud Logging
