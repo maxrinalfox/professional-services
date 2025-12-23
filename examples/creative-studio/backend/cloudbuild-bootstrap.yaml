@@ -64,7 +64,7 @@ steps:
       - '--region=${_REGION}'
       - '--project=${PROJECT_ID}'
 
-  # Step 4: Execute the Cloud Run Job
+  # Step 4: Execute the Cloud Run Job and wait for completion
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     id: 'Execute Bootstrap Job'
     entrypoint: 'gcloud'
@@ -75,6 +75,7 @@ steps:
       - '${_BOOTSTRAP_JOB_NAME}'
       - '--region=${_REGION}'
       - '--project=${PROJECT_ID}'
+      - '--wait'
 
 # Substitution variables (defaults, can be overridden by Cloud Build trigger)
 substitutions:
