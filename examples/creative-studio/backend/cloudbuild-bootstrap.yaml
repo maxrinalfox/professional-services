@@ -40,7 +40,8 @@ steps:
       - 'build'
       - '-t'
       - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO_NAME}/${_BOOTSTRAP_IMAGE_NAME}:$SHORT_SHA'
-      - '--target=bootstrap'
+      - '-f'
+      - 'Dockerfile.bootstrap'
       - '.'
     dir: 'examples/creative-studio/backend'
 
