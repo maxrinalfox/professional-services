@@ -72,7 +72,7 @@ resource "google_service_account" "trigger_sa" {
 
 resource "google_cloudbuild_trigger" "this" {
   count           = var.enable_cloud_build_trigger ? 1 : 0
-  name            = "${var.service_name}-trigger"
+  name            = var.trigger_name != null ? "${var.trigger_name}-trigger" : "${var.service_name}-trigger"
   location        = var.gcp_region
   service_account = google_service_account.trigger_sa.id
   filename        = var.cloudbuild_yaml_path

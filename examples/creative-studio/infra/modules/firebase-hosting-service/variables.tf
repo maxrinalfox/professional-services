@@ -16,6 +16,12 @@ variable "gcp_project_id" { type = string }
 variable "gcp_region" {type = string}
 variable "firebase_project_id" { type = string }
 variable "service_name" { type = string }
+variable "trigger_name" {
+  type = string
+  description = "Name for the Cloud Build trigger (separate from service_name for Firebase Hosting site_id)"
+  nullable = true
+  default = null
+}
 variable "environment" { type = string }
 variable "resource_prefix" { type = string }
 variable "source_repository_id" {
