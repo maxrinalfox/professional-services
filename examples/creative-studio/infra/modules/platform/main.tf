@@ -539,6 +539,16 @@ resource "google_project_iam_member" "bootstrap_trigger_logging_writer" {
   member  = google_service_account.bootstrap_trigger_sa[0].member
 }
 
+# Grant bootstrap trigger SA permission to impersonate the bootstrap job service account
+# This is needed for Cloud Build to update the Cloud Run Job with new container images
+# and to pass the job SA when executing the job
+resource "google_service_account_iam_member" "bootstrap_trigger_can_impersonate_job_sa" {
+  count              = (var.enable_cloud_build && var.enable_cloud_run_job) ? 1 : 0
+  service_account_id = google_service_account.bootstrap_sa[0].name
+  role               = "roles/iam.serviceAccountUser"
+  member             = google_service_account.bootstrap_trigger_sa[0].member
+}
+
 # Cloud Build trigger for bootstrap job
 # Triggers on push to configured branch when backend/bootstrap/** files change
 resource "google_cloudbuild_trigger" "bootstrap" {
