@@ -61,16 +61,7 @@ output "identity_platform_auth_domain" {
 }
 
 # --- Cloud Run Job (Bootstrap) Outputs ---
-
-output "bootstrap_job_name" {
-  description = "Name of the Cloud Run Job for database bootstrap"
-  value       = var.enable_cloud_run_job ? module.cloud_run_job_bootstrap[0].job_name : null
-}
-
-output "bootstrap_job_id" {
-  description = "ID of the Cloud Run Job for database bootstrap"
-  value       = var.enable_cloud_run_job ? module.cloud_run_job_bootstrap[0].job_id : null
-}
+# Note: Cloud Run Job is created by Cloud Build trigger, not by Terraform
 
 output "bootstrap_service_account_email" {
   description = "Email of the service account used by the bootstrap job"
@@ -85,4 +76,9 @@ output "bootstrap_artifact_repository" {
 output "bootstrap_trigger_name" {
   description = "Name of the Cloud Build trigger for bootstrap job"
   value       = (var.enable_cloud_build && var.enable_cloud_run_job) ? google_cloudbuild_trigger.bootstrap[0].name : null
+}
+
+output "bootstrap_job_name" {
+  description = "Name of the Cloud Run Job (created by Cloud Build trigger)"
+  value       = var.enable_cloud_run_job ? (var.bootstrap_job_name != null ? var.bootstrap_job_name : "cstudio-bootstrap-${var.environment}") : null
 }

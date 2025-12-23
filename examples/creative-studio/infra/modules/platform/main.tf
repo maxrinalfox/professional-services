@@ -497,36 +497,11 @@ resource "google_project_iam_member" "bootstrap_sa_secret_accessor" {
   member  = google_service_account.bootstrap_sa[0].member
 }
 
-# --- Cloud Run Job Module (Database Bootstrap) ---
-# Handles database initialization (migrations, seeding, asset creation)
-# Connects to private Cloud SQL via VPC Connector
-# Only created when enable_cloud_run_job = true
-
-module "cloud_run_job_bootstrap" {
-  count  = var.enable_cloud_run_job ? 1 : 0
-  source = "../cloud-run-job"
-
-  project_id           = var.gcp_project_id
-  region               = var.gcp_region
-  job_name             = var.bootstrap_job_name != null ? var.bootstrap_job_name : "cstudio-bootstrap-${var.environment}"
-  service_account_email = google_service_account.bootstrap_sa[0].email
-  container_image      = "${var.gcp_region}-docker.pkg.dev/${var.gcp_project_id}/${google_artifact_registry_repository.bootstrap_repo[0].repository_id}/${var.bootstrap_image_name}:latest"
-
-  environment_variables = var.bootstrap_job_environment_variables
-  secrets               = var.bootstrap_job_secrets
-
-  cpu    = var.bootstrap_job_cpu
-  memory = var.bootstrap_job_memory
-  timeout = var.bootstrap_job_timeout
-
-  # VPC connectivity to private Cloud SQL
-  vpc_connector_id = var.vpc_enable ? module.vpc_network[0].vpc_connector_id : null
-
-  depends_on = [
-    google_project_service.apis,
-    google_artifact_registry_repository.bootstrap_repo
-  ]
-}
+# NOTE: Cloud Run Job is NOT created via Terraform module
+# Instead, it's created and managed by the Cloud Build trigger
+# The trigger (cloudbuild-bootstrap.yaml) creates the job definition on first run
+# This approach allows the job to be updated independently via Cloud Build
+# without Terraform needing to know about the job's existence
 
 # --- Cloud Build Trigger for Bootstrap Job ---
 # Automatically executes bootstrap job when backend/bootstrap/** files change
@@ -591,8 +566,8 @@ resource "google_cloudbuild_trigger" "bootstrap" {
   }
 
   depends_on = [
-    module.cloud_run_job_bootstrap,
-    google_service_account.bootstrap_trigger_sa
+    google_service_account.bootstrap_trigger_sa,
+    google_artifact_registry_repository.bootstrap_repo
   ]
 }
 
