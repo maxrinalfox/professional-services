@@ -15,6 +15,7 @@
 steps:
   # Step 1: Build the container image using the standard Docker builder.
   # Using SHORT_SHA for the tag is a best practice for traceability.
+  # Target 'production' stage to build the backend service (not bootstrap).
   - name: 'gcr.io/cloud-builders/docker'
     id: 'Build'
     env: ['DOCKER_BUILDKIT=1']
@@ -23,6 +24,7 @@ steps:
         'build',
         '-t',
         '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO_NAME}/${_SERVICE_NAME}:$SHORT_SHA',
+        '--target=production',
         '.',
       ]
     # This ensures the build context is the 'backend' folder

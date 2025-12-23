@@ -13,7 +13,7 @@
 # limitations under the License.
 
 # Use a Python image with uv pre-installed
-FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim
+FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim as base
 
 # Install the project into `/app`
 WORKDIR /app
@@ -49,6 +49,11 @@ ENTRYPOINT []
 ENV ENVIRONMENT="development"
 ENV FRONTEND_URL="http://localhost:4200"
 
+# Production stage - for running the backend service
+FROM base as production
 EXPOSE 8080
-
 CMD ["gunicorn", "main:app", "--workers=4", "--worker-class=uvicorn.workers.UvicornWorker", "--timeout=36000", "--bind=0.0.0.0:8080"]
+
+# Bootstrap stage - for database initialization (migrations, seeding)
+FROM base as bootstrap
+ENTRYPOINT ["python", "-m", "alembic", "upgrade", "head"]
