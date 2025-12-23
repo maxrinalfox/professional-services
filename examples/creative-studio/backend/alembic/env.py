@@ -83,27 +83,30 @@ from src.config.config_service import config_service
 # Define a local get_connection for Alembic to avoid loop issues with the global one
 async def alembic_get_connection():
     import asyncio
-    
+
     # Explicitly get the running loop and pass it to Connector if supported,
     # or ensure Connector uses it.
     # Note: Connector() might not accept loop in newer versions, but let's try to force it
     # by setting the event loop if needed, or just relying on get_running_loop.
     # If Connector uses get_event_loop(), we might need to set it.
     loop = asyncio.get_running_loop()
-    
+
     try:
         connector = Connector(loop=loop)
     except TypeError:
         # Fallback if loop arg is not supported
         connector = Connector()
-        
+
+    # Use the configured IP type (private or public)
+    ip_type = IPTypes.PRIVATE if config_service.USE_CLOUD_SQL_PRIVATE_IP else IPTypes.PUBLIC
+
     conn = await connector.connect_async(
         config_service.INSTANCE_CONNECTION_NAME,
         "asyncpg",
         user=config_service.DB_USER,
         password=config_service.DB_PASS,
         db=config_service.DB_NAME,
-        ip_type=IPTypes.PRIVATE,
+        ip_type=ip_type,
     )
     return conn
 

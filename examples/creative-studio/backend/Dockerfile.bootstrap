@@ -26,18 +26,17 @@ ENV UV_COMPILE_BYTECODE=1
 # Copy from the cache instead of linking since it's a mounted volume
 ENV UV_LINK_MODE=copy
 
+# Copy dependency files first for layer caching
+COPY uv.lock pyproject.toml /app/
+
 # Install project dependencies using lockfile
-RUN --mount=type=cache,target=/root/.cache/uv \
-    --mount=type=bind,source=uv.lock,target=uv.lock \
-    --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
-    uv sync --locked --no-install-project --no-dev
+RUN uv sync --locked --no-install-project --no-dev
 
 # Copy project source code
 COPY . /app
 
 # Install the project itself
-RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --locked --no-dev
+RUN uv sync --locked --no-dev
 
 # Install dependencies system-wide for the bootstrap container
 # This ensures alembic and all its dependencies are available in PATH
