@@ -52,7 +52,8 @@ steps:
       - 'push'
       - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO_NAME}/${_BOOTSTRAP_IMAGE_NAME}:$SHORT_SHA'
 
-  # Step 3: Update Cloud Run Job definition with the new bootstrap image and environment variables
+  # Step 3: Update Cloud Run Job definition with the new bootstrap image
+  # Note: Environment variables are now managed by Terraform and don't need to be set here
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     id: 'Update Job Image'
     entrypoint: 'gcloud'
@@ -64,7 +65,6 @@ steps:
       - '--image=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO_NAME}/${_BOOTSTRAP_IMAGE_NAME}:$SHORT_SHA'
       - '--region=${_REGION}'
       - '--project=${PROJECT_ID}'
-      - '--set-env-vars=ADMIN_USER_EMAIL=admin@example.com,ENVIRONMENT=sandbox,INSTANCE_CONNECTION_NAME=${_INSTANCE_CONNECTION_NAME},USE_CLOUD_SQL_PRIVATE_IP=false,GENMEDIA_BUCKET=${_GENMEDIA_BUCKET},LOG_LEVEL=INFO'
 
   # Step 4: Execute the Cloud Run Job and wait for completion
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'

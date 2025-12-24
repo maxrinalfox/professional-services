@@ -658,9 +658,9 @@ resource "google_cloud_run_v2_job" "bootstrap" {
 
       # VPC Access for private Cloud SQL (if configured)
       dynamic "vpc_access" {
-        for_each = var.vpc_enable ? [1] : []
+        for_each = var.vpc_enable ? [module.vpc_network[0].vpc_connector_id] : []
         content {
-          connector = google_vpc_access_connector.connector[0].id
+          connector = vpc_access.value
           egress    = "PRIVATE_RANGES_ONLY"
         }
       }
