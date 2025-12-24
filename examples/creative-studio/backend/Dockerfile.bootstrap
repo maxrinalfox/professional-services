@@ -36,6 +36,10 @@ RUN uv sync --locked --no-install-project --no-dev
 # Copy project source code
 COPY . /app
 
+# Explicitly copy bootstrap assets with correct structure
+# These are required for seed_vto_assets and seed_media_templates functions
+COPY bootstrap/assets /app/bootstrap/assets/
+
 # Install the project itself
 RUN uv sync --locked --no-dev
 
@@ -46,6 +50,12 @@ RUN uv pip install --no-cache-dir --system -e .
 # Reset entrypoint - don't invoke `uv`
 ENTRYPOINT []
 
-# Run Alembic migrations as the container's main task
+# Run complete bootstrap including migrations, admin user, and asset seeding
+# The bootstrap.py script handles:
+#   - Running Alembic migrations
+#   - Creating admin user
+#   - Creating default workspace
+#   - Seeding VTO assets
+#   - Seeding media templates
 # DB_PASS will be provided as an environment variable via --set-secrets
-CMD ["python", "-m", "alembic", "upgrade", "head"]
+CMD ["python", "-m", "bootstrap.bootstrap"]

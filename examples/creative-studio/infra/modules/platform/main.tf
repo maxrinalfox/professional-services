@@ -498,6 +498,15 @@ resource "google_project_iam_member" "bootstrap_sa_secret_accessor" {
   member  = google_service_account.bootstrap_sa[0].member
 }
 
+# Grant bootstrap job SA permission to create/upload objects to GCS bucket
+# This is needed for seed_vto_assets and seed_media_templates functions
+resource "google_storage_bucket_iam_member" "bootstrap_sa_gcs_object_creator" {
+  count  = var.enable_cloud_run_job ? 1 : 0
+  bucket = google_storage_bucket.genmedia.name
+  role   = "roles/storage.objectCreator"
+  member = google_service_account.bootstrap_sa[0].member
+}
+
 # NOTE: Cloud Run Job is NOT created via Terraform module
 # Instead, it's created and managed by the Cloud Build trigger
 # The trigger (cloudbuild-bootstrap.yaml) creates the job definition on first run
@@ -570,10 +579,12 @@ resource "google_cloudbuild_trigger" "bootstrap" {
   included_files = ["**/creative-studio/backend/bootstrap/**"]
 
   substitutions = {
-    _BOOTSTRAP_JOB_NAME    = var.bootstrap_job_name != null ? var.bootstrap_job_name : "cstudio-bootstrap-${var.environment}"
-    _BOOTSTRAP_IMAGE_NAME  = var.bootstrap_image_name
-    _REPO_NAME             = google_artifact_registry_repository.bootstrap_repo[0].repository_id
-    _REGION                = var.gcp_region
+    _BOOTSTRAP_JOB_NAME         = var.bootstrap_job_name != null ? var.bootstrap_job_name : "cstudio-bootstrap-${var.environment}"
+    _BOOTSTRAP_IMAGE_NAME       = var.bootstrap_image_name
+    _REPO_NAME                  = google_artifact_registry_repository.bootstrap_repo[0].repository_id
+    _REGION                     = var.gcp_region
+    _GENMEDIA_BUCKET            = google_storage_bucket.genmedia.name
+    _INSTANCE_CONNECTION_NAME   = module.postgresql.connection_name
   }
 
   depends_on = [
