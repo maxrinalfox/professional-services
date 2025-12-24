@@ -597,6 +597,83 @@ resource "google_cloudbuild_trigger" "bootstrap" {
   ]
 }
 
+# --- Cloud Run Job for Bootstrap (if not exists) ---
+# Create the Cloud Run Job with proper environment variables
+# This ensures environment variables are set before the job is executed
+resource "google_cloud_run_v2_job" "bootstrap" {
+  count    = var.enable_cloud_run_job ? 1 : 0
+  name     = var.bootstrap_job_name != null ? var.bootstrap_job_name : "cstudio-bootstrap-${var.environment}"
+  location = var.gcp_region
+  project  = var.gcp_project_id
+
+  template {
+    task_count = 1
+
+    template {
+      execution_environment = "EXECUTION_ENVIRONMENT_GEN2"
+      service_account       = google_service_account.bootstrap_sa[0].email
+      timeout               = "${var.bootstrap_job_timeout}s"
+
+      containers {
+        # Placeholder image - will be updated by Cloud Build trigger
+        image = "${var.gcp_region}-docker.pkg.dev/${var.gcp_project_id}/${google_artifact_registry_repository.bootstrap_repo[0].repository_id}/${var.bootstrap_image_name}:latest"
+
+        # Environment variables for bootstrap job
+        dynamic "env" {
+          for_each = merge(
+            var.bootstrap_job_environment_variables,
+            {
+              "DB_USER" = module.postgresql.db_user
+              "DB_NAME" = module.postgresql.db_name
+            }
+          )
+          content {
+            name  = env.key
+            value = env.value
+          }
+        }
+
+        # Secrets from Secret Manager
+        dynamic "env" {
+          for_each = var.bootstrap_job_secrets
+          content {
+            name = env.key
+            value_source {
+              secret_key_ref {
+                secret  = env.value.secret_id
+                version = "latest"
+              }
+            }
+          }
+        }
+
+        # Resource allocation
+        resources {
+          limits = {
+            cpu    = var.bootstrap_job_cpu
+            memory = var.bootstrap_job_memory
+          }
+        }
+      }
+
+      # VPC Access for private Cloud SQL (if configured)
+      dynamic "vpc_access" {
+        for_each = var.vpc_enable ? [1] : []
+        content {
+          connector = google_vpc_access_connector.connector[0].id
+          egress    = "PRIVATE_RANGES_ONLY"
+        }
+      }
+    }
+  }
+
+  depends_on = [
+    google_service_account.bootstrap_sa,
+    google_artifact_registry_repository.bootstrap_repo,
+    module.postgresql
+  ]
+}
+
 # --- Cross-Module Permissions ---
 
 # Grant the Frontend's deploy trigger (which runs `firebase deploy`)
