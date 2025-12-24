@@ -575,8 +575,12 @@ resource "google_cloudbuild_trigger" "bootstrap" {
     }
   }
 
-  # Only trigger when bootstrap files change (not on every push)
-  included_files = ["**/creative-studio/backend/bootstrap/**"]
+  # Only trigger when bootstrap files or configuration changes (not on every push)
+  included_files = [
+    "**/creative-studio/backend/bootstrap/**",
+    "**/creative-studio/backend/Dockerfile.bootstrap",
+    "**/creative-studio/backend/cloudbuild-bootstrap.yaml"
+  ]
 
   substitutions = {
     _BOOTSTRAP_JOB_NAME         = var.bootstrap_job_name != null ? var.bootstrap_job_name : "cstudio-bootstrap-${var.environment}"
