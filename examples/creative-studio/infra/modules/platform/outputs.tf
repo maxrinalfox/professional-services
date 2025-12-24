@@ -73,12 +73,7 @@ output "bootstrap_artifact_repository" {
   value       = var.enable_cloud_run_job ? google_artifact_registry_repository.bootstrap_repo[0].repository_id : null
 }
 
-output "bootstrap_trigger_name" {
-  description = "Name of the Cloud Build trigger for bootstrap job"
-  value       = (var.enable_cloud_build && var.enable_cloud_run_job) ? google_cloudbuild_trigger.bootstrap[0].name : null
-}
-
-output "bootstrap_job_name" {
-  description = "Name of the Cloud Run Job (created by Cloud Build trigger)"
-  value       = var.enable_cloud_run_job ? (var.bootstrap_job_name != null ? var.bootstrap_job_name : "cstudio-bootstrap-${var.environment}") : null
-}
+# output "bootstrap_trigger_name" {
+#   description = "Name of the Cloud Build trigger for bootstrap job"
+#   value       = (var.enable_cloud_build && var.enable_cloud_run_job) ? google_cloudbuild_trigger.bootstrap[0].name : null
+# }

@@ -286,7 +286,12 @@ module "backend_service" {
   github_branch_name    = var.github_branch_name
   cloudbuild_yaml_path  = "examples/creative-studio/backend/cloudbuild.yaml"
   included_files_glob   = ["**/creative-studio/backend/**"]
-  container_env_vars    = local.backend_env_vars
+  container_env_vars    = merge(
+    local.backend_env_vars,
+    {
+      "USE_CLOUD_SQL_PRIVATE_IP" = var.cloud_sql_public_ip_enabled ? "false" : "true"
+    }
+  )
   runtime_secrets       = var.backend_runtime_secrets
   custom_audiences      = local.backend_custom_audiences_computed # Auto-populated with gcp_project_id
   scaling_min_instances = 1
@@ -549,7 +554,7 @@ resource "google_project_iam_member" "bootstrap_trigger_logging_writer" {
 }
 
 # Grant bootstrap trigger SA permission to impersonate the bootstrap job service account
-# This is needed for Cloud Build to update the Cloud Run Job with new container images
+# This is needed for Cloud Build to create the Cloud Run Job with the specified service account
 # and to pass the job SA when executing the job
 resource "google_service_account_iam_member" "bootstrap_trigger_can_impersonate_job_sa" {
   count              = (var.enable_cloud_build && var.enable_cloud_run_job) ? 1 : 0
@@ -558,121 +563,6 @@ resource "google_service_account_iam_member" "bootstrap_trigger_can_impersonate_
   member             = google_service_account.bootstrap_trigger_sa[0].member
 }
 
-# Cloud Build trigger for bootstrap job
-# Triggers on push to configured branch when backend/bootstrap/** files change
-resource "google_cloudbuild_trigger" "bootstrap" {
-  count           = (var.enable_cloud_build && var.enable_cloud_run_job) ? 1 : 0
-  name            = "cstudio-bootstrap-trigger"
-  location        = var.gcp_region
-  service_account = google_service_account.bootstrap_trigger_sa[0].id
-  filename        = "examples/creative-studio/backend/cloudbuild-bootstrap.yaml"
-  project         = var.gcp_project_id
-
-  repository_event_config {
-    repository = local.source_repository_id
-    push {
-      branch = "^${var.github_branch_name}$"
-    }
-  }
-
-  # Only trigger when bootstrap files or configuration changes (not on every push)
-  included_files = [
-    "**/creative-studio/backend/bootstrap/**",
-    "**/creative-studio/backend/Dockerfile.bootstrap",
-    "**/creative-studio/backend/cloudbuild-bootstrap.yaml"
-  ]
-
-  substitutions = {
-    _BOOTSTRAP_JOB_NAME         = var.bootstrap_job_name != null ? var.bootstrap_job_name : "cstudio-bootstrap-${var.environment}"
-    _BOOTSTRAP_IMAGE_NAME       = var.bootstrap_image_name
-    _REPO_NAME                  = google_artifact_registry_repository.bootstrap_repo[0].repository_id
-    _REGION                     = var.gcp_region
-    _GENMEDIA_BUCKET            = google_storage_bucket.genmedia.name
-    _INSTANCE_CONNECTION_NAME   = module.postgresql.connection_name
-  }
-
-  depends_on = [
-    google_service_account.bootstrap_trigger_sa,
-    google_artifact_registry_repository.bootstrap_repo
-  ]
-}
-
-# --- Cloud Run Job for Bootstrap (if not exists) ---
-# Create the Cloud Run Job with proper environment variables
-# This ensures environment variables are set before the job is executed
-resource "google_cloud_run_v2_job" "bootstrap" {
-  count    = var.enable_cloud_run_job ? 1 : 0
-  name     = var.bootstrap_job_name != null ? var.bootstrap_job_name : "cstudio-bootstrap-${var.environment}"
-  location = var.gcp_region
-  project  = var.gcp_project_id
-
-  template {
-    task_count = 1
-
-    template {
-      execution_environment = "EXECUTION_ENVIRONMENT_GEN2"
-      service_account       = google_service_account.bootstrap_sa[0].email
-      timeout               = "${var.bootstrap_job_timeout}s"
-
-      containers {
-        # Placeholder image - will be updated by Cloud Build trigger
-        image = "${var.gcp_region}-docker.pkg.dev/${var.gcp_project_id}/${google_artifact_registry_repository.bootstrap_repo[0].repository_id}/${var.bootstrap_image_name}:latest"
-
-        # Environment variables for bootstrap job
-        dynamic "env" {
-          for_each = merge(
-            var.bootstrap_job_environment_variables,
-            {
-              "DB_USER" = module.postgresql.db_user
-              "DB_NAME" = module.postgresql.db_name
-            }
-          )
-          content {
-            name  = env.key
-            value = env.value
-          }
-        }
-
-        # Secrets from Secret Manager
-        dynamic "env" {
-          for_each = var.bootstrap_job_secrets
-          content {
-            name = env.key
-            value_source {
-              secret_key_ref {
-                secret  = env.value.secret_id
-                version = "latest"
-              }
-            }
-          }
-        }
-
-        # Resource allocation
-        resources {
-          limits = {
-            cpu    = var.bootstrap_job_cpu
-            memory = var.bootstrap_job_memory
-          }
-        }
-      }
-
-      # VPC Access for private Cloud SQL (if configured)
-      dynamic "vpc_access" {
-        for_each = var.vpc_enable ? [module.vpc_network[0].vpc_connector_id] : []
-        content {
-          connector = vpc_access.value
-          egress    = "PRIVATE_RANGES_ONLY"
-        }
-      }
-    }
-  }
-
-  depends_on = [
-    google_service_account.bootstrap_sa,
-    google_artifact_registry_repository.bootstrap_repo,
-    module.postgresql
-  ]
-}
 
 # --- Cross-Module Permissions ---
 
