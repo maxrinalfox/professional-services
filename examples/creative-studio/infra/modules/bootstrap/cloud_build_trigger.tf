@@ -53,8 +53,7 @@ resource "google_cloudbuild_trigger" "bootstrap" {
     _BOOTSTRAP_CPU             = var.bootstrap_job_cpu
     _BOOTSTRAP_MEMORY          = var.bootstrap_job_memory
     _BOOTSTRAP_ENV_VARS        = join(",", [for k, v in var.bootstrap_job_environment_variables : "${k}=${v}"])
-    # _BOOTSTRAP_TIMEOUT         = format("%ds", var.bootstrap_job_timeout)
-    _BOOTSTRAP_TIMEOUT         = "600s"
+    _BOOTSTRAP_TIMEOUT         = format("%ds", var.bootstrap_job_timeout)
     _BOOTSTRAP_SECRETS = join(",", [
       for env_var, secret_config in var.bootstrap_job_secrets : "${env_var}=${secret_config.secret_id}:latest"
     ])
