@@ -15,9 +15,10 @@
 # --- Shared Storage Resources ---
 
 resource "google_storage_bucket" "genmedia" {
-  name                        = "${var.gcp_project_id}-cs-${var.environment}-bucket"
+  name                        = "creative-studio-${var.gcp_project_id}-assets"
   location                    = var.gcp_region
   uniform_bucket_level_access = true
+  force_destroy               = true
 
   cors {
     origin          = ["*"]
