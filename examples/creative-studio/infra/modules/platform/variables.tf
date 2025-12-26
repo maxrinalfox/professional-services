@@ -14,7 +14,15 @@
 
 variable "gcp_project_id" { type = string }
 variable "gcp_region" { type = string }
-variable "environment" { type = string }
+variable "environment" {
+  type        = string
+  description = "The deployment environment (development, production, or sandbox)."
+
+  validation {
+    condition     = contains(["development", "production", "sandbox"], var.environment)
+    error_message = "Environment must be one of: 'development', 'production', or 'sandbox'."
+  }
+}
 
 variable "firebase_db_name" {
   type    = string

@@ -24,7 +24,12 @@ variable "gcp_region" {
 
 variable "environment" {
   type        = string
-  description = "Environment name (dev, prod, etc.)"
+  description = "The deployment environment (development, production, or sandbox)."
+
+  validation {
+    condition     = contains(["development", "production", "sandbox"], var.environment)
+    error_message = "Environment must be one of: 'development', 'production', or 'sandbox'."
+  }
 }
 
 variable "enable_cloud_build" {

@@ -22,7 +22,15 @@ variable "trigger_name" {
   nullable = true
   default = null
 }
-variable "environment" { type = string }
+variable "environment" {
+  type        = string
+  description = "The deployment environment (development, production, or sandbox)."
+
+  validation {
+    condition     = contains(["development", "production", "sandbox"], var.environment)
+    error_message = "Environment must be one of: 'development', 'production', or 'sandbox'."
+  }
+}
 variable "resource_prefix" { type = string }
 variable "source_repository_id" {
   type = string
