@@ -404,6 +404,64 @@ substitutions = {
 - This consolidates bootstrap configuration - no hardcoded values in the trigger itself
 - All values are passed from `terraform.auto.tfvars` through the platform module to bootstrap module
 
+## Known Issues & Next Steps
+
+### ⚠️ Bootstrap Cloud Build Substitution Variables - Incomplete Fix (Session 12/26/2025)
+
+**Status**: Partially Resolved - Syntax Fixed but Runtime Substitution Still Failing
+
+**Issue**: Cloud Build substitution variables are correctly configured in the Terraform trigger but are NOT being expanded at runtime in the bash script execution. This causes the `gcloud run jobs create` command to receive empty values.
+
+**Error Example**:
+```
+ERROR: (gcloud.run.jobs.create) argument --task-timeout: value must be greater than or equal to 1s; received empty string
+```
+
+**Root Cause Investigation**:
+1. ✅ **Terraform Configuration**: All 13 substitution variables are correctly set in `cloud_build_trigger.tf`
+   - `_BOOTSTRAP_TIMEOUT: 3600s` ✓
+   - `_BOOTSTRAP_CPU: '2'` ✓
+   - `_BOOTSTRAP_ENV_VARS: ADMIN_USER_EMAIL=admin@example.com,...` ✓
+   - All other variables properly configured ✓
+
+2. ✅ **YAML Syntax (Fixed 12/26)**: Changed Cloud Build variable references from incorrect syntax to proper bash expansion:
+   - Before: `'${_BOOTSTRAP_JOB_NAME}'` (single quotes prevent expansion)
+   - After: `${_BOOTSTRAP_JOB_NAME}` (allows proper expansion)
+   - File: `examples/creative-studio/backend/cloudbuild-bootstrap.yaml` lines 81-118
+
+3. ❌ **Runtime Substitution**: Despite syntax fixes, variables still not being expanded when Cloud Build executes the script
+   - Terraform apply succeeded (12/26/2025)
+   - Cloud Build trigger updated with correct YAML
+   - But when executed, variables still appear empty in runtime
+
+**Completed Actions**:
+- Fixed Cloud Build variable syntax in bash script (removed single quotes)
+- Updated Terraform trigger description to force update
+- Verified all 13 substitution variables are set correctly in trigger
+- Confirmed YAML file uses correct `${_VAR}` expansion syntax
+
+**Pending Investigation (Next Session)**:
+1. Determine why Cloud Build `script:` steps don't expand substitution variables at runtime
+2. Research if this is a Cloud Build limitation with bash `script:` vs `args:` sections
+3. Possible solutions to investigate:
+   - Move variable substitution to entrypoint-based commands (using `args:` instead of `script:`)
+   - Use Cloud Build's explicit variable passing mechanism
+   - Check Cloud Build builder image caching/version issues
+   - Verify Cloud Build documentation for bash script variable expansion rules
+4. Test if other Cloud Build triggers (backend/frontend) have similar issues
+5. Consider alternative approaches (Cloud Build builder environment variables)
+
+**Files Affected**:
+- `examples/creative-studio/backend/cloudbuild-bootstrap.yaml` - Syntax fixed, runtime issue remains
+- `infra/modules/bootstrap/cloud_build_trigger.tf` - Substitutions correctly configured
+- `infra/environments/prod_ops_sandbox/terraform.auto.tfvars` - Configuration correct
+
+**Commit**: `7cfe50cd6` - fix(bootstrap): correct Cloud Build substitution variable syntax in bash script
+
+**Action Required**: Full investigation and fix in next working session
+
+---
+
 ## Cross-Module Trigger Dependencies
 
 ### Frontend Trigger Access to Backend Info
