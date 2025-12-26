@@ -98,7 +98,7 @@ steps:
           --set-secrets="${_BOOTSTRAP_SECRETS}" \
           --cpu="${_BOOTSTRAP_CPU}" \
           --memory="${_BOOTSTRAP_MEMORY}" \
-          --task-timeout="${_BOOTSTRAP_TIMEOUT}" \
+          --task-timeout="${_BOOTSTRAP_TIMEOUT}s" \
           --parallelism=1 \
           --max-retries=1 \
           --tasks=1

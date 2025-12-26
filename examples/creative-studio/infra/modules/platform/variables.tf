@@ -232,7 +232,7 @@ variable "bootstrap_job_memory" {
 variable "bootstrap_job_timeout" {
   type        = number
   description = "Timeout in seconds for bootstrap Cloud Run Job"
-  default     = 3600
+  default     = 600
 }
 
 variable "initial_admin_user_email" {

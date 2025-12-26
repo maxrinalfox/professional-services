@@ -37,7 +37,7 @@ resource "google_cloudbuild_trigger" "bootstrap" {
     _CLOUD_SQL_INSTANCE        = module.postgresql.connection_name
     _BOOTSTRAP_CPU             = var.bootstrap_job_cpu
     _BOOTSTRAP_MEMORY          = var.bootstrap_job_memory
-    _BOOTSTRAP_TIMEOUT         = var.bootstrap_job_timeout
+    _BOOTSTRAP_TIMEOUT         = tostring(var.bootstrap_job_timeout)
     _BOOTSTRAP_ENV_VARS        = join(",", concat(
       [
         "ADMIN_USER_EMAIL=${var.initial_admin_user_email}",
