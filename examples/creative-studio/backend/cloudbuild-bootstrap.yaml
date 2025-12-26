@@ -139,7 +139,7 @@ substitutions:
   # Resource Configuration
   _BOOTSTRAP_CPU: '2'
   _BOOTSTRAP_MEMORY: '4Gi'
-  _BOOTSTRAP_TIMEOUT: '3600'
+  _BOOTSTRAP_TIMEOUT: '3600s'
 
   # Environment Variables (comma-separated key=value pairs)
   _BOOTSTRAP_ENV_VARS: 'ADMIN_USER_EMAIL=admin@example.com,LOG_LEVEL=INFO,ENVIRONMENT=sandbox,INSTANCE_CONNECTION_NAME=${PROJECT_ID}:us-central1:creative-studio-db-c3353262,USE_CLOUD_SQL_PRIVATE_IP=false'
