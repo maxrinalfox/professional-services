@@ -25,6 +25,7 @@ resource "google_cloudbuild_trigger" "bootstrap" {
   service_account = google_service_account.bootstrap_trigger_sa[0].id
   filename        = "examples/creative-studio/backend/cloudbuild-bootstrap.yaml"
   project         = var.gcp_project_id
+  description     = "Bootstrap Cloud Run Job trigger - Updated for timeout and env var fixes"
 
   repository_event_config {
     repository = var.source_repository_id
