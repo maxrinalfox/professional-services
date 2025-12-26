@@ -436,6 +436,25 @@ module "frontend_secrets" {
   accessor_sa_email = module.frontend_service.trigger_sa_member
 }
 
+# Populate Firebase SDK secrets with actual values from the Firebase web app configuration
+# This replaces the placeholder values created by the secret-manager module
+# Uses the secret name directly since the module creates secrets with secret_id = each.key
+resource "google_secret_manager_secret_version" "firebase_sdk_config" {
+  for_each = length(data.google_firebase_web_app_config.default) > 0 ? local.firebase_sdk_config : {}
+
+  provider    = google-beta
+  project     = var.gcp_project_id
+  secret      = each.key
+  secret_data = each.value
+
+  lifecycle {
+    # Allow updates to populate actual values
+    ignore_changes = []
+  }
+
+  depends_on = [module.frontend_secrets]
+}
+
 module "backend_secrets" {
   source = "../secret-manager"
 
@@ -456,6 +475,20 @@ resource "google_secret_manager_secret_iam_member" "backend_runtime_secret_acces
   member    = module.backend_service.run_sa_member
 
   depends_on = [module.backend_secrets]
+}
+
+# Grant Cloud Build service account access to frontend secrets
+# Needed for Cloud Build frontend build trigger to inject secrets into environment
+resource "google_secret_manager_secret_iam_member" "cloud_build_frontend_secret_accessor" {
+  for_each = toset(concat(local.frontend_secrets_auto, var.frontend_secrets_additional))
+
+  provider  = google-beta
+  project   = var.gcp_project_id
+  secret_id = each.value
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:cloud-builds@${var.gcp_project_id}.iam.gserviceaccount.com"
+
+  depends_on = [module.frontend_secrets]
 }
 
 # Grant the bootstrap service account access to bootstrap job secrets
