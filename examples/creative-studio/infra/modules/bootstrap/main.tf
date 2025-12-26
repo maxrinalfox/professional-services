@@ -117,6 +117,17 @@ resource "google_project_iam_member" "bootstrap_trigger_logging_writer" {
   member  = google_service_account.bootstrap_trigger_sa[0].member
 }
 
+# Grant bootstrap trigger SA permission to write to artifact registry (push images)
+# This is needed for Cloud Build to build and push the bootstrap Docker image
+resource "google_artifact_registry_repository_iam_member" "bootstrap_trigger_sa_ar_writer" {
+  count      = (var.enable_cloud_build && var.enable_cloud_run_job) ? 1 : 0
+  location   = var.gcp_region
+  repository = google_artifact_registry_repository.bootstrap_repo[0].name
+  role       = "roles/artifactregistry.writer"
+  member     = google_service_account.bootstrap_trigger_sa[0].member
+  project    = var.gcp_project_id
+}
+
 # Grant bootstrap trigger SA permission to impersonate the bootstrap job service account
 # This is needed for Cloud Build to create the Cloud Run Job with the specified service account
 # and to pass the job SA when executing the job
