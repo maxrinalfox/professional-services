@@ -16,12 +16,12 @@
 
 output "backend_service_url" {
   description = "The URL of the deployed backend service."
-  value       = try(module.backend_service[0].service_url, null)
+  value       = try(module.backend_service.service_url, null)
 }
 
 output "frontend_service_url" {
   description = "The URL of the deployed frontend service."
-  value       = try(module.frontend_service[0].url, null)
+  value       = try(module.frontend_service.url, null)
 }
 
 output "cloud_sql_connection_name" {
@@ -65,12 +65,12 @@ output "identity_platform_auth_domain" {
 
 output "bootstrap_service_account_email" {
   description = "Email of the service account used by the bootstrap job"
-  value       = var.enable_cloud_run_job ? google_service_account.bootstrap_sa[0].email : null
+  value       = var.enable_cloud_run_job ? module.bootstrap.bootstrap_sa_email : null
 }
 
 output "bootstrap_artifact_repository" {
   description = "Name of the Artifact Registry repository for bootstrap images"
-  value       = var.enable_cloud_run_job ? google_artifact_registry_repository.bootstrap_repo[0].repository_id : null
+  value       = var.enable_cloud_run_job ? module.bootstrap.bootstrap_repo_name : null
 }
 
 # output "bootstrap_trigger_name" {

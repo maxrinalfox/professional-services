@@ -1,3 +1,16 @@
+# Copyright 2025 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 # Cloud Build trigger for bootstrap job
 # Manages the complete lifecycle of the Cloud Run Job:
@@ -14,7 +27,7 @@ resource "google_cloudbuild_trigger" "bootstrap" {
   project         = var.gcp_project_id
 
   repository_event_config {
-    repository = local.source_repository_id
+    repository = var.source_repository_id
     push {
       branch = "^${var.github_branch_name}$"
     }
@@ -33,8 +46,8 @@ resource "google_cloudbuild_trigger" "bootstrap" {
     _REPO_NAME                 = google_artifact_registry_repository.bootstrap_repo[0].repository_id
     _REGION                    = var.gcp_region
     _BOOTSTRAP_SERVICE_ACCOUNT = google_service_account.bootstrap_sa[0].email
-    _VPC_CONNECTOR_NAME        = var.vpc_enable ? module.vpc_network[0].vpc_connector_name : ""
-    _CLOUD_SQL_INSTANCE        = module.postgresql.connection_name
+    _VPC_CONNECTOR_NAME        = var.vpc_connector_name
+    _CLOUD_SQL_INSTANCE        = var.cloud_sql_connection_name
     _BOOTSTRAP_CPU             = var.bootstrap_job_cpu
     _BOOTSTRAP_MEMORY          = var.bootstrap_job_memory
     _BOOTSTRAP_TIMEOUT         = tostring(var.bootstrap_job_timeout)
@@ -42,23 +55,20 @@ resource "google_cloudbuild_trigger" "bootstrap" {
       [
         "ADMIN_USER_EMAIL=${var.initial_admin_user_email}",
         "ENVIRONMENT=${var.environment}",
-        "INSTANCE_CONNECTION_NAME=${module.postgresql.connection_name}",
-        "USE_CLOUD_SQL_PRIVATE_IP=${var.vpc_enable ? "true" : "false"}",
+        "INSTANCE_CONNECTION_NAME=${var.cloud_sql_connection_name}",
+        "USE_CLOUD_SQL_PRIVATE_IP=${var.vpc_connector_name != "" ? "true" : "false"}",
         "LOG_LEVEL=${var.bootstrap_job_log_level}",
       ],
       [for k, v in var.bootstrap_job_environment_variables : "${k}=${v}"]
     ))
-    _BOOTSTRAP_SECRETS = join(",", concat(
-      ["DB_PASS=creative-studio-db-password:latest"],
-      [for env_var, secret_config in var.bootstrap_job_secrets : "${env_var}=${secret_config.secret_id}:latest"]
-    ))
+    _BOOTSTRAP_SECRETS = join(",", [
+      for env_var, secret_config in var.bootstrap_job_secrets : "${env_var}=${secret_config.secret_id}:latest"
+    ])
   }
 
   depends_on = [
     google_service_account.bootstrap_trigger_sa,
     google_artifact_registry_repository.bootstrap_repo,
     google_service_account.bootstrap_sa,
-    module.postgresql,
-    module.vpc_network
   ]
 }

@@ -31,3 +31,18 @@ output "cloud_sql_connection_name" {
   description = "The connection name of the Cloud SQL instance to be used by the bootstrap script."
   value       = module.creative_studio_platform.cloud_sql_connection_name
 }
+
+output "vpc_connector_id" {
+  description = "VPC Connector ID for Cloud Run (if VPC is enabled)"
+  value       = module.creative_studio_platform.vpc_connector_id
+}
+
+output "vpc_connector_name" {
+  description = "VPC Connector name for Cloud Run (if VPC is enabled)"
+  value       = module.creative_studio_platform.vpc_connector_name
+}
+
+output "vpc_network_id" {
+  description = "VPC network ID (if VPC is enabled)"
+  value       = module.creative_studio_platform.vpc_network_id
+}

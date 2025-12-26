@@ -161,3 +161,10 @@ variable "invoker_identities" {
   EOT
   default     = []
 }
+
+# --- Backend Secrets Management ---
+variable "backend_secrets" {
+  type        = list(string)
+  description = "A list of secret names required by the backend build and runtime"
+  default     = []
+}

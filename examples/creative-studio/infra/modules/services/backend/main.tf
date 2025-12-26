@@ -172,7 +172,8 @@ resource "google_cloudbuild_trigger" "this" {
   service_account = google_service_account.trigger_sa.id
   filename        = var.cloudbuild_yaml_path
   substitutions   = merge(var.build_substitutions, {
-    _REPO_NAME = google_artifact_registry_repository.repo.name
+    _REPO_NAME           = google_artifact_registry_repository.repo.name
+    _ARTIFACT_REGISTRY   = google_artifact_registry_repository.repo.location
   })
 
   repository_event_config {
