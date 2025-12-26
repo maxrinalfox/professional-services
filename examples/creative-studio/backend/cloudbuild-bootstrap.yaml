@@ -78,27 +78,27 @@ steps:
 
       IMAGE='${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO_NAME}/${_BOOTSTRAP_IMAGE_NAME}:$SHORT_SHA'
 
-      if gcloud run jobs describe '${_BOOTSTRAP_JOB_NAME}' --region='${_REGION}' --project=$PROJECT_ID 2>/dev/null >/dev/null; then
+      if gcloud run jobs describe ${_BOOTSTRAP_JOB_NAME} --region=${_REGION} --project=${PROJECT_ID} 2>/dev/null >/dev/null; then
         echo 'Job found, updating existing job with new image'
-        gcloud run jobs update '${_BOOTSTRAP_JOB_NAME}' \
+        gcloud run jobs update ${_BOOTSTRAP_JOB_NAME} \
           --image="$IMAGE" \
-          --region='${_REGION}' \
-          --project=$PROJECT_ID
+          --region=${_REGION} \
+          --project=${PROJECT_ID}
       else
         echo 'Job not found, creating new job with full configuration'
-        gcloud run jobs create '${_BOOTSTRAP_JOB_NAME}' \
+        gcloud run jobs create ${_BOOTSTRAP_JOB_NAME} \
           --image="$IMAGE" \
-          --region='${_REGION}' \
-          --project=$PROJECT_ID \
-          --vpc-connector="projects/$PROJECT_ID/locations/${_REGION}/connectors/${_VPC_CONNECTOR_NAME}" \
+          --region=${_REGION} \
+          --project=${PROJECT_ID} \
+          --vpc-connector="projects/${PROJECT_ID}/locations/${_REGION}/connectors/${_VPC_CONNECTOR_NAME}" \
           --vpc-egress='private-ranges-only' \
-          --service-account='${_BOOTSTRAP_SERVICE_ACCOUNT}' \
-          --set-cloudsql-instances='${_CLOUD_SQL_INSTANCE}' \
+          --service-account=${_BOOTSTRAP_SERVICE_ACCOUNT} \
+          --set-cloudsql-instances=${_CLOUD_SQL_INSTANCE} \
           --set-env-vars="${_BOOTSTRAP_ENV_VARS}" \
           --set-secrets="${_BOOTSTRAP_SECRETS}" \
-          --cpu="${_BOOTSTRAP_CPU}" \
-          --memory="${_BOOTSTRAP_MEMORY}" \
-          --task-timeout="${_BOOTSTRAP_TIMEOUT}" \
+          --cpu=${_BOOTSTRAP_CPU} \
+          --memory=${_BOOTSTRAP_MEMORY} \
+          --task-timeout=${_BOOTSTRAP_TIMEOUT} \
           --parallelism=1 \
           --max-retries=1 \
           --tasks=1
@@ -112,9 +112,9 @@ steps:
       - 'run'
       - 'jobs'
       - 'execute'
-      - '${_BOOTSTRAP_JOB_NAME}'
-      - '--region=${_REGION}'
-      - '--project=${PROJECT_ID}'
+      - ${_BOOTSTRAP_JOB_NAME}
+      - --region=${_REGION}
+      - --project=${PROJECT_ID}
       - '--wait'
 
 # Substitution variables (defaults, can be overridden by Cloud Build trigger)
