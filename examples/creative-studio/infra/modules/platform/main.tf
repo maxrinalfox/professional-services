@@ -477,16 +477,16 @@ resource "google_secret_manager_secret_iam_member" "backend_runtime_secret_acces
   depends_on = [module.backend_secrets]
 }
 
-# Grant Cloud Build service account access to frontend secrets
+# Grant the frontend trigger service account access to frontend secrets
 # Needed for Cloud Build frontend build trigger to inject secrets into environment
 resource "google_secret_manager_secret_iam_member" "cloud_build_frontend_secret_accessor" {
-  for_each = toset(concat(local.frontend_secrets_auto, var.frontend_secrets_additional))
+  for_each = var.enable_cloud_build ? toset(concat(local.frontend_secrets_auto, var.frontend_secrets_additional)) : toset([])
 
   provider  = google-beta
   project   = var.gcp_project_id
   secret_id = each.value
   role      = "roles/secretmanager.secretAccessor"
-  member    = "serviceAccount:cloud-builds@${var.gcp_project_id}.iam.gserviceaccount.com"
+  member    = module.frontend_service.trigger_sa_member
 
   depends_on = [module.frontend_secrets]
 }
