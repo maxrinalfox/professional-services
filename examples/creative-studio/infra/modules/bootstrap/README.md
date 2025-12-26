@@ -52,7 +52,7 @@ source_repository_id        # Cloud Build V2 repository ID
 github_branch_name          # GitHub branch for triggers
 bootstrap_image_name        # Docker image name
 cloud_sql_connection_name   # Cloud SQL connection string
-initial_admin_user_email    # Admin user email for initialization
+bootstrap_job_environment_variables  # Environment variables for bootstrap job
 ```
 
 ### Optional Variables
@@ -61,10 +61,12 @@ initial_admin_user_email    # Admin user email for initialization
 bootstrap_job_cpu              # CPU allocation (default: "2000m")
 bootstrap_job_memory           # Memory allocation (default: "2048Mi")
 bootstrap_job_timeout          # Timeout in seconds (default: 3600)
-bootstrap_job_log_level        # Log level (default: "INFO")
-bootstrap_job_environment_variables  # Custom env vars
 bootstrap_job_name             # Job name (auto-generated if null)
-vpc_connector_name             # VPC connector for private networking
+vpc_connector_name             # VPC connector name for private networking
+vpc_connector_id               # VPC connector ID (full resource path)
+bootstrap_job_secrets          # Secrets from Secret Manager
+initial_admin_user_email       # DEPRECATED: include ADMIN_USER_EMAIL in bootstrap_job_environment_variables
+bootstrap_job_log_level        # DEPRECATED: include LOG_LEVEL in bootstrap_job_environment_variables
 ```
 
 ## Module Outputs
@@ -138,16 +140,25 @@ steps:
 
 ### Build Substitutions
 
+Cloud Build uses these substitution variables from the Terraform trigger configuration:
+
 ```
-_REGION                    # GCP region
-_REPO_NAME                 # Artifact Registry repository name
 _BOOTSTRAP_JOB_NAME        # Cloud Run Job name
-_BOOTSTRAP_SERVICE_ACCOUNT # Service account email
-_CLOUD_SQL_CONNECTION_NAME # Cloud SQL connection string
-_GENMEDIA_BUCKET           # Cloud Storage bucket name
-_BOOTSTRAP_SECRETS         # Comma-separated secret references
-_VPC_CONNECTOR_NAME        # VPC connector name (if applicable)
+_BOOTSTRAP_IMAGE_NAME      # Bootstrap Docker image name in Artifact Registry
+_REPO_NAME                 # Artifact Registry repository name
+_REGION                    # GCP region
+_BOOTSTRAP_SERVICE_ACCOUNT # Service account email for bootstrap job
+_VPC_CONNECTOR_NAME        # VPC connector name for private networking
+_VPC_CONNECTOR_ID          # VPC connector ID (full resource path)
+_CLOUD_SQL_INSTANCE        # Cloud SQL connection string
+_BOOTSTRAP_CPU             # CPU allocation for bootstrap job
+_BOOTSTRAP_MEMORY          # Memory allocation for bootstrap job
+_BOOTSTRAP_TIMEOUT         # Job timeout in seconds
+_BOOTSTRAP_ENV_VARS        # Comma-separated environment variables (from bootstrap_job_environment_variables)
+_BOOTSTRAP_SECRETS         # Comma-separated secret references (from bootstrap_job_secrets)
 ```
+
+**Note**: Environment variables (`ADMIN_USER_EMAIL`, `LOG_LEVEL`, `ENVIRONMENT`, `INSTANCE_CONNECTION_NAME`, `USE_CLOUD_SQL_PRIVATE_IP`) are now sourced from the `bootstrap_job_environment_variables` Terraform variable instead of being hardcoded.
 
 ## Service Accounts
 

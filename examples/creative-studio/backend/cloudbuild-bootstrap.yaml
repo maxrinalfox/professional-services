@@ -98,7 +98,7 @@ steps:
           --set-secrets="${_BOOTSTRAP_SECRETS}" \
           --cpu="${_BOOTSTRAP_CPU}" \
           --memory="${_BOOTSTRAP_MEMORY}" \
-          --task-timeout="${_BOOTSTRAP_TIMEOUT}s" \
+          --task-timeout="${_BOOTSTRAP_TIMEOUT}" \
           --parallelism=1 \
           --max-retries=1 \
           --tasks=1
@@ -131,6 +131,7 @@ substitutions:
 
   # VPC and Networking
   _VPC_CONNECTOR_NAME: 'cs-sandbox-cs-connector'
+  _VPC_CONNECTOR_ID: 'projects/${PROJECT_ID}/locations/us-central1/connectors/cs-sandbox-cs-connector'
 
   # Cloud SQL
   _CLOUD_SQL_INSTANCE: '${PROJECT_ID}:us-central1:creative-studio-db-c3353262'

@@ -133,7 +133,7 @@ variable "runtime_secrets" {
 
 # VPC and Networking
 variable "vpc_connector_id" {
-  description = "VPC Connector ID for Cloud Run to access private Cloud SQL"
+  description = "VPC Connector ID (full resource path) for Cloud Run to access private Cloud SQL"
   type        = string
   nullable    = true
   default     = null

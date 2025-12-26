@@ -336,12 +336,11 @@ module "bootstrap" {
   bootstrap_job_name = var.bootstrap_job_name
   bootstrap_image_name = var.bootstrap_image_name
   vpc_connector_name = var.vpc_enable ? (length(module.vpc_network) > 0 ? module.vpc_network[0].vpc_connector_name : "") : ""
+  vpc_connector_id = var.vpc_enable ? (length(module.vpc_network) > 0 ? module.vpc_network[0].vpc_connector_id : "") : ""
   cloud_sql_connection_name = module.postgresql.connection_name
   bootstrap_job_cpu = var.bootstrap_job_cpu
   bootstrap_job_memory = var.bootstrap_job_memory
   bootstrap_job_timeout = var.bootstrap_job_timeout
-  initial_admin_user_email = var.initial_admin_user_email
-  bootstrap_job_log_level = var.bootstrap_job_log_level
   bootstrap_job_environment_variables = var.bootstrap_job_environment_variables
 
   depends_on = [

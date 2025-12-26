@@ -47,20 +47,12 @@ resource "google_cloudbuild_trigger" "bootstrap" {
     _REGION                    = var.gcp_region
     _BOOTSTRAP_SERVICE_ACCOUNT = google_service_account.bootstrap_sa[0].email
     _VPC_CONNECTOR_NAME        = var.vpc_connector_name
+    _VPC_CONNECTOR_ID          = var.vpc_connector_id
     _CLOUD_SQL_INSTANCE        = var.cloud_sql_connection_name
     _BOOTSTRAP_CPU             = var.bootstrap_job_cpu
     _BOOTSTRAP_MEMORY          = var.bootstrap_job_memory
     _BOOTSTRAP_TIMEOUT         = tostring(var.bootstrap_job_timeout)
-    _BOOTSTRAP_ENV_VARS        = join(",", concat(
-      [
-        "ADMIN_USER_EMAIL=${var.initial_admin_user_email}",
-        "ENVIRONMENT=${var.environment}",
-        "INSTANCE_CONNECTION_NAME=${var.cloud_sql_connection_name}",
-        "USE_CLOUD_SQL_PRIVATE_IP=${var.vpc_connector_name != "" ? "true" : "false"}",
-        "LOG_LEVEL=${var.bootstrap_job_log_level}",
-      ],
-      [for k, v in var.bootstrap_job_environment_variables : "${k}=${v}"]
-    ))
+    _BOOTSTRAP_ENV_VARS        = join(",", [for k, v in var.bootstrap_job_environment_variables : "${k}=${v}"])
     _BOOTSTRAP_SECRETS = join(",", [
       for env_var, secret_config in var.bootstrap_job_secrets : "${env_var}=${secret_config.secret_id}:latest"
     ])

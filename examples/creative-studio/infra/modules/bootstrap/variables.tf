@@ -88,6 +88,12 @@ variable "vpc_connector_name" {
   default     = ""
 }
 
+variable "vpc_connector_id" {
+  type        = string
+  description = "VPC connector ID (full resource path) for private Cloud SQL access"
+  default     = ""
+}
+
 variable "cloud_sql_connection_name" {
   type        = string
   description = "Cloud SQL instance connection name"
@@ -113,13 +119,9 @@ variable "bootstrap_job_timeout" {
 
 variable "initial_admin_user_email" {
   type        = string
-  description = "Email of the initial admin user for bootstrap"
-}
-
-variable "bootstrap_job_log_level" {
-  type        = string
-  description = "Log level for bootstrap job"
-  default     = "INFO"
+  description = "Email of the initial admin user for bootstrap (deprecated: include in bootstrap_job_environment_variables[ADMIN_USER_EMAIL] instead)"
+  nullable    = true
+  default     = null
 }
 
 variable "bootstrap_job_environment_variables" {

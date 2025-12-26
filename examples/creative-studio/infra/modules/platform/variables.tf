@@ -245,12 +245,14 @@ variable "bootstrap_job_timeout" {
 
 variable "initial_admin_user_email" {
   type        = string
-  description = "Email address for the initial admin user to create during bootstrap"
-  default     = "admin@example.com"
+  description = "Deprecated: include ADMIN_USER_EMAIL in bootstrap_job_environment_variables instead. Email address for the initial admin user to create during bootstrap"
+  nullable    = true
+  default     = null
 }
 
 variable "bootstrap_job_log_level" {
   type        = string
-  description = "Log level for bootstrap job (DEBUG, INFO, WARNING, ERROR)"
-  default     = "INFO"
+  description = "Deprecated: include LOG_LEVEL in bootstrap_job_environment_variables instead. Log level for bootstrap job (DEBUG, INFO, WARNING, ERROR)"
+  nullable    = true
+  default     = null
 }

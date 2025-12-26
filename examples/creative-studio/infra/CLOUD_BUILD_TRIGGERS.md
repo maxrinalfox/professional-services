@@ -377,6 +377,33 @@ Only triggers on bootstrap code changes.
    - Seed data loading
    - Initialization scripts
 
+### Bootstrap Substitution Variables
+
+The platform module automatically injects these Cloud Build substitution variables:
+
+```hcl
+substitutions = {
+  _BOOTSTRAP_JOB_NAME        = var.bootstrap_job_name
+  _BOOTSTRAP_IMAGE_NAME      = var.bootstrap_image_name
+  _REPO_NAME                 = google_artifact_registry_repository.bootstrap_repo[0].repository_id
+  _REGION                    = var.gcp_region
+  _BOOTSTRAP_SERVICE_ACCOUNT = google_service_account.bootstrap_sa[0].email
+  _VPC_CONNECTOR_NAME        = var.vpc_connector_name
+  _VPC_CONNECTOR_ID          = var.vpc_connector_id
+  _CLOUD_SQL_INSTANCE        = var.cloud_sql_connection_name
+  _BOOTSTRAP_CPU             = var.bootstrap_job_cpu
+  _BOOTSTRAP_MEMORY          = var.bootstrap_job_memory
+  _BOOTSTRAP_TIMEOUT         = var.bootstrap_job_timeout
+  _BOOTSTRAP_ENV_VARS        = join(",", [for k, v in var.bootstrap_job_environment_variables : "${k}=${v}"])
+  _BOOTSTRAP_SECRETS         = join(",", [for env_var, secret_config in var.bootstrap_job_secrets : "${env_var}=${secret_config.secret_id}:latest"])
+}
+```
+
+**Key Points:**
+- Environment variables are sourced from `bootstrap_job_environment_variables` Terraform variable (standardized approach)
+- This consolidates bootstrap configuration - no hardcoded values in the trigger itself
+- All values are passed from `terraform.auto.tfvars` through the platform module to bootstrap module
+
 ## Cross-Module Trigger Dependencies
 
 ### Frontend Trigger Access to Backend Info
