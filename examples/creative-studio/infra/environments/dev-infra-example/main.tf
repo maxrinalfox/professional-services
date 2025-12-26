@@ -98,4 +98,16 @@ module "creative_studio_platform" {
   enable_cloud_build          = var.enable_cloud_build
   cloud_sql_public_ip_enabled = var.cloud_sql_public_ip_enabled
   enable_identity_platform    = var.enable_identity_platform
+
+  # --- Cloud Run Job Configuration (Database Bootstrap) ---
+  enable_cloud_run_job                = var.enable_cloud_run_job
+  bootstrap_job_name                  = var.bootstrap_job_name
+  bootstrap_image_name                = var.bootstrap_image_name
+  bootstrap_job_environment_variables = var.bootstrap_job_environment_variables
+  bootstrap_job_secrets               = var.bootstrap_job_secrets
+  bootstrap_job_cpu                   = var.bootstrap_job_cpu
+  bootstrap_job_memory                = var.bootstrap_job_memory
+  bootstrap_job_timeout               = var.bootstrap_job_timeout
+  initial_admin_user_email            = var.initial_admin_user_email
+  bootstrap_job_log_level             = var.bootstrap_job_log_level
 }

@@ -313,8 +313,8 @@ module "backend_service" {
   db_name                   = module.postgresql.db_name
   db_user                   = module.postgresql.db_user
 
-  # Pass the Secret ID reference (NOT the value) for Cloud Run
-  db_secret_id = "creative-studio-db-password"
+  # Pass the Secret ID reference (NOT the value) for Cloud Run - environment-specific
+  db_secret_id = google_secret_manager_secret.db_password.secret_id
 
   # Cloud Run access control - grant invoker role to specified identities
   invoker_identities = var.backend_invoker_identities
@@ -456,6 +456,20 @@ resource "google_secret_manager_secret_iam_member" "backend_runtime_secret_acces
   member    = module.backend_service.run_sa_member
 
   depends_on = [module.backend_secrets]
+}
+
+# Grant the bootstrap service account access to bootstrap job secrets
+# Only created when bootstrap job is enabled
+resource "google_secret_manager_secret_iam_member" "bootstrap_runtime_secret_accessor" {
+  for_each = var.enable_cloud_run_job ? var.bootstrap_job_secrets : {}
+
+  provider  = google-beta
+  project   = var.gcp_project_id
+  secret_id = each.value.secret_id
+  role      = "roles/secretmanager.secretAccessor"
+  member    = google_service_account.bootstrap_sa[0].member
+
+  depends_on = [google_service_account.bootstrap_sa]
 }
 
 # --- Cloud Run Job Support Resources ---
