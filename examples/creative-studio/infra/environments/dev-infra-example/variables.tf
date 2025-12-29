@@ -261,16 +261,3 @@ variable "bootstrap_job_timeout" {
   description = "Timeout in seconds for bootstrap Cloud Run Job"
   default     = 3600
 }
-
-variable "initial_admin_user_email" {
-  type        = string
-  description = "Email address for the initial admin user to create during bootstrap"
-  default     = "admin@example.com"
-}
-
-variable "bootstrap_job_log_level" {
-  type        = string
-  description = "Log level for bootstrap job (DEBUG, INFO, WARNING, ERROR)"
-  default     = "INFO"
-}
-

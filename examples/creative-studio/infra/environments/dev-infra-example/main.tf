@@ -51,55 +51,52 @@ provider "google-beta" {
 module "creative_studio_platform" {
   source = "../../modules/platform"
 
-  # --- Core Configuration ---
-  gcp_project_id  = var.gcp_project_id
-  gcp_region      = var.gcp_region
-  environment     = var.environment
-
-  # --- Service Configuration ---
+  gcp_project_id            = var.gcp_project_id
+  gcp_region                = var.gcp_region
+  environment               = var.environment
   backend_service_name      = var.backend_service_name
   backend_custom_audiences  = var.backend_custom_audiences
+  be_env_vars               = var.be_env_vars
   frontend_service_name     = var.frontend_service_name
   frontend_custom_audiences = var.frontend_custom_audiences
+  github_conn_name          = var.github_conn_name
+  github_repo_owner         = var.github_repo_owner
+  github_repo_name          = var.github_repo_name
+  github_branch_name        = var.github_branch_name
 
-  # --- GitHub Configuration ---
-  github_conn_name   = var.github_conn_name
-  github_repo_owner  = var.github_repo_owner
-  github_repo_name   = var.github_repo_name
-  github_branch_name = var.github_branch_name
-
-  # --- Environment Variables & Secrets ---
-  be_env_vars                = var.be_env_vars
-  be_build_substitutions     = var.be_build_substitutions
-  fe_build_substitutions     = var.fe_build_substitutions
-  frontend_secrets           = var.frontend_secrets
-  frontend_secrets_additional = var.frontend_secrets_additional
-  backend_secrets            = var.backend_secrets
-  backend_runtime_secrets    = var.backend_runtime_secrets
-
-  # --- Firebase Configuration ---
+  # Firebase web app ID for auto-discovering SDK configuration
+  # Find via: gcloud firebase apps list --project=YOUR_PROJECT
   firebase_web_app_id = var.firebase_web_app_id
 
-  # --- Cloud Run Resource Sizing ---
+  # Frontend secrets: Firebase SDK values are now auto-discovered from Firebase web app config
+  # Only specify additional secrets needed beyond the standard Firebase SDK config
+  frontend_secrets            = var.frontend_secrets
+  frontend_secrets_additional = var.frontend_secrets_additional
+  backend_secrets             = var.backend_secrets
+  backend_runtime_secrets     = var.backend_runtime_secrets
+  be_build_substitutions      = var.be_build_substitutions
+  fe_build_substitutions      = var.fe_build_substitutions
+
+  # Cloud Run resource sizing
   be_cpu    = var.be_cpu
   be_memory = var.be_memory
   fe_cpu    = var.fe_cpu
   fe_memory = var.fe_memory
 
-  # --- Cloud Run Access Control ---
-  backend_invoker_identities = var.backend_invoker_identities
+  # Cloud Build and Cloud SQL configuration
+  enable_cloud_build           = var.enable_cloud_build
+  cloud_sql_public_ip_enabled  = var.cloud_sql_public_ip_enabled
+  enable_identity_platform     = var.enable_identity_platform
 
-  # --- VPC Configuration ---
+  # VPC Network configuration for private Cloud SQL
   vpc_enable                = var.vpc_enable
   vpc_primary_subnet_cidr   = var.vpc_primary_subnet_cidr
   vpc_connector_subnet_cidr = var.vpc_connector_subnet_cidr
 
-  # --- Build & Deployment ---
-  enable_cloud_build          = var.enable_cloud_build
-  cloud_sql_public_ip_enabled = var.cloud_sql_public_ip_enabled
-  enable_identity_platform    = var.enable_identity_platform
+  # Cloud Run Access Control
+  backend_invoker_identities = var.backend_invoker_identities
 
-  # --- Cloud Run Job Configuration (Database Bootstrap) ---
+  # Cloud Run Job Configuration (Database Bootstrap)
   enable_cloud_run_job                = var.enable_cloud_run_job
   bootstrap_job_name                  = var.bootstrap_job_name
   bootstrap_image_name                = var.bootstrap_image_name
@@ -108,6 +105,4 @@ module "creative_studio_platform" {
   bootstrap_job_cpu                   = var.bootstrap_job_cpu
   bootstrap_job_memory                = var.bootstrap_job_memory
   bootstrap_job_timeout               = var.bootstrap_job_timeout
-  initial_admin_user_email            = var.initial_admin_user_email
-  bootstrap_job_log_level             = var.bootstrap_job_log_level
 }
