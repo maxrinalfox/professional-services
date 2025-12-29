@@ -124,8 +124,8 @@ variable "initial_admin_user_email" {
   default     = null
 }
 
-variable "bootstrap_job_environment_variables" {
+variable "bootstrap_job_env_vars" {
   type        = map(string)
-  description = "Additional environment variables for bootstrap job"
+  description = "Plain text environment variables for bootstrap job"
   default     = {}
 }

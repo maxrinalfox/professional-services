@@ -138,10 +138,29 @@ variable "cloud_sql_public_ip_enabled" {
   default     = true
 }
 
+variable "cloud_sql_deletion_protection_enabled" {
+  type        = bool
+  description = "Enable deletion protection for Cloud SQL instance (strongly recommended for production)"
+  default     = false
+}
+
 variable "enable_identity_platform" {
   type        = bool
   description = "Whether to enable Firebase Identity Platform for user authentication. Independent of Cloud Build - can be enabled/disabled separately for authentication-only deployments."
   default     = true
+}
+
+# Storage Configuration
+variable "storage_force_destroy" {
+  type        = bool
+  description = "Allow Terraform to delete the storage bucket even if it contains objects. Set to true for dev/sandbox environments only."
+  default     = false
+}
+
+variable "storage_cors_allowed_origins" {
+  type        = list(string)
+  description = "List of allowed origins for CORS requests. Use [\"*\"] to allow all origins, or specify specific domains for production."
+  default     = ["*"]
 }
 
 # VPC Configuration
@@ -216,9 +235,9 @@ variable "bootstrap_image_name" {
   default     = "cstudio-bootstrap"
 }
 
-variable "bootstrap_job_environment_variables" {
+variable "bootstrap_job_env_vars" {
   type        = map(string)
-  description = "Environment variables for the Cloud Run Job bootstrap container"
+  description = "Plain text environment variables for the Cloud Run Job bootstrap container"
   default     = {}
 }
 

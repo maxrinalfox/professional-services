@@ -80,6 +80,9 @@ backend_runtime_secrets = {
 
 # Identity Platform configuration is managed via GCP Console (sign-in methods, OAuth settings, etc.)
 
+# --- Bootstrap Job Environment Variables ---
+bootstrap_job_env_vars = {}
+
 # --- Cloud Run Access Control ---
 # List of identities that can invoke the backend Cloud Run service
 # Leave empty to allow public access (allUsers)
@@ -97,7 +100,12 @@ vpc_enable                = false           # Set to true for private Cloud SQL
 vpc_primary_subnet_cidr   = "10.0.0.0/24"   # Primary subnet CIDR
 vpc_connector_subnet_cidr = "10.0.1.0/28"   # VPC Connector subnet CIDR
 
+# --- Storage Configuration ---
+storage_force_destroy            = true   # Allow bucket deletion (safe for dev/sandbox)
+storage_cors_allowed_origins     = ["*"]  # Allow all origins for development
+
 # --- Build & Deployment ---
-enable_cloud_build          = true    # Set to true to deploy services via Cloud Build
-cloud_sql_public_ip_enabled = true    # Set to false for private database access
-enable_identity_platform    = true    # Set to true to enable Firebase Authentication
+enable_cloud_build                        = true    # Set to true to deploy services via Cloud Build
+cloud_sql_public_ip_enabled               = true    # Set to false for private database access
+cloud_sql_deletion_protection_enabled     = false   # Set to true for production
+enable_identity_platform                  = true    # Set to true to enable Firebase Authentication

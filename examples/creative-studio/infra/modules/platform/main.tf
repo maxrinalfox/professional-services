@@ -167,7 +167,7 @@ locals {
     {
       "CORS_ORIGINS"     = "[\"${local.frontend_url}\"]"
       "GENMEDIA_BUCKET"  = module.storage.bucket_name
-      "SIGNING_SA_EMAIL" = module.storage.bucket_reader_sa_email
+      "SIGNING_SA_EMAIL" = module.storage.bucket_writer_sa_email
     }
   )
 
@@ -189,9 +189,11 @@ module "firebase" {
 module "storage" {
   source = "../core/storage"
 
-  gcp_project_id = var.gcp_project_id
-  gcp_region     = var.gcp_region
-  environment    = var.environment
+  gcp_project_id           = var.gcp_project_id
+  gcp_region               = var.gcp_region
+  environment              = var.environment
+  force_destroy            = var.storage_force_destroy
+  cors_allowed_origins     = var.storage_cors_allowed_origins
 
   depends_on = [google_project_service.apis]
 }
@@ -209,6 +211,9 @@ module "postgresql" {
 
   # Control whether the instance has a public IP
   public_ip_enabled = var.cloud_sql_public_ip_enabled
+
+  # Deletion protection
+  deletion_protection_enabled = var.cloud_sql_deletion_protection_enabled
 
   # Private network configuration (always pass, will be null if vpc_enable=false)
   vpc_network_id = var.vpc_enable ? module.vpc_network[0].network_id : null
@@ -352,8 +357,8 @@ module "bootstrap" {
   bootstrap_job_cpu = var.bootstrap_job_cpu
   bootstrap_job_memory = var.bootstrap_job_memory
   bootstrap_job_timeout = var.bootstrap_job_timeout
-  bootstrap_job_environment_variables = merge(
-    var.bootstrap_job_environment_variables,
+  bootstrap_job_env_vars = merge(
+    var.bootstrap_job_env_vars,
     {
       "GENMEDIA_BUCKET" = module.storage.bucket_name
     }

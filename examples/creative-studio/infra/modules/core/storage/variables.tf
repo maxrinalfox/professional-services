@@ -31,3 +31,15 @@ variable "environment" {
     error_message = "Environment must be one of: 'development', 'production', or 'sandbox'."
   }
 }
+
+variable "force_destroy" {
+  type        = bool
+  description = "Allow Terraform to delete the storage bucket even if it contains objects. Set to true for dev/sandbox environments only."
+  default     = false
+}
+
+variable "cors_allowed_origins" {
+  type        = list(string)
+  description = "List of allowed origins for CORS requests. Use [\"*\"] to allow all origins, or specify specific domains for production."
+  default     = ["*"]
+}

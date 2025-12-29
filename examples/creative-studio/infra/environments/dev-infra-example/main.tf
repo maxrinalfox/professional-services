@@ -97,12 +97,19 @@ module "creative_studio_platform" {
   backend_invoker_identities = var.backend_invoker_identities
 
   # Cloud Run Job Configuration (Database Bootstrap)
-  enable_cloud_run_job                = var.enable_cloud_run_job
-  bootstrap_job_name                  = var.bootstrap_job_name
-  bootstrap_image_name                = var.bootstrap_image_name
-  bootstrap_job_environment_variables = var.bootstrap_job_environment_variables
-  bootstrap_job_secrets               = var.bootstrap_job_secrets
-  bootstrap_job_cpu                   = var.bootstrap_job_cpu
-  bootstrap_job_memory                = var.bootstrap_job_memory
-  bootstrap_job_timeout               = var.bootstrap_job_timeout
+  enable_cloud_run_job     = var.enable_cloud_run_job
+  bootstrap_job_name       = var.bootstrap_job_name
+  bootstrap_image_name     = var.bootstrap_image_name
+  bootstrap_job_env_vars   = var.bootstrap_job_env_vars
+  bootstrap_job_secrets    = var.bootstrap_job_secrets
+  bootstrap_job_cpu        = var.bootstrap_job_cpu
+  bootstrap_job_memory     = var.bootstrap_job_memory
+  bootstrap_job_timeout    = var.bootstrap_job_timeout
+
+  # Cloud SQL Deletion Protection
+  cloud_sql_deletion_protection_enabled = var.cloud_sql_deletion_protection_enabled
+
+  # Storage Configuration
+  storage_force_destroy        = var.storage_force_destroy
+  storage_cors_allowed_origins = var.storage_cors_allowed_origins
 }

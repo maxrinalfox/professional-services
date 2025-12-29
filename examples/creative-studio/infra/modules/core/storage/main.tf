@@ -18,31 +18,31 @@ resource "google_storage_bucket" "genmedia" {
   name                        = "creative-studio-${var.gcp_project_id}-assets"
   location                    = var.gcp_region
   uniform_bucket_level_access = true
-  force_destroy               = true
+  force_destroy               = var.force_destroy
 
   cors {
-    origin          = ["*"]
+    origin          = var.cors_allowed_origins
     method          = ["GET", "PUT", "POST", "DELETE", "HEAD", "OPTIONS"]
     response_header = ["Content-Type", "Access-Control-Allow-Origin", "x-goog-resumable", "Authorization", "Origin"]
     max_age_seconds = 3600
   }
 }
 
-resource "google_service_account" "bucket_reader_sa" {
-  account_id   = "cs-${var.environment}-read"
-  display_name = "SA for reading GenMedia (${var.environment}) bucket"
+resource "google_service_account" "bucket_writer_sa" {
+  account_id   = "cs-${var.environment}-writer"
+  display_name = "SA for reading/writing GenMedia (${var.environment}) bucket"
 }
 
 resource "google_storage_bucket_iam_member" "bucket_viewer_binding" {
   bucket = google_storage_bucket.genmedia.name
   role   = "roles/storage.objectViewer"
-  member = google_service_account.bucket_reader_sa.member
+  member = google_service_account.bucket_writer_sa.member
 }
 
 resource "google_storage_bucket_iam_member" "bucket_creator_binding" {
   bucket = google_storage_bucket.genmedia.name
   role   = "roles/storage.objectCreator"
-  member = google_service_account.bucket_reader_sa.member
+  member = google_service_account.bucket_writer_sa.member
 }
 
 output "bucket_name" {
@@ -50,7 +50,7 @@ output "bucket_name" {
   description = "Name of the GenMedia storage bucket"
 }
 
-output "bucket_reader_sa_email" {
-  value       = google_service_account.bucket_reader_sa.email
-  description = "Email of the bucket reader service account"
+output "bucket_writer_sa_email" {
+  value       = google_service_account.bucket_writer_sa.email
+  description = "Email of the bucket writer service account"
 }

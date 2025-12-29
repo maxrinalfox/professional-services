@@ -30,3 +30,9 @@ variable "vpc_network_id" {
   nullable    = true
   default     = null
 }
+
+variable "deletion_protection_enabled" {
+  type        = bool
+  description = "Enable deletion protection for Cloud SQL instance (strongly recommended for production)"
+  default     = false
+}
