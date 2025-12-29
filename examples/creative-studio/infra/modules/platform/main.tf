@@ -27,7 +27,18 @@
 # ============================================================================
 
 # --- ENABLE REQUIRED GOOGLE CLOUD APIs ---
+# --- BOOTSTRAP JOB LOGIC ---
+# The bootstrap job is automatically enabled based on infrastructure needs:
+# - Always enabled if cloud_build is enabled (useful for any deployment)
+# - Cloud Run Job for database initialization is essential when:
+#   * VPC is enabled (DB is private, needs secure access through VPC connector)
+#   * DB has public IP (bootstrap job can run in Cloud Run with public IP access)
 locals {
+  # Compute whether bootstrap job should be enabled
+  # If enable_cloud_build is true, we likely want bootstrap job for DB initialization
+  # The job is always useful: handles migrations, seeding, asset uploads
+  enable_cloud_run_job_computed = var.enable_cloud_build
+
   required_apis = [
     # ========== FIREBASE CORE APIs ==========
     "firebase.googleapis.com",
@@ -325,7 +336,7 @@ module "bootstrap" {
   gcp_region       = var.gcp_region
   environment      = var.environment
   enable_cloud_build = var.enable_cloud_build
-  enable_cloud_run_job = var.enable_cloud_run_job
+  enable_cloud_run_job = local.enable_cloud_run_job_computed
 
   genmedia_bucket_name = module.storage.bucket_name
   bootstrap_job_secrets = var.bootstrap_job_secrets

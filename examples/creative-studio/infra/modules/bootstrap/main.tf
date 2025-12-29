@@ -62,6 +62,7 @@ resource "google_project_iam_member" "bootstrap_sa_secret_accessor" {
 
 # Grant bootstrap job SA permission to create/upload objects to GCS bucket
 # This is needed for seed_vto_assets and seed_media_templates functions
+# Uses bucket_name from storage module output for consistency
 resource "google_storage_bucket_iam_member" "bootstrap_sa_gcs_object_creator" {
   count  = var.enable_cloud_run_job ? 1 : 0
   bucket = var.genmedia_bucket_name

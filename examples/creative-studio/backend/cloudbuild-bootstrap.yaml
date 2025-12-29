@@ -72,37 +72,88 @@ steps:
   # We check if the job exists first and use create/update accordingly.
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     id: 'Update Job Image'
+    env:
+      - 'PROJECT_ID=$PROJECT_ID'
+      - 'SHORT_SHA=$SHORT_SHA'
+      - 'BOOTSTRAP_IMAGE_NAME=${_BOOTSTRAP_IMAGE_NAME}'
+      - 'REPO_NAME=${_REPO_NAME}'
+      - 'REGION=${_REGION}'
+      - 'BOOTSTRAP_JOB_NAME=${_BOOTSTRAP_JOB_NAME}'
+      - 'VPC_CONNECTOR_NAME=${_VPC_CONNECTOR_NAME}'
+      - 'BOOTSTRAP_SERVICE_ACCOUNT=${_BOOTSTRAP_SERVICE_ACCOUNT}'
+      - 'CLOUD_SQL_INSTANCE=${_CLOUD_SQL_INSTANCE}'
+      - 'BOOTSTRAP_ENV_VARS=${_BOOTSTRAP_ENV_VARS}'
+      - 'BOOTSTRAP_SECRETS=${_BOOTSTRAP_SECRETS}'
+      - 'BOOTSTRAP_CPU=${_BOOTSTRAP_CPU}'
+      - 'BOOTSTRAP_MEMORY=${_BOOTSTRAP_MEMORY}'
+      - 'BOOTSTRAP_TIMEOUT=${_BOOTSTRAP_TIMEOUT}'
     script: |
       #!/bin/bash
       set -e
 
-      IMAGE='${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO_NAME}/${_BOOTSTRAP_IMAGE_NAME}:$SHORT_SHA'
+      IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO_NAME}/${BOOTSTRAP_IMAGE_NAME}:${SHORT_SHA}"
 
-      if gcloud run jobs describe ${_BOOTSTRAP_JOB_NAME} --region=${_REGION} --project=${PROJECT_ID} 2>/dev/null >/dev/null; then
-        echo 'Job found, updating existing job with new image'
-        gcloud run jobs update ${_BOOTSTRAP_JOB_NAME} \
-          --image="$IMAGE" \
-          --region=${_REGION} \
-          --project=${PROJECT_ID}
+      echo "=== Deployment Configuration ==="
+      echo "IMAGE: $IMAGE"
+      echo "JOB_NAME: $BOOTSTRAP_JOB_NAME"
+      echo "REGION: $REGION"
+      echo "VPC_CONNECTOR_NAME: $VPC_CONNECTOR_NAME"
+      echo "SERVICE_ACCOUNT: $BOOTSTRAP_SERVICE_ACCOUNT"
+      echo "CLOUD_SQL_INSTANCE: $CLOUD_SQL_INSTANCE"
+      echo "ENV_VARS: $BOOTSTRAP_ENV_VARS"
+      echo "SECRETS: $BOOTSTRAP_SECRETS"
+      echo "CPU: $BOOTSTRAP_CPU"
+      echo "MEMORY: $BOOTSTRAP_MEMORY"
+      echo "TIMEOUT: $BOOTSTRAP_TIMEOUT"
+      echo "PROJECT_ID: $PROJECT_ID"
+      echo "SHORT_SHA: $SHORT_SHA"
+      echo "===================================="
+
+      # Determine if job exists to set appropriate action (create or update)
+      if gcloud run jobs describe "$BOOTSTRAP_JOB_NAME" --region="$REGION" --project="${PROJECT_ID}" 2>/dev/null >/dev/null; then
+        ACTION='update'
+        echo "Job found, will UPDATE with full configuration"
       else
-        echo 'Job not found, creating new job with full configuration'
-        gcloud run jobs create ${_BOOTSTRAP_JOB_NAME} \
-          --image="$IMAGE" \
-          --region=${_REGION} \
-          --project=${PROJECT_ID} \
-          --vpc-connector="projects/${PROJECT_ID}/locations/${_REGION}/connectors/${_VPC_CONNECTOR_NAME}" \
-          --vpc-egress='private-ranges-only' \
-          --service-account=${_BOOTSTRAP_SERVICE_ACCOUNT} \
-          --set-cloudsql-instances=${_CLOUD_SQL_INSTANCE} \
-          --set-env-vars="${_BOOTSTRAP_ENV_VARS}" \
-          --set-secrets="${_BOOTSTRAP_SECRETS}" \
-          --cpu=${_BOOTSTRAP_CPU} \
-          --memory=${_BOOTSTRAP_MEMORY} \
-          --task-timeout=${_BOOTSTRAP_TIMEOUT} \
-          --parallelism=1 \
-          --max-retries=1 \
-          --tasks=1
+        ACTION='create'
+        echo "Job not found, will CREATE with full configuration"
       fi
+
+      # Build and display the full command
+      CMD="gcloud run jobs ${ACTION} ${BOOTSTRAP_JOB_NAME} \
+        --image=${IMAGE} \
+        --region=${REGION} \
+        --project=${PROJECT_ID} \
+        --vpc-connector=projects/${PROJECT_ID}/locations/${REGION}/connectors/${VPC_CONNECTOR_NAME} \
+        --vpc-egress=private-ranges-only \
+        --service-account=${BOOTSTRAP_SERVICE_ACCOUNT} \
+        --set-cloudsql-instances=${CLOUD_SQL_INSTANCE} \
+        --set-env-vars=${BOOTSTRAP_ENV_VARS} \
+        --set-secrets=${BOOTSTRAP_SECRETS} \
+        --cpu=${BOOTSTRAP_CPU} \
+        --memory=${BOOTSTRAP_MEMORY} \
+        --task-timeout=${BOOTSTRAP_TIMEOUT} \
+        --parallelism=1 \
+        --max-retries=1 \
+        --tasks=1"
+      echo "Executing: $CMD"
+
+      # Execute the command (create or update with all configuration)
+      gcloud run jobs ${ACTION} "$BOOTSTRAP_JOB_NAME" \
+        --image="$IMAGE" \
+        --region="$REGION" \
+        --project="${PROJECT_ID}" \
+        --vpc-connector="projects/${PROJECT_ID}/locations/${REGION}/connectors/${VPC_CONNECTOR_NAME}" \
+        --vpc-egress='private-ranges-only' \
+        --service-account="$BOOTSTRAP_SERVICE_ACCOUNT" \
+        --set-cloudsql-instances="$CLOUD_SQL_INSTANCE" \
+        --set-env-vars="$BOOTSTRAP_ENV_VARS" \
+        --set-secrets="$BOOTSTRAP_SECRETS" \
+        --cpu="$BOOTSTRAP_CPU" \
+        --memory="$BOOTSTRAP_MEMORY" \
+        --task-timeout="$BOOTSTRAP_TIMEOUT" \
+        --parallelism=1 \
+        --max-retries=1 \
+        --tasks=1
 
   # Step 4: Execute the Cloud Run Job and wait for completion
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
@@ -143,7 +194,7 @@ substitutions:
 
   # Environment Variables (comma-separated key=value pairs)
   # NOTE: These defaults are overridden by Cloud Build trigger substitutions from Terraform
-  _BOOTSTRAP_ENV_VARS: 'ADMIN_USER_EMAIL=admin@example.com,LOG_LEVEL=INFO,ENVIRONMENT=development,INSTANCE_CONNECTION_NAME=${PROJECT_ID}:us-central1:creative-studio-db-c3353262,USE_CLOUD_SQL_PRIVATE_IP=false'
+  _BOOTSTRAP_ENV_VARS: 'ADMIN_USER_EMAIL=admin@example.com,LOG_LEVEL=INFO,ENVIRONMENT=development,INSTANCE_CONNECTION_NAME=${PROJECT_ID}:us-central1:creative-studio-db-c3353262,USE_CLOUD_SQL_PRIVATE_IP=true'
 
   # Secrets (comma-separated KEY=secret-name:version pairs)
   _BOOTSTRAP_SECRETS: 'DB_PASS=creative-studio-db-password:latest'

@@ -46,7 +46,7 @@ variable "enable_cloud_run_job" {
 
 variable "genmedia_bucket_name" {
   type        = string
-  description = "Name of the GenMedia storage bucket"
+  description = "Name of the GenMedia storage bucket (from storage module output)"
 }
 
 variable "bootstrap_job_secrets" {

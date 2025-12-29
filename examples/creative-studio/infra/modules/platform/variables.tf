@@ -149,6 +149,11 @@ variable "vpc_enable" {
   type        = bool
   description = "Whether to create and use VPC for private Cloud SQL"
   default     = false
+
+  validation {
+    condition     = !(var.vpc_enable && var.cloud_sql_public_ip_enabled)
+    error_message = "Invalid configuration: vpc_enable = true but cloud_sql_public_ip_enabled = true. When using VPC, Cloud SQL should have private IP only. Set cloud_sql_public_ip_enabled = false."
+  }
 }
 
 variable "vpc_primary_subnet_cidr" {
