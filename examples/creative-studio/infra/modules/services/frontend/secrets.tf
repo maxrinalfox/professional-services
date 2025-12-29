@@ -13,10 +13,12 @@
 # limitations under the License.
 
 # --- Frontend Service Secrets Management ---
-# This module creates and manages all secrets required by the frontend service
-# Each secret is provisioned with IAM bindings to the Cloud Build trigger SA
+# This module creates and manages OAuth secrets required by the frontend service.
+# Firebase SDK secrets are passed directly via Cloud Build substitutions (_FIREBASE_*),
+# so they are no longer stored in Secret Manager.
 
-# Create the "shell" for each frontend secret
+# Create secrets only for authentication (OAuth) - not for Firebase SDK config
+# Firebase SDK values are auto-discovered via Terraform and injected as substitutions
 resource "google_secret_manager_secret" "frontend" {
   for_each = toset(var.frontend_secrets)
   provider = google-beta
@@ -30,7 +32,7 @@ resource "google_secret_manager_secret" "frontend" {
 }
 
 # Grant the trigger service account (Cloud Build) access to frontend secrets
-# This allows Cloud Build to read secrets during the build process
+# This allows Cloud Build to read OAuth secrets during the build process
 resource "google_secret_manager_secret_iam_member" "trigger_frontend_access" {
   for_each = toset(var.frontend_secrets)
   provider = google-beta
@@ -41,9 +43,9 @@ resource "google_secret_manager_secret_iam_member" "trigger_frontend_access" {
   member    = google_service_account.trigger_sa.member
 }
 
-# Create placeholder versions for each secret
+# Create placeholder versions for OAuth secrets
 # These ensure Cloud Build can reference the secret path even if the actual
-# secret data will be added later or already exists
+# secret data will be added later (must be set manually via gcloud or GCP console)
 resource "google_secret_manager_secret_version" "frontend" {
   for_each = toset(var.frontend_secrets)
   provider = google-beta

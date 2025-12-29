@@ -320,11 +320,21 @@ module "frontend_service" {
       _BACKEND_SERVICE_ID  = var.backend_service_name
       _FIREBASE_PROJECT_ID = var.gcp_project_id
       _FIREBASE_APP_ID     = var.firebase_web_app_id != null ? var.firebase_web_app_id : (var.enable_cloud_build && length(module.firebase.firebase_web_app_id) > 0 ? module.firebase.firebase_web_app_id : "")
+
+      # Firebase SDK secrets passed directly as substitutions (auto-discovered from Firebase web app)
+      # No need to store these in Secret Manager - they're embedded in Cloud Build config
+      _FIREBASE_API_KEY             = try(local.firebase_sdk_config["FIREBASE_API_KEY"], "")
+      _FIREBASE_AUTH_DOMAIN         = try(local.firebase_sdk_config["FIREBASE_AUTH_DOMAIN"], "")
+      _FIREBASE_PROJECT_ID_SDK      = try(local.firebase_sdk_config["FIREBASE_PROJECT_ID"], "")
+      _FIREBASE_STORAGE_BUCKET      = try(local.firebase_sdk_config["FIREBASE_STORAGE_BUCKET"], "")
+      _FIREBASE_MESSAGING_SENDER_ID = try(local.firebase_sdk_config["FIREBASE_MESSAGING_SENDER_ID"], "")
+      _FIREBASE_MEASUREMENT_ID      = try(local.firebase_sdk_config["FIREBASE_MEASUREMENT_ID"], "")
     }
   )
 
   enable_cloud_build_trigger = var.enable_cloud_build
-  frontend_secrets           = concat(module.firebase.frontend_secrets_auto, var.frontend_secrets_additional)
+  # Only OAuth secrets need to be in Secret Manager - Firebase SDK secrets are passed via substitutions
+  frontend_secrets           = var.frontend_secrets_additional
 
   depends_on = [
     google_project_service.apis,

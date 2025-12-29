@@ -13,9 +13,9 @@
 # limitations under the License.
 
 steps:
-  # 0. Validate all required secrets are properly populated (not placeholders)
+  # 0. Validate OAuth secrets are configured (only manual secret now)
   - name: 'gcr.io/cloud-builders/gcloud'
-    id: 'Validate Secrets'
+    id: 'Validate OAuth Secrets'
     entrypoint: 'bash'
     args:
       - '-c'
@@ -24,19 +24,13 @@ steps:
         set -e
 
         echo "════════════════════════════════════════════════════════════════"
-        echo "🔐 VALIDATING REQUIRED SECRETS"
+        echo "🔐 VALIDATING REQUIRED OAUTH SECRETS"
         echo "════════════════════════════════════════════════════════════════"
         echo ""
 
-        # Define required secrets with descriptions
+        # Only OAuth secrets require manual population
         declare -A SECRETS=(
-          [FIREBASE_API_KEY]="Firebase API Key (from Firebase Web App config)"
-          [FIREBASE_AUTH_DOMAIN]="Firebase Auth Domain (from Firebase Web App config)"
-          [FIREBASE_PROJECT_ID]="Firebase Project ID (from GCP Project ID)"
-          [FIREBASE_STORAGE_BUCKET]="Firebase Storage Bucket (from Firebase Web App config)"
-          [FIREBASE_MESSAGING_SENDER_ID]="Firebase Messaging Sender ID (from Firebase Web App config)"
-          [FIREBASE_MEASUREMENT_ID]="Firebase Measurement ID (from Firebase Web App config)"
-          [GOOGLE_CLIENT_ID]="OAuth 2.0 Client ID (from GCP Console)"
+          [GOOGLE_CLIENT_ID]="OAuth 2.0 Client ID (must be created in GCP Console)"
         )
 
         FAILED_SECRETS=()
@@ -79,35 +73,30 @@ steps:
           echo ""
           echo "HOW TO FIX:"
           echo "─────────────────────────────────────────────────────────────"
-          echo "1. Run the update_secrets.sh script to populate 6 Firebase SDK secrets:"
+          echo "Create the OAuth Client ID in GCP Console:"
           echo ""
-          echo "   $ cd infra/environments/<your-environment>"
-          echo "   $ ./update_secrets.sh"
+          echo "1. Go to: https://console.cloud.google.com/apis/credentials?project=${PROJECT_ID}"
+          echo "2. Create a new OAuth 2.0 Client ID of type 'Web application'"
+          echo "3. Add authorized redirect URIs:"
+          echo "   • https://${PROJECT_ID}.firebaseapp.com/__/auth/handler"
+          echo "   • https://${PROJECT_ID}.web.app/__/auth/handler"
           echo ""
-          echo "2. Then create/update the 2 OAuth secrets manually:"
+          echo "4. Then populate the secret:"
           echo ""
-          echo "   $ OAUTH_CLIENT_ID='your-oauth-client-id'"
           echo "   $ gcloud secrets versions add GOOGLE_CLIENT_ID \\"
           echo "       --data-file=- --project=${PROJECT_ID} \\"
-          echo "       <<< \"\$OAUTH_CLIENT_ID\""
+          echo "       <<< \"YOUR_OAUTH_CLIENT_ID\""
           echo ""
-          echo "3. After all secrets are populated, retry the frontend build."
-          echo ""
-          echo "DOCUMENTATION:"
-          echo "  See: infra/QUICK_START.md or infra/SECRETS_CONFIGURATION.md"
+          echo "5. After the secret is populated, retry the frontend build."
           echo "─────────────────────────────────────────────────────────────"
           exit 1
         fi
 
-        echo "✅ All required secrets are properly configured!"
+        echo "✅ All required OAuth secrets are properly configured!"
+        echo ""
+        echo "Note: Firebase SDK secrets are auto-configured from Terraform."
         echo ""
     secretEnv:
-      - FIREBASE_API_KEY
-      - FIREBASE_AUTH_DOMAIN
-      - FIREBASE_PROJECT_ID
-      - FIREBASE_STORAGE_BUCKET
-      - FIREBASE_MESSAGING_SENDER_ID
-      - FIREBASE_MEASUREMENT_ID
       - GOOGLE_CLIENT_ID
 
   # 1. Install dependencies
@@ -116,7 +105,7 @@ steps:
     entrypoint: 'npm'
     args: ['ci']
     dir: examples/creative-studio/frontend
-    waitFor: ['Validate Secrets']
+    waitFor: ['Validate OAuth Secrets']
 
   # 2. Inject Secrets and Config from the build environment
   - name: 'gcr.io/cloud-builders/gcloud'
@@ -126,34 +115,24 @@ steps:
       - '-c'
       - |
         # Inject into Angular app (environment.prod.ts)
-        sed -i "s|BACKEND_URL_PLACEHOLDER|$${_BACKEND_URL}/api|g" src/environments/environment.prod.ts
-        sed -i "s|GOOGLE_CLIENT_ID_PLACEHOLDER|$${GOOGLE_CLIENT_ID}|g" src/environments/environment.prod.ts
-        # Inject Firebase config
-        sed -i "s|FIREBASE_API_KEY_PLACEHOLDER|$${FIREBASE_API_KEY}|g" src/environments/environment.prod.ts
-        sed -i "s|FIREBASE_AUTH_DOMAIN_PLACEHOLDER|$${FIREBASE_AUTH_DOMAIN}|g" src/environments/environment.prod.ts
-        sed -i "s|FIREBASE_PROJECT_ID_PLACEHOLDER|$${FIREBASE_PROJECT_ID}|g" src/environments/environment.prod.ts
-        sed -i "s|FIREBASE_STORAGE_BUCKET_PLACEHOLDER|$${FIREBASE_STORAGE_BUCKET}|g" src/environments/environment.prod.ts
-        sed -i "s|FIREBASE_SENDER_ID_PLACEHOLDER|$${FIREBASE_MESSAGING_SENDER_ID}|g" src/environments/environment.prod.ts
+        sed -i "s|BACKEND_URL_PLACEHOLDER|${_BACKEND_URL}/api|g" src/environments/environment.prod.ts
+        sed -i "s|GOOGLE_CLIENT_ID_PLACEHOLDER|${GOOGLE_CLIENT_ID}|g" src/environments/environment.prod.ts
+        # Inject Firebase config from substitutions (auto-discovered via Terraform)
+        sed -i "s|FIREBASE_API_KEY_PLACEHOLDER|${_FIREBASE_API_KEY}|g" src/environments/environment.prod.ts
+        sed -i "s|FIREBASE_AUTH_DOMAIN_PLACEHOLDER|${_FIREBASE_AUTH_DOMAIN}|g" src/environments/environment.prod.ts
+        sed -i "s|FIREBASE_PROJECT_ID_PLACEHOLDER|${_FIREBASE_PROJECT_ID_SDK}|g" src/environments/environment.prod.ts
+        sed -i "s|FIREBASE_STORAGE_BUCKET_PLACEHOLDER|${_FIREBASE_STORAGE_BUCKET}|g" src/environments/environment.prod.ts
+        sed -i "s|FIREBASE_SENDER_ID_PLACEHOLDER|${_FIREBASE_MESSAGING_SENDER_ID}|g" src/environments/environment.prod.ts
         sed -i "s|FIREBASE_APP_ID_PLACEHOLDER|${_FIREBASE_APP_ID}|g" src/environments/environment.prod.ts
-        sed -i "s|FIREBASE_MEASUREMENT_ID_PLACEHOLDER|$${FIREBASE_MEASUREMENT_ID}|g" src/environments/environment.prod.ts
+        sed -i "s|FIREBASE_MEASUREMENT_ID_PLACEHOLDER|${_FIREBASE_MEASUREMENT_ID}|g" src/environments/environment.prod.ts
 
         # Inject into Firebase config (firebase.json)
         sed -i "s|SITE_ID_PLACEHOLDER|${PROJECT_ID}|g" firebase.json
-        sed -i "s|BACKEND_SERVICE_ID_PLACEHOLDER|$${_BACKEND_SERVICE_ID}|g" firebase.json
+        sed -i "s|BACKEND_SERVICE_ID_PLACEHOLDER|${_BACKEND_SERVICE_ID}|g" firebase.json
     dir: examples/creative-studio/frontend
-    env:
-      - '_BACKEND_URL=${_BACKEND_URL}'
-      - '_FE_SERVICE_NAME=${_FE_SERVICE_NAME}'
-      - '_BACKEND_SERVICE_ID=${_BACKEND_SERVICE_ID}'
     secretEnv:
-      - FIREBASE_API_KEY
-      - FIREBASE_AUTH_DOMAIN
-      - FIREBASE_PROJECT_ID
-      - FIREBASE_STORAGE_BUCKET
-      - FIREBASE_MESSAGING_SENDER_ID
-      - FIREBASE_MEASUREMENT_ID
       - GOOGLE_CLIENT_ID
-    waitFor: ['Install Dependencies']
+    waitFor: ['Validate OAuth Secrets']
 
   # 3. Build the application
   - name: 'node:20-alpine' # Use the same version
@@ -197,24 +176,12 @@ steps:
         Next steps: Test login functionality
     waitFor: ['Deploy to Firebase Hosting']
 
-# This section makes the secrets available as environment variables during the build
+# This section makes OAuth secrets available as environment variables during the build
+# Firebase SDK secrets are passed via Cloud Build substitutions (_FIREBASE_*) instead
 availableSecrets:
   secretManager:
     - versionName: projects/${PROJECT_ID}/secrets/GOOGLE_CLIENT_ID/versions/latest
       env: 'GOOGLE_CLIENT_ID'
-    # Firebase secrets
-    - versionName: projects/${PROJECT_ID}/secrets/FIREBASE_API_KEY/versions/latest
-      env: 'FIREBASE_API_KEY'
-    - versionName: projects/${PROJECT_ID}/secrets/FIREBASE_AUTH_DOMAIN/versions/latest
-      env: 'FIREBASE_AUTH_DOMAIN'
-    - versionName: projects/${PROJECT_ID}/secrets/FIREBASE_PROJECT_ID/versions/latest
-      env: 'FIREBASE_PROJECT_ID'
-    - versionName: projects/${PROJECT_ID}/secrets/FIREBASE_STORAGE_BUCKET/versions/latest
-      env: 'FIREBASE_STORAGE_BUCKET'
-    - versionName: projects/${PROJECT_ID}/secrets/FIREBASE_MESSAGING_SENDER_ID/versions/latest
-      env: 'FIREBASE_MESSAGING_SENDER_ID'
-    - versionName: projects/${PROJECT_ID}/secrets/FIREBASE_MEASUREMENT_ID/versions/latest
-      env: 'FIREBASE_MEASUREMENT_ID'
 
 options:
   logging: CLOUD_LOGGING_ONLY

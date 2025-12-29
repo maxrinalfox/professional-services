@@ -63,52 +63,26 @@ output "post_deployment_instructions" {
 ║  Infrastructure created! Now complete these manual steps:                  ║
 ╚════════════════════════════════════════════════════════════════════════════╝
 
-⚠️  CRITICAL: DO NOT REBUILD FRONTEND YET!
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-The frontend MUST wait for ALL 8 secrets to be populated in Secret Manager.
-If you rebuild frontend NOW, it will use empty/placeholder values and fail with "API key not valid".
-
-Timeline:
-1. Terraform creates all 8 secrets with placeholder values
-2. Firebase SDK secrets (6 secrets) → Must be populated from Firebase Web App config
-3. OAuth secrets (2 secrets) → Must be created/configured manually
-4. ONLY after all 8 are populated → Frontend build can proceed
-
-📋 STEP 1: POPULATE FIREBASE SDK SECRETS (6 secrets from Firebase Web App)
+✅ FIREBASE SDK SECRETS: AUTOMATICALLY CONFIGURED!
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 Firebase SDK secrets (FIREBASE_API_KEY, FIREBASE_AUTH_DOMAIN, FIREBASE_PROJECT_ID,
 FIREBASE_STORAGE_BUCKET, FIREBASE_MESSAGING_SENDER_ID, FIREBASE_MEASUREMENT_ID)
-must be extracted from your Firebase Web App configuration and populated into Secret Manager.
+are auto-discovered from your Firebase Web App and injected directly into Cloud Build
+via Terraform. No manual population needed!
 
-Method 1: Use the provided update_secrets.sh script (RECOMMENDED):
+⚠️  ONLY OAUTH SECRETS REQUIRE MANUAL SETUP
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-$ cd infra/environments/${var.environment}
-$ ./update_secrets.sh
+The frontend MUST wait for OAUTH secrets to be populated in Secret Manager.
+If you rebuild frontend NOW without setting GOOGLE_CLIENT_ID, the build will fail.
 
-This script will:
-  ✅ Auto-discover Firebase Web App configuration
-  ✅ Auto-populate all 6 Firebase SDK secrets
-  ✅ Ask you to manually provide OAuth secrets
+Timeline:
+1. Terraform auto-discovers Firebase SDK secrets (no action needed)
+2. OAuth secrets → Must be created/configured manually
+3. ONLY after OAuth secrets are populated → Frontend build can proceed
 
-Method 2: Manual gcloud commands:
-
-First, find your Firebase Web App configuration:
-$ firebase apps:list --project=${var.gcp_project_id}
-
-Then get the SDK config:
-$ firebase apps:sdkconfig WEB <APP_ID> --project=${var.gcp_project_id}
-
-Finally, populate each Firebase secret:
-$ gcloud secrets versions add FIREBASE_API_KEY --data-file=- --project=${var.gcp_project_id} <<< "YOUR_API_KEY"
-$ gcloud secrets versions add FIREBASE_AUTH_DOMAIN --data-file=- --project=${var.gcp_project_id} <<< "YOUR_AUTH_DOMAIN"
-# ... (repeat for other 4 Firebase secrets)
-
-⚠️  After step 1, you should have 6/8 secrets populated. Proceed to STEP 2.
-
-
-📋 STEP 2: CONFIGURE OAUTH SECRETS (Required for Frontend & Backend)
+📋 STEP 1: CONFIGURE OAUTH SECRETS (Required for Frontend & Backend)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 This step configures TWO secrets that are CRITICAL for authentication to work:
@@ -211,17 +185,15 @@ Secret Manager:
 📌 CHECKLIST - Mark as You Complete:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  [ ] Step 1: Ran update_secrets.sh to populate 6 Firebase SDK secrets
-  [ ] Step 1: Verified 6/8 secrets now populated in Secret Manager
-  [ ] Step 2: Created OAuth Client ID in GCP Console
-  [ ] Step 2: Updated GOOGLE_CLIENT_ID secret in Secret Manager
-  [ ] Step 2: Updated GOOGLE_TOKEN_AUDIENCE secret (set equal to GOOGLE_CLIENT_ID)
-  [ ] Step 2: Verified 8/8 secrets now populated in Secret Manager
-  [ ] Step 3: Triggered frontend build
-  [ ] Step 4: Backend health checks respond (HTTP 200)
-  [ ] Step 5: Frontend loads without placeholder errors
-  [ ] Step 5: Google login prompt appears
-  [ ] Step 5: Can sign in and see home page
+  [ ] ✅ Firebase SDK secrets auto-discovered via Terraform (no action needed)
+  [ ] Step 1: Created OAuth Client ID in GCP Console
+  [ ] Step 1: Updated GOOGLE_CLIENT_ID secret in Secret Manager
+  [ ] Step 1: Updated GOOGLE_TOKEN_AUDIENCE secret (set equal to GOOGLE_CLIENT_ID)
+  [ ] Step 2: Triggered frontend build
+  [ ] Step 3: Backend health checks respond (HTTP 200)
+  [ ] Step 4: Frontend loads without placeholder errors
+  [ ] Step 4: Google login prompt appears
+  [ ] Step 4: Can sign in and see home page
 
 
 ✅ DEPLOYMENT COMPLETE when all items are checked!
@@ -231,64 +203,8 @@ Secret Manager:
 }
 
 output "required_secrets_to_populate" {
-  description = "All 8 secrets (6 Firebase + 2 OAuth) that MUST be populated before frontend/backend build"
+  description = "OAuth secrets that MUST be manually populated before frontend deployment"
   value = {
-    # Firebase SDK secrets (6 total) - populated via update_secrets.sh
-    "FIREBASE_API_KEY" = {
-      description = "Firebase API Key for SDK initialization"
-      type = "Firebase SDK"
-      status = "⚠️  MUST POPULATE - Via update_secrets.sh"
-      setup_location = "Run update_secrets.sh script"
-      current_value = "placeholder_FIREBASE_API_KEY_will_be_updated"
-      required_before = "Frontend build"
-      population_method = "update_secrets.sh or 'firebase apps:sdkconfig' command"
-    }
-    "FIREBASE_AUTH_DOMAIN" = {
-      description = "Firebase Authentication domain (e.g., project-id.firebaseapp.com)"
-      type = "Firebase SDK"
-      status = "⚠️  MUST POPULATE - Via update_secrets.sh"
-      setup_location = "Run update_secrets.sh script"
-      current_value = "placeholder_FIREBASE_AUTH_DOMAIN_will_be_updated"
-      required_before = "Frontend build"
-      population_method = "update_secrets.sh or 'firebase apps:sdkconfig' command"
-    }
-    "FIREBASE_PROJECT_ID" = {
-      description = "Firebase Project ID (same as GCP project ID)"
-      type = "Firebase SDK"
-      status = "⚠️  MUST POPULATE - Via update_secrets.sh"
-      setup_location = "Run update_secrets.sh script"
-      current_value = "placeholder_FIREBASE_PROJECT_ID_will_be_updated"
-      required_before = "Frontend build"
-      population_method = "update_secrets.sh (auto-populated from project ID)"
-    }
-    "FIREBASE_STORAGE_BUCKET" = {
-      description = "Firebase Cloud Storage bucket name (e.g., project-id.appspot.com)"
-      type = "Firebase SDK"
-      status = "⚠️  MUST POPULATE - Via update_secrets.sh"
-      setup_location = "Run update_secrets.sh script"
-      current_value = "placeholder_FIREBASE_STORAGE_BUCKET_will_be_updated"
-      required_before = "Frontend build"
-      population_method = "update_secrets.sh or 'firebase apps:sdkconfig' command"
-    }
-    "FIREBASE_MESSAGING_SENDER_ID" = {
-      description = "Firebase Cloud Messaging sender ID"
-      type = "Firebase SDK"
-      status = "⚠️  MUST POPULATE - Via update_secrets.sh"
-      setup_location = "Run update_secrets.sh script"
-      current_value = "placeholder_FIREBASE_MESSAGING_SENDER_ID_will_be_updated"
-      required_before = "Frontend build"
-      population_method = "update_secrets.sh or 'firebase apps:sdkconfig' command"
-    }
-    "FIREBASE_MEASUREMENT_ID" = {
-      description = "Firebase Analytics measurement ID (can be empty string)"
-      type = "Firebase SDK"
-      status = "⚠️  MUST POPULATE - Via update_secrets.sh"
-      setup_location = "Run update_secrets.sh script"
-      current_value = "placeholder_FIREBASE_MEASUREMENT_ID_will_be_updated"
-      required_before = "Frontend build"
-      population_method = "update_secrets.sh or 'firebase apps:sdkconfig' command (can be empty)"
-    }
-    # OAuth secrets (2 total) - manual setup required
     "GOOGLE_CLIENT_ID" = {
       description = "OAuth 2.0 Client ID for Google Sign-In (frontend authentication)"
       type = "OAuth"
@@ -297,7 +213,7 @@ output "required_secrets_to_populate" {
       gcp_console_url = "https://console.cloud.google.com/apis/credentials?project=${var.gcp_project_id}"
       current_value = "placeholder_GOOGLE_CLIENT_ID_will_be_updated"
       required_before = "Frontend build"
-      population_method = "Create OAuth Client ID in GCP Console, then: gcloud secrets versions add GOOGLE_CLIENT_ID"
+      population_method = "1. Create OAuth Client ID in GCP Console\n2. Run: gcloud secrets versions add GOOGLE_CLIENT_ID --data-file=- --project=${var.gcp_project_id} <<< \"YOUR_CLIENT_ID\""
     }
     "GOOGLE_TOKEN_AUDIENCE" = {
       description = "JWT audience for backend token validation (MUST equal GOOGLE_CLIENT_ID)"
@@ -307,7 +223,7 @@ output "required_secrets_to_populate" {
       gcp_console_url = "https://console.cloud.google.com/security/secret-manager?project=${var.gcp_project_id}"
       current_value = "placeholder_GOOGLE_TOKEN_AUDIENCE_will_be_updated"
       required_before = "Backend deployment"
-      population_method = "Set to same value as GOOGLE_CLIENT_ID: gcloud secrets versions add GOOGLE_TOKEN_AUDIENCE"
+      population_method = "Set to same value as GOOGLE_CLIENT_ID: gcloud secrets versions add GOOGLE_TOKEN_AUDIENCE --data-file=- --project=${var.gcp_project_id} <<< \"YOUR_CLIENT_ID\""
       note = "CRITICAL: This value MUST be identical to GOOGLE_CLIENT_ID for backend JWT validation to work"
     }
   }
