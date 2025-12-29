@@ -230,101 +230,99 @@ output "required_secrets_to_populate" {
 }
 
 output "firebase_sdk_configuration" {
-  description = "Firebase SDK secrets that must be populated from Firebase Web App configuration"
+  description = "Firebase SDK configuration that is auto-discovered and injected via Cloud Build substitutions"
   value = {
     "FIREBASE_API_KEY" = {
-      status = "⚠️  MANUAL - Must populate from Firebase Web App config"
-      source = "Firebase Web App configuration (via firebase CLI or update_secrets.sh)"
+      status = "✅ AUTO-AVAILABLE - Auto-discovered from Firebase Web App"
+      source = "Automatically extracted from Firebase web app configuration"
       required = true
-      note = "Populate using: update_secrets.sh or 'firebase apps:sdkconfig' command"
-      secret_manager_path = "projects/${var.gcp_project_id}/secrets/FIREBASE_API_KEY/versions/latest"
+      note = "Passed to frontend via Cloud Build substitution (_FIREBASE_API_KEY). No manual population needed."
     }
     "FIREBASE_AUTH_DOMAIN" = {
-      status = "⚠️  MANUAL - Must populate from Firebase Web App config"
-      source = "Firebase Web App configuration (via firebase CLI or update_secrets.sh)"
+      status = "✅ AUTO-AVAILABLE - Auto-discovered from Firebase Web App"
+      source = "Automatically extracted from Firebase web app configuration"
       required = true
-      note = "Populate using: update_secrets.sh or 'firebase apps:sdkconfig' command"
-      secret_manager_path = "projects/${var.gcp_project_id}/secrets/FIREBASE_AUTH_DOMAIN/versions/latest"
+      note = "Passed to frontend via Cloud Build substitution (_FIREBASE_AUTH_DOMAIN). No manual population needed."
     }
     "FIREBASE_PROJECT_ID" = {
-      status = "⚠️  MANUAL - Must populate from GCP Project ID"
+      status = "✅ AUTO-AVAILABLE - Auto-discovered from GCP Project"
       source = "GCP Project ID: ${var.gcp_project_id}"
       required = true
-      note = "Populate using: update_secrets.sh or 'gcloud secrets versions add' with project ID"
-      secret_manager_path = "projects/${var.gcp_project_id}/secrets/FIREBASE_PROJECT_ID/versions/latest"
+      note = "Passed to frontend via Cloud Build substitution (_FIREBASE_PROJECT_ID_SDK). No manual population needed."
     }
     "FIREBASE_STORAGE_BUCKET" = {
-      status = "⚠️  MANUAL - Must populate from Firebase Web App config"
-      source = "Firebase Web App configuration (via firebase CLI or update_secrets.sh)"
+      status = "✅ AUTO-AVAILABLE - Auto-discovered from Firebase Web App"
+      source = "Automatically extracted from Firebase web app configuration"
       required = true
-      note = "Populate using: update_secrets.sh or 'firebase apps:sdkconfig' command"
-      secret_manager_path = "projects/${var.gcp_project_id}/secrets/FIREBASE_STORAGE_BUCKET/versions/latest"
+      note = "Passed to frontend via Cloud Build substitution (_FIREBASE_STORAGE_BUCKET). No manual population needed."
     }
     "FIREBASE_MESSAGING_SENDER_ID" = {
-      status = "⚠️  MANUAL - Must populate from Firebase Web App config"
-      source = "Firebase Web App configuration (via firebase CLI or update_secrets.sh)"
+      status = "✅ AUTO-AVAILABLE - Auto-discovered from Firebase Web App"
+      source = "Automatically extracted from Firebase web app configuration"
       required = true
-      note = "Populate using: update_secrets.sh or 'firebase apps:sdkconfig' command"
-      secret_manager_path = "projects/${var.gcp_project_id}/secrets/FIREBASE_MESSAGING_SENDER_ID/versions/latest"
+      note = "Passed to frontend via Cloud Build substitution (_FIREBASE_MESSAGING_SENDER_ID). No manual population needed."
     }
     "FIREBASE_MEASUREMENT_ID" = {
-      status = "⚠️  MANUAL - Must populate from Firebase Web App config (can be empty)"
-      source = "Firebase Web App configuration (via firebase CLI or update_secrets.sh)"
-      required = true
-      note = "Populate using: update_secrets.sh or 'firebase apps:sdkconfig' command. Can be empty string."
-      secret_manager_path = "projects/${var.gcp_project_id}/secrets/FIREBASE_MEASUREMENT_ID/versions/latest"
+      status = "✅ AUTO-AVAILABLE - Auto-discovered from Firebase Web App (optional)"
+      source = "Automatically extracted from Firebase web app configuration"
+      required = false
+      note = "Passed to frontend via Cloud Build substitution (_FIREBASE_MEASUREMENT_ID). Can be empty. No manual population needed."
     }
   }
 }
 
 output "all_secrets_reference" {
-  description = "Complete reference matrix of all 8 secrets with setup status"
+  description = "Complete reference matrix showing Firebase auto-discovery and OAuth manual setup"
   value = <<-EOT
 ┌──────────────────────────────────────────────────────────────────────────────────┐
 │                         🔐 ALL SECRETS REFERENCE MATRIX                          │
 ├──────────────────────────────────────────────────────────────────────────────────┤
 │                                                                                  │
-│ FIREBASE SDK SECRETS (6 total) - Populate from Firebase Web App                  │
+│ FIREBASE SDK SECRETS (6 total) - AUTO-DISCOVERED & AUTO-INJECTED                │
 │ ────────────────────────────────────────────────────────────────────────────── │
-│ ⚠️  FIREBASE_API_KEY           → Populate via update_secrets.sh or Firebase CLI   │
-│ ⚠️  FIREBASE_AUTH_DOMAIN       → Populate via update_secrets.sh or Firebase CLI   │
-│ ⚠️  FIREBASE_PROJECT_ID        → Populate via update_secrets.sh (from project ID) │
-│ ⚠️  FIREBASE_STORAGE_BUCKET    → Populate via update_secrets.sh or Firebase CLI   │
-│ ⚠️  FIREBASE_MESSAGING_SENDER_ID → Populate via update_secrets.sh or Firebase CLI │
-│ ⚠️  FIREBASE_MEASUREMENT_ID    → Populate via update_secrets.sh or Firebase CLI   │
+│ ✅ FIREBASE_API_KEY           → Auto-discovered, passed via substitution         │
+│ ✅ FIREBASE_AUTH_DOMAIN       → Auto-discovered, passed via substitution         │
+│ ✅ FIREBASE_PROJECT_ID        → Auto-discovered, passed via substitution         │
+│ ✅ FIREBASE_STORAGE_BUCKET    → Auto-discovered, passed via substitution         │
+│ ✅ FIREBASE_MESSAGING_SENDER_ID → Auto-discovered, passed via substitution      │
+│ ✅ FIREBASE_MEASUREMENT_ID    → Auto-discovered, passed via substitution         │
 │                                                                                  │
-│ OAUTH AUTHENTICATION SECRETS (2 total) - Manual Setup Required                  │
+│ OAUTH AUTHENTICATION SECRETS (2 total) - MANUAL SETUP REQUIRED                   │
 │ ────────────────────────────────────────────────────────────────────────────── │
 │ ⚠️  GOOGLE_CLIENT_ID          → Manual: Create OAuth Client ID in GCP Console   │
 │ ⚠️  GOOGLE_TOKEN_AUDIENCE     → Manual: Set equal to GOOGLE_CLIENT_ID value     │
 │                                                                                  │
 ├──────────────────────────────────────────────────────────────────────────────────┤
 │                                                                                  │
-│ POPULATION TIMELINE:                                                            │
+│ DEPLOYMENT TIMELINE:                                                            │
 │                                                                                  │
 │ 1. ✅ terraform apply                                                            │
-│    → Creates all 8 secrets with placeholder values in Secret Manager            │
+│    → Firebase web app auto-discovered via Terraform                             │
+│    → Firebase SDK config extracted and stored for Cloud Build                   │
+│    → Only OAuth secrets created as placeholders in Secret Manager               │
 │                                                                                  │
-│ 2. ⚠️  STEP 1: Populate 6 Firebase SDK secrets                                   │
-│    → Run: update_secrets.sh                                                     │
-│    → OR: Manually use 'firebase apps:sdkconfig' + 'gcloud secrets versions add' │
-│    → Progress: 6/8 secrets populated                                            │
-│                                                                                  │
-│ 3. ⚠️  STEP 2: Configure 2 OAuth secrets                                         │
+│ 2. ⚠️  STEP 1: Configure OAuth Secrets (Required)                                │
 │    → Create OAuth Client ID in GCP Console                                      │
 │    → Set GOOGLE_CLIENT_ID to the created OAuth Client ID                        │
 │    → Set GOOGLE_TOKEN_AUDIENCE to same value as GOOGLE_CLIENT_ID                │
-│    → Progress: 8/8 secrets populated ✅                                          │
+│    → Progress: 2/2 OAuth secrets populated                                      │
 │                                                                                  │
-│ 4. ✅ STEP 3: Trigger frontend build                                             │
-│    → Only proceed after ALL 8 secrets are populated                             │
-│    → Frontend Cloud Build will read all secrets from Secret Manager             │
-│    → Frontend will have valid Firebase config and OAuth credentials             │
+│ 3. ✅ STEP 2: Firebase SDK Config Auto-Ready                                     │
+│    → Terraform has already auto-discovered Firebase SDK values                  │
+│    → Cloud Build will inject these values as _FIREBASE_* substitutions          │
+│    → No manual population needed for Firebase secrets!                          │
+│                                                                                  │
+│ 4. ✅ STEP 3: Trigger Frontend Build                                             │
+│    → Only proceed after OAuth secrets are populated (step 1)                     │
+│    → Cloud Build will inject:                                                   │
+│      - Firebase SDK config via substitutions                                    │
+│      - OAuth credentials from Secret Manager                                    │
+│    → Frontend deployment complete ✅                                             │
 │                                                                                  │
 │ RESULT:                                                                          │
-│ • All 8 secrets populated in Secret Manager ✅                                   │
-│ • Frontend built with valid Firebase SDK configuration                           │
-│ • Frontend can authenticate users via Google Sign-In                             │
+│ • Firebase SDK configuration guaranteed via Terraform                            │
+│ • OAuth secrets properly secured in Secret Manager                               │
+│ • Frontend built with valid Firebase SDK + OAuth config                          │
 │ • Backend can validate JWT tokens with GOOGLE_TOKEN_AUDIENCE                     │
 │                                                                                  │
 └──────────────────────────────────────────────────────────────────────────────────┘
