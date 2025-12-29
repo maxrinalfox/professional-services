@@ -13,12 +13,110 @@
 # limitations under the License.
 
 steps:
+  # 0. Validate all required secrets are properly populated (not placeholders)
+  - name: 'gcr.io/cloud-builders/gcloud'
+    id: 'Validate Secrets'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        #!/bin/bash
+        set -e
+
+        echo "════════════════════════════════════════════════════════════════"
+        echo "🔐 VALIDATING REQUIRED SECRETS"
+        echo "════════════════════════════════════════════════════════════════"
+        echo ""
+
+        # Define required secrets with descriptions
+        declare -A SECRETS=(
+          [FIREBASE_API_KEY]="Firebase API Key (from Firebase Web App config)"
+          [FIREBASE_AUTH_DOMAIN]="Firebase Auth Domain (from Firebase Web App config)"
+          [FIREBASE_PROJECT_ID]="Firebase Project ID (from GCP Project ID)"
+          [FIREBASE_STORAGE_BUCKET]="Firebase Storage Bucket (from Firebase Web App config)"
+          [FIREBASE_MESSAGING_SENDER_ID]="Firebase Messaging Sender ID (from Firebase Web App config)"
+          [FIREBASE_MEASUREMENT_ID]="Firebase Measurement ID (from Firebase Web App config)"
+          [GOOGLE_CLIENT_ID]="OAuth 2.0 Client ID (from GCP Console)"
+        )
+
+        FAILED_SECRETS=()
+        PLACEHOLDER_PATTERN="placeholder_.*_will_be_updated"
+
+        for SECRET_NAME in "${!SECRETS[@]}"; do
+          SECRET_VALUE="$${!SECRET_NAME}"
+          SECRET_DESC="${SECRETS[$SECRET_NAME]}"
+
+          # Check if secret exists and is not empty
+          if [ -z "$SECRET_VALUE" ]; then
+            echo "❌ MISSING: $SECRET_NAME"
+            echo "   Description: $SECRET_DESC"
+            echo "   Current value: [EMPTY]"
+            FAILED_SECRETS+=("$SECRET_NAME")
+            echo ""
+          elif [[ "$SECRET_VALUE" =~ $PLACEHOLDER_PATTERN ]]; then
+            echo "❌ NOT POPULATED: $SECRET_NAME"
+            echo "   Description: $SECRET_DESC"
+            echo "   Current value: [PLACEHOLDER - needs real value]"
+            FAILED_SECRETS+=("$SECRET_NAME")
+            echo ""
+          else
+            echo "✅ VALID: $SECRET_NAME"
+            echo "   Description: $SECRET_DESC"
+            echo ""
+          fi
+        done
+
+        echo "════════════════════════════════════════════════════════════════"
+
+        if [ ${#FAILED_SECRETS[@]} -gt 0 ]; then
+          echo ""
+          echo "❌ BUILD FAILED: ${#FAILED_SECRETS[@]} secret(s) not properly configured"
+          echo ""
+          echo "Missing or placeholder secrets:"
+          for SECRET in "${FAILED_SECRETS[@]}"; do
+            echo "  • $SECRET"
+          done
+          echo ""
+          echo "HOW TO FIX:"
+          echo "─────────────────────────────────────────────────────────────"
+          echo "1. Run the update_secrets.sh script to populate 6 Firebase SDK secrets:"
+          echo ""
+          echo "   $ cd infra/environments/<your-environment>"
+          echo "   $ ./update_secrets.sh"
+          echo ""
+          echo "2. Then create/update the 2 OAuth secrets manually:"
+          echo ""
+          echo "   $ OAUTH_CLIENT_ID='your-oauth-client-id'"
+          echo "   $ gcloud secrets versions add GOOGLE_CLIENT_ID \\"
+          echo "       --data-file=- --project=${PROJECT_ID} \\"
+          echo "       <<< \"\$OAUTH_CLIENT_ID\""
+          echo ""
+          echo "3. After all secrets are populated, retry the frontend build."
+          echo ""
+          echo "DOCUMENTATION:"
+          echo "  See: infra/QUICK_START.md or infra/SECRETS_CONFIGURATION.md"
+          echo "─────────────────────────────────────────────────────────────"
+          exit 1
+        fi
+
+        echo "✅ All required secrets are properly configured!"
+        echo ""
+    secretEnv:
+      - FIREBASE_API_KEY
+      - FIREBASE_AUTH_DOMAIN
+      - FIREBASE_PROJECT_ID
+      - FIREBASE_STORAGE_BUCKET
+      - FIREBASE_MESSAGING_SENDER_ID
+      - FIREBASE_MEASUREMENT_ID
+      - GOOGLE_CLIENT_ID
+
   # 1. Install dependencies
   - name: 'node:20-alpine' # Standardized version
     id: 'Install Dependencies'
     entrypoint: 'npm'
     args: ['ci']
     dir: examples/creative-studio/frontend
+    waitFor: ['Validate Secrets']
 
   # 2. Inject Secrets and Config from the build environment
   - name: 'gcr.io/cloud-builders/gcloud'
@@ -55,6 +153,7 @@ steps:
       - FIREBASE_MESSAGING_SENDER_ID
       - FIREBASE_MEASUREMENT_ID
       - GOOGLE_CLIENT_ID
+    waitFor: ['Install Dependencies']
 
   # 3. Build the application
   - name: 'node:20-alpine' # Use the same version
@@ -78,6 +177,25 @@ steps:
       - '--non-interactive'
     waitFor: ['Build Angular App']
     dir: examples/creative-studio/frontend
+
+  # 5. Summary
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    id: 'Build Summary'
+    entrypoint: 'echo'
+    args:
+      - |
+        ✅ Frontend deployment completed successfully!
+
+        Summary:
+        ────────────────────────────────────────────
+        ✓ All 7 required secrets validated
+        ✓ Frontend built with valid configuration
+        ✓ Deployed to Firebase Hosting
+
+        Frontend URL: https://${PROJECT_ID}.firebaseapp.com
+
+        Next steps: Test login functionality
+    waitFor: ['Deploy to Firebase Hosting']
 
 # This section makes the secrets available as environment variables during the build
 availableSecrets:
