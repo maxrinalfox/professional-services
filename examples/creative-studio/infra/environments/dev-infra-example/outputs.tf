@@ -63,7 +63,32 @@ output "post_deployment_instructions" {
 ║  Infrastructure created! Now complete these manual steps:                  ║
 ╚════════════════════════════════════════════════════════════════════════════╝
 
-📋 STEP 1: CREATE OAUTH CLIENT ID (Required for Frontend Login)
+⚠️  CRITICAL: DO NOT REBUILD FRONTEND YET!
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+The frontend MUST wait for Firebase SDK secrets to be auto-populated by the bootstrap job.
+If you rebuild frontend NOW, it will use empty/placeholder values and fail with "API key not valid".
+
+WAIT FOR: The bootstrap job (cstudio-bootstrap-${var.environment}) to complete first.
+See STEP 1 below to verify Bootstrap job completed successfully.
+
+📋 STEP 1: VERIFY FIREBASE SDK SECRETS (Auto-populated by Bootstrap Job)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+These should be auto-populated by the bootstrap job. Monitor the job logs:
+
+$ gcloud run jobs logs read cstudio-bootstrap-${var.environment} \
+    --project=${var.gcp_project_id}
+
+Expected to see:
+✅ "Auto-discovered Firebase SDK configuration"
+✅ "Admin user created"
+✅ "Workspace created"
+
+If the job failed or isn't running, see backend/BOOTSTRAP.md for debugging.
+
+
+📋 STEP 2: CREATE OAUTH CLIENT ID (Required for Frontend Login)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 This is CRITICAL for the frontend login to work. Without it, users cannot sign in.
@@ -83,22 +108,6 @@ This is CRITICAL for the frontend login to work. Without it, users cannot sign i
    $ gcloud secrets versions add GOOGLE_CLIENT_ID \
        --data-file=- --project=${var.gcp_project_id} \
        <<< "YOUR_OAUTH_CLIENT_ID"
-
-
-📋 STEP 2: VERIFY FIREBASE SDK SECRETS (Auto-populated by Bootstrap Job)
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-These should be auto-populated by the bootstrap job. Monitor the job logs:
-
-$ gcloud run jobs logs read cstudio-bootstrap-${var.environment} \
-    --project=${var.gcp_project_id}
-
-Expected to see:
-✅ "Auto-discovered Firebase SDK configuration"
-✅ "Admin user created"
-✅ "Workspace created"
-
-If the job failed or isn't running, see backend/BOOTSTRAP.md for debugging.
 
 
 📋 STEP 3: TRIGGER FRONTEND BUILD (After Secrets are Populated)
@@ -169,9 +178,9 @@ Secret Manager:
 📌 CHECKLIST - Mark as You Complete:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  [ ] Step 1: Created OAuth Client ID in GCP Console
-  [ ] Step 1: Updated GOOGLE_CLIENT_ID secret in Secret Manager
-  [ ] Step 2: Verified Firebase secrets are populated (check bootstrap logs)
+  [ ] Step 1: Verified Firebase secrets are populated (check bootstrap logs)
+  [ ] Step 2: Created OAuth Client ID in GCP Console
+  [ ] Step 2: Updated GOOGLE_CLIENT_ID secret in Secret Manager
   [ ] Step 3: Triggered frontend build
   [ ] Step 4: Backend health checks respond (HTTP 200)
   [ ] Step 5: Frontend loads without placeholder errors
