@@ -231,24 +231,84 @@ Secret Manager:
 }
 
 output "required_secrets_to_populate" {
-  description = "Secrets that MUST be manually populated before frontend/backend build"
+  description = "All 8 secrets (6 Firebase + 2 OAuth) that MUST be populated before frontend/backend build"
   value = {
+    # Firebase SDK secrets (6 total) - populated via update_secrets.sh
+    "FIREBASE_API_KEY" = {
+      description = "Firebase API Key for SDK initialization"
+      type = "Firebase SDK"
+      status = "⚠️  MUST POPULATE - Via update_secrets.sh"
+      setup_location = "Run update_secrets.sh script"
+      current_value = "placeholder_FIREBASE_API_KEY_will_be_updated"
+      required_before = "Frontend build"
+      population_method = "update_secrets.sh or 'firebase apps:sdkconfig' command"
+    }
+    "FIREBASE_AUTH_DOMAIN" = {
+      description = "Firebase Authentication domain (e.g., project-id.firebaseapp.com)"
+      type = "Firebase SDK"
+      status = "⚠️  MUST POPULATE - Via update_secrets.sh"
+      setup_location = "Run update_secrets.sh script"
+      current_value = "placeholder_FIREBASE_AUTH_DOMAIN_will_be_updated"
+      required_before = "Frontend build"
+      population_method = "update_secrets.sh or 'firebase apps:sdkconfig' command"
+    }
+    "FIREBASE_PROJECT_ID" = {
+      description = "Firebase Project ID (same as GCP project ID)"
+      type = "Firebase SDK"
+      status = "⚠️  MUST POPULATE - Via update_secrets.sh"
+      setup_location = "Run update_secrets.sh script"
+      current_value = "placeholder_FIREBASE_PROJECT_ID_will_be_updated"
+      required_before = "Frontend build"
+      population_method = "update_secrets.sh (auto-populated from project ID)"
+    }
+    "FIREBASE_STORAGE_BUCKET" = {
+      description = "Firebase Cloud Storage bucket name (e.g., project-id.appspot.com)"
+      type = "Firebase SDK"
+      status = "⚠️  MUST POPULATE - Via update_secrets.sh"
+      setup_location = "Run update_secrets.sh script"
+      current_value = "placeholder_FIREBASE_STORAGE_BUCKET_will_be_updated"
+      required_before = "Frontend build"
+      population_method = "update_secrets.sh or 'firebase apps:sdkconfig' command"
+    }
+    "FIREBASE_MESSAGING_SENDER_ID" = {
+      description = "Firebase Cloud Messaging sender ID"
+      type = "Firebase SDK"
+      status = "⚠️  MUST POPULATE - Via update_secrets.sh"
+      setup_location = "Run update_secrets.sh script"
+      current_value = "placeholder_FIREBASE_MESSAGING_SENDER_ID_will_be_updated"
+      required_before = "Frontend build"
+      population_method = "update_secrets.sh or 'firebase apps:sdkconfig' command"
+    }
+    "FIREBASE_MEASUREMENT_ID" = {
+      description = "Firebase Analytics measurement ID (can be empty string)"
+      type = "Firebase SDK"
+      status = "⚠️  MUST POPULATE - Via update_secrets.sh"
+      setup_location = "Run update_secrets.sh script"
+      current_value = "placeholder_FIREBASE_MEASUREMENT_ID_will_be_updated"
+      required_before = "Frontend build"
+      population_method = "update_secrets.sh or 'firebase apps:sdkconfig' command (can be empty)"
+    }
+    # OAuth secrets (2 total) - manual setup required
     "GOOGLE_CLIENT_ID" = {
       description = "OAuth 2.0 Client ID for Google Sign-In (frontend authentication)"
-      status = "⚠️  MANUAL - Must create in GCP Console"
+      type = "OAuth"
+      status = "⚠️  MUST POPULATE - Manual setup in GCP Console"
       setup_location = "GCP Console → APIs & Services → Credentials"
       gcp_console_url = "https://console.cloud.google.com/apis/credentials?project=${var.gcp_project_id}"
       current_value = "placeholder_GOOGLE_CLIENT_ID_will_be_updated"
       required_before = "Frontend build"
+      population_method = "Create OAuth Client ID in GCP Console, then: gcloud secrets versions add GOOGLE_CLIENT_ID"
     }
     "GOOGLE_TOKEN_AUDIENCE" = {
       description = "JWT audience for backend token validation (MUST equal GOOGLE_CLIENT_ID)"
-      status = "⚠️  MANUAL - Set equal to GOOGLE_CLIENT_ID value"
+      type = "OAuth"
+      status = "⚠️  MUST POPULATE - Manual setup in Secret Manager"
       setup_location = "GCP Console → Secret Manager"
       gcp_console_url = "https://console.cloud.google.com/security/secret-manager?project=${var.gcp_project_id}"
       current_value = "placeholder_GOOGLE_TOKEN_AUDIENCE_will_be_updated"
       required_before = "Backend deployment"
-      note = "This value MUST be identical to GOOGLE_CLIENT_ID for backend JWT validation to work"
+      population_method = "Set to same value as GOOGLE_CLIENT_ID: gcloud secrets versions add GOOGLE_TOKEN_AUDIENCE"
+      note = "CRITICAL: This value MUST be identical to GOOGLE_CLIENT_ID for backend JWT validation to work"
     }
   }
 }
