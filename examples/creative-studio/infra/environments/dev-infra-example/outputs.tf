@@ -88,10 +88,14 @@ Expected to see:
 If the job failed or isn't running, see backend/BOOTSTRAP.md for debugging.
 
 
-📋 STEP 2: CREATE OAUTH CLIENT ID (Required for Frontend Login)
+📋 STEP 2: CONFIGURE OAUTH SECRETS (Required for Frontend & Backend)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-This is CRITICAL for the frontend login to work. Without it, users cannot sign in.
+This step configures TWO secrets that are CRITICAL for authentication to work:
+- GOOGLE_CLIENT_ID: Frontend login
+- GOOGLE_TOKEN_AUDIENCE: Backend JWT validation (must equal GOOGLE_CLIENT_ID)
+
+A. CREATE OAUTH CLIENT ID:
 
 1. Go to GCP Console:
    → APIs & Services → Credentials → Create Credentials → OAuth client ID
@@ -104,10 +108,19 @@ This is CRITICAL for the frontend login to work. Without it, users cannot sign i
 
 4. Copy the OAuth Client ID (looks like: 123456789-abcdefghijk.apps.googleusercontent.com)
 
-5. Update the Secret in Secret Manager:
-   $ gcloud secrets versions add GOOGLE_CLIENT_ID \
-       --data-file=- --project=${var.gcp_project_id} \
-       <<< "YOUR_OAUTH_CLIENT_ID"
+B. UPDATE BOTH SECRETS:
+
+$ OAUTH_CLIENT_ID="YOUR_OAUTH_CLIENT_ID"
+
+# Update GOOGLE_CLIENT_ID (for frontend login)
+$ gcloud secrets versions add GOOGLE_CLIENT_ID \
+    --data-file=- --project=${var.gcp_project_id} \
+    <<< "$OAUTH_CLIENT_ID"
+
+# Update GOOGLE_TOKEN_AUDIENCE (for backend JWT validation - MUST be same as GOOGLE_CLIENT_ID)
+$ gcloud secrets versions add GOOGLE_TOKEN_AUDIENCE \
+    --data-file=- --project=${var.gcp_project_id} \
+    <<< "$OAUTH_CLIENT_ID"
 
 
 📋 STEP 3: TRIGGER FRONTEND BUILD (After Secrets are Populated)
@@ -181,6 +194,7 @@ Secret Manager:
   [ ] Step 1: Verified Firebase secrets are populated (check bootstrap logs)
   [ ] Step 2: Created OAuth Client ID in GCP Console
   [ ] Step 2: Updated GOOGLE_CLIENT_ID secret in Secret Manager
+  [ ] Step 2: Updated GOOGLE_TOKEN_AUDIENCE secret (set equal to GOOGLE_CLIENT_ID)
   [ ] Step 3: Triggered frontend build
   [ ] Step 4: Backend health checks respond (HTTP 200)
   [ ] Step 5: Frontend loads without placeholder errors
@@ -195,45 +209,108 @@ Secret Manager:
 }
 
 output "required_secrets_to_populate" {
-  description = "Secrets that need to be manually populated"
+  description = "Secrets that MUST be manually populated before frontend/backend build"
   value = {
     "GOOGLE_CLIENT_ID" = {
-      description = "OAuth 2.0 Client ID for Google Sign-In"
-      status = "⚠️  MANUAL - Must create OAuth Client ID in GCP Console and set manually"
+      description = "OAuth 2.0 Client ID for Google Sign-In (frontend authentication)"
+      status = "⚠️  MANUAL - Must create in GCP Console"
+      setup_location = "GCP Console → APIs & Services → Credentials"
       gcp_console_url = "https://console.cloud.google.com/apis/credentials?project=${var.gcp_project_id}"
       current_value = "placeholder_GOOGLE_CLIENT_ID_will_be_updated"
+      required_before = "Frontend build"
+    }
+    "GOOGLE_TOKEN_AUDIENCE" = {
+      description = "JWT audience for backend token validation (MUST equal GOOGLE_CLIENT_ID)"
+      status = "⚠️  MANUAL - Set equal to GOOGLE_CLIENT_ID value"
+      setup_location = "GCP Console → Secret Manager"
+      gcp_console_url = "https://console.cloud.google.com/security/secret-manager?project=${var.gcp_project_id}"
+      current_value = "placeholder_GOOGLE_TOKEN_AUDIENCE_will_be_updated"
+      required_before = "Backend deployment"
+      note = "This value MUST be identical to GOOGLE_CLIENT_ID for backend JWT validation to work"
     }
   }
 }
 
-output "auto_populated_secrets" {
-  description = "Secrets that are auto-populated by the bootstrap job"
+output "firebase_sdk_configuration" {
+  description = "Firebase SDK secrets auto-discovered from Firebase Web App configuration"
   value = {
     "FIREBASE_API_KEY" = {
-      status = "✅ AUTO - Populated by bootstrap job"
-      populated_by = "Cloud Run Job: cstudio-bootstrap-${var.environment}"
+      status = "✅ AUTO-AVAILABLE - Extracted from Firebase Web App"
+      source = "Terraform data source: google_firebase_web_app_config"
+      required = true
+      note = "No action needed - automatically available after Firebase web app exists"
     }
     "FIREBASE_AUTH_DOMAIN" = {
-      status = "✅ AUTO - Populated by bootstrap job"
-      populated_by = "Cloud Run Job: cstudio-bootstrap-${var.environment}"
+      status = "✅ AUTO-AVAILABLE - Extracted from Firebase Web App"
+      source = "Terraform data source: google_firebase_web_app_config"
+      required = true
+      note = "No action needed - automatically available after Firebase web app exists"
     }
     "FIREBASE_PROJECT_ID" = {
-      status = "✅ AUTO - Populated by bootstrap job"
-      populated_by = "Cloud Run Job: cstudio-bootstrap-${var.environment}"
+      status = "✅ AUTO-AVAILABLE - Extracted from Firebase Web App"
+      source = "Terraform data source: google_firebase_web_app_config"
+      required = true
+      note = "No action needed - automatically available after Firebase web app exists"
     }
     "FIREBASE_STORAGE_BUCKET" = {
-      status = "✅ AUTO - Populated by bootstrap job"
-      populated_by = "Cloud Run Job: cstudio-bootstrap-${var.environment}"
+      status = "✅ AUTO-AVAILABLE - Extracted from Firebase Web App"
+      source = "Terraform data source: google_firebase_web_app_config"
+      required = true
+      note = "No action needed - automatically available after Firebase web app exists"
     }
     "FIREBASE_MESSAGING_SENDER_ID" = {
-      status = "✅ AUTO - Populated by bootstrap job"
-      populated_by = "Cloud Run Job: cstudio-bootstrap-${var.environment}"
+      status = "✅ AUTO-AVAILABLE - Extracted from Firebase Web App"
+      source = "Terraform data source: google_firebase_web_app_config"
+      required = true
+      note = "No action needed - automatically available after Firebase web app exists"
     }
     "FIREBASE_MEASUREMENT_ID" = {
-      status = "✅ AUTO - Populated by bootstrap job"
-      populated_by = "Cloud Run Job: cstudio-bootstrap-${var.environment}"
+      status = "✅ AUTO-AVAILABLE - Extracted from Firebase Web App"
+      source = "Terraform data source: google_firebase_web_app_config"
+      required = true
+      note = "No action needed - automatically available after Firebase web app exists (can be empty)"
     }
   }
+}
+
+output "all_secrets_reference" {
+  description = "Complete reference matrix of all 8 secrets with setup status"
+  value = <<-EOT
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                         🔐 ALL SECRETS REFERENCE MATRIX                         │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                 │
+│ FIREBASE SDK SECRETS (6 total) - Auto-Available from Firebase Web App           │
+│ ─────────────────────────────────────────────────────────────────────────────  │
+│ ✅ FIREBASE_API_KEY           → Automatic (Firebase web app config)            │
+│ ✅ FIREBASE_AUTH_DOMAIN       → Automatic (Firebase web app config)            │
+│ ✅ FIREBASE_PROJECT_ID        → Automatic (from GCP Project ID)                │
+│ ✅ FIREBASE_STORAGE_BUCKET    → Automatic (Firebase web app config)            │
+│ ✅ FIREBASE_MESSAGING_SENDER_ID → Automatic (Firebase web app config)          │
+│ ✅ FIREBASE_MEASUREMENT_ID    → Automatic (Firebase web app config)            │
+│                                                                                 │
+│ OAUTH AUTHENTICATION SECRETS (2 total) - Manual Setup Required                 │
+│ ─────────────────────────────────────────────────────────────────────────────  │
+│ ⚠️  GOOGLE_CLIENT_ID          → Manual (create OAuth Client ID in GCP Console) │
+│ ⚠️  GOOGLE_TOKEN_AUDIENCE     → Manual (set equal to GOOGLE_CLIENT_ID)         │
+│                                                                                 │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                 │
+│ TIMELINE:                                                                       │
+│ 1. Terraform apply → Creates all 8 secrets with placeholder values              │
+│ 2. Firebase web app created → Firebase 6 secrets auto-populated                 │
+│ 3. You create OAuth Client ID → Manually set GOOGLE_CLIENT_ID                   │
+│ 4. You copy GOOGLE_CLIENT_ID → Manually set GOOGLE_TOKEN_AUDIENCE               │
+│ 5. Both OAuth secrets configured → Ready for frontend/backend build             │
+│                                                                                 │
+│ RESULT:                                                                         │
+│ • All 8 secrets ready in Secret Manager ✅                                      │
+│ • Frontend can be built with valid Firebase config                              │
+│ • Backend can validate JWT tokens with GOOGLE_TOKEN_AUDIENCE                    │
+│                                                                                 │
+└─────────────────────────────────────────────────────────────────────────────────┘
+  EOT
+  sensitive = false
 }
 
 output "infrastructure_endpoints" {
