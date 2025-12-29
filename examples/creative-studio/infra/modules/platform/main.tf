@@ -352,7 +352,12 @@ module "bootstrap" {
   bootstrap_job_cpu = var.bootstrap_job_cpu
   bootstrap_job_memory = var.bootstrap_job_memory
   bootstrap_job_timeout = var.bootstrap_job_timeout
-  bootstrap_job_environment_variables = var.bootstrap_job_environment_variables
+  bootstrap_job_environment_variables = merge(
+    var.bootstrap_job_environment_variables,
+    {
+      "GENMEDIA_BUCKET" = module.storage.bucket_name
+    }
+  )
 
   depends_on = [
     module.postgresql,
