@@ -25,7 +25,7 @@
 #    a. Installs frontend dependencies (npm ci)
 #    b. Injects configuration and secrets:
 #       - Backend API URL (from _BACKEND_URL substitution)
-#       - Firebase SDK config (FIREBASE_API_KEY, FIREBASE_AUTH_DOMAIN, etc. from Secret Manager)
+#       - Firebase SDK config (from _FIREBASE_* substitutions - auto-discovered by Terraform)
 #       - Google OAuth Client ID (from Secret Manager)
 #    c. Builds Angular application (npm run build --configuration=production)
 #    d. Deploys to Firebase Hosting (firebase deploy)
@@ -55,8 +55,8 @@ resource "google_service_account" "trigger_sa" {
 # 2. On code push, Cloud Build executes cloudbuild-deploy.yaml steps:
 #    - Step 1: npm ci (install dependencies from package-lock.json)
 #    - Step 2: Inject configuration (backend URL, Firebase SDK config, OAuth Client ID)
-#      * Uses build_substitutions for non-secret values (e.g., _BACKEND_URL)
-#      * Uses Secret Manager for sensitive values (e.g., FIREBASE_API_KEY)
+#      * Uses Cloud Build substitutions for Firebase SDK config (auto-discovered from Terraform)
+#      * Uses Secret Manager for OAuth credentials (GOOGLE_CLIENT_ID - requires manual setup)
 #    - Step 3: npm run build (compile Angular application for production)
 #    - Step 4: firebase deploy (deploy built files to Firebase Hosting)
 #
@@ -68,7 +68,8 @@ resource "google_service_account" "trigger_sa" {
 # availableSecrets (in cloudbuild-deploy.yaml):
 #   - Retrieved from Google Secret Manager during build
 #   - Never exposed in git or Terraform logs
-#   - Examples: FIREBASE_API_KEY, FIREBASE_AUTH_DOMAIN, GOOGLE_CLIENT_ID
+#   - Examples: GOOGLE_CLIENT_ID (OAuth credential)
+#   - Note: Firebase SDK config comes via build_substitutions, not Secret Manager
 
 resource "google_cloudbuild_trigger" "this" {
   count           = var.enable_cloud_build_trigger ? 1 : 0
