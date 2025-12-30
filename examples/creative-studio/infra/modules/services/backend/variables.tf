@@ -92,8 +92,8 @@ variable "custom_audiences" {
 
 variable "scaling_min_instances" {
   type        = number
-  description = "Minimum number of container instances."
-  default     = 0
+  description = "Minimum number of container instances. Set to 1+ to keep service warm and avoid cold start delays."
+  default     = 1
 }
 
 variable "scaling_max_instances" {

@@ -83,42 +83,25 @@ resource "google_cloud_run_v2_service" "this" {
         }
       }
 
-      env {
-        name  = "INSTANCE_CONNECTION_NAME"
-        value = var.cloud_sql_connection_name
-      }
-      env {
-        name  = "DB_HOST"
-        value = "/cloudsql/${var.cloud_sql_connection_name}"
-      }
-      env {
-        name  = "DB_NAME"
-        value = var.db_name
-      }
-      env {
-        name  = "DB_USER"
-        value = var.db_user
-      }
-
-      env {
-        name = "DB_PASS"
-        value_source {
-          secret_key_ref {
-            secret  = var.db_secret_id
-            version = "latest"
-          }
-        }
-      }
-
-      # NOTE: All other environment variables (container_env_vars and runtime_secrets)
-      # are managed by Cloud Build, not Terraform. This allows:
+      # NOTE: ALL environment variables (including database connection vars and container_env_vars)
+      # and runtime_secrets are managed by Cloud Build, not Terraform. This allows:
       # 1. Service to be created without needing placeholder values for secrets
       # 2. Secrets to be mounted AFTER IAM bindings are created
-      # 3. Cloud Build to manage app configuration independently from infrastructure
+      # 3. Cloud Build to be the single source of truth for runtime configuration
+      #
+      # Database connection variables set by Cloud Build:
+      # - INSTANCE_CONNECTION_NAME: Cloud SQL connection string (PROJECT:REGION:INSTANCE)
+      # - DB_HOST: Path to Cloud SQL socket (/cloudsql/...)
+      # - DB_NAME: Database name
+      # - DB_USER: Database username
+      # - DB_PASS: Database password (from Secret Manager)
       #
       # Cloud Build's deploy step (cloudbuild.yaml) uses gcloud run deploy with:
-      # - --set-env-vars for container_env_vars
+      # - --set-env-vars for all environment variables (database + application)
       # - --set-secrets for runtime_secrets (GOOGLE_TOKEN_AUDIENCE mapped to OAUTH_CLIENT_ID)
+      #
+      # Terraform's lifecycle.ignore_changes=[template[0].containers[0].env] ensures
+      # Cloud Build can update environment variables without Terraform reverting them.
       #
       # See: examples/creative-studio/backend/cloudbuild.yaml (Deploy step)
 
@@ -136,24 +119,26 @@ resource "google_cloud_run_v2_service" "this" {
   # --- Lifecycle Management ---
   # Prevent Terraform from reverting image updates made by Cloud Build CI/CD pipeline.
   #
-  # Why ignore_changes = image?
+  # Why ignore_changes?
   # - Cloud Build automatically updates the image whenever code is pushed to GitHub
   # - Without ignore_changes, running 'terraform apply' would revert the image to
   #   the placeholder, undoing the latest deployment
-  # - This configuration allows Cloud Build to manage image deployments independently
+  # - Scaling can be adjusted manually in GCP Console without Terraform reverting changes
   #
   # What Terraform WILL manage:
-  # - Service configuration (environment variables, scaling, network settings, etc.)
+  # - Service configuration (network settings, resource limits, etc.)
   # - IAM roles and access control
   # - All other infrastructure aspects
   #
-  # What Cloud Build manages:
-  # - Actual Docker image (source code → Docker image → Artifact Registry → Cloud Run)
-  # - All environment variables and secrets (set via gcloud run deploy --set-env-vars --set-secrets)
+  # What is ignored (managed externally):
+  # - Docker image (managed by Cloud Build CI/CD)
+  # - Environment variables and secrets (managed by Cloud Build)
+  # - Scaling (can be manually adjusted in GCP Console, won't be reverted by Terraform)
   lifecycle {
     ignore_changes = [
       template[0].containers[0].image,
-      template[0].containers[0].env, # Cloud Build manages env vars and secrets
+      template[0].containers[0].env,  # Cloud Build manages env vars and secrets
+      template[0].scaling,            # Allow manual scaling adjustments in GCP Console
       client,
       client_version
     ]
@@ -162,19 +147,37 @@ resource "google_cloud_run_v2_service" "this" {
 
 resource "google_cloudbuild_trigger" "this" {
   count           = var.enable_cloud_build_trigger ? 1 : 0
-  name            = "${var.service_name}-trigger"
+  name            = "cstudio-${var.environment}-backend-trigger"
   location        = var.gcp_region
   service_account = google_service_account.trigger_sa.id
   filename        = var.cloudbuild_yaml_path
   substitutions = merge(var.build_substitutions, {
     _REPO_NAME         = google_artifact_registry_repository.repo.name
     _ARTIFACT_REGISTRY = google_artifact_registry_repository.repo.location
+    # Database connection variables (required for backend to connect to Cloud SQL)
+    _INSTANCE_CONNECTION_NAME = var.cloud_sql_connection_name
+    _DB_HOST                  = "/cloudsql/${var.cloud_sql_connection_name}"
+    _DB_NAME                  = var.db_name
+    _DB_USER                  = var.db_user
     # Environment variables: comma-separated KEY=VALUE pairs
+    # Includes both application vars (from container_env_vars) and database connection vars
     # Cloud Build will use: gcloud run deploy --set-env-vars=_BACKEND_ENV_VARS
-    _BACKEND_ENV_VARS = join(",", [for k, v in var.container_env_vars : "${k}=${v}"])
+    _BACKEND_ENV_VARS = join(",", concat(
+      [for k, v in var.container_env_vars : "${k}=${v}"],
+      [
+        "INSTANCE_CONNECTION_NAME=${var.cloud_sql_connection_name}",
+        "DB_HOST=/cloudsql/${var.cloud_sql_connection_name}",
+        "DB_NAME=${var.db_name}",
+        "DB_USER=${var.db_user}"
+      ]
+    ))
     # Runtime secrets: comma-separated ENV_VAR=SECRET_NAME:VERSION pairs
+    # Includes DB_PASS secret and application-level secrets (GOOGLE_TOKEN_AUDIENCE)
     # Cloud Build will use: gcloud run deploy --set-secrets=_BACKEND_SECRETS
-    _BACKEND_SECRETS = join(",", [for env_var, secret_name in var.runtime_secrets : "${env_var}=${secret_name}:latest"])
+    _BACKEND_SECRETS = join(",", concat(
+      [for env_var, secret_name in var.runtime_secrets : "${env_var}=${secret_name}:latest"],
+      ["DB_PASS=${var.db_secret_id}:latest"]
+    ))
   })
 
   repository_event_config {

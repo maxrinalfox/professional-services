@@ -16,12 +16,6 @@ variable "gcp_project_id" { type = string }
 variable "gcp_region" {type = string}
 variable "firebase_project_id" { type = string }
 variable "service_name" { type = string }
-variable "trigger_name" {
-  type = string
-  description = "Name for the Cloud Build trigger (separate from service_name for Firebase Hosting site_id)"
-  nullable = true
-  default = null
-}
 variable "environment" {
   type        = string
   description = "The deployment environment (development or production)."

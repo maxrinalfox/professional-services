@@ -49,10 +49,9 @@ locals {
 
   # === ENVIRONMENT IDENTITY ===
   environment = "development"  # Environment name (used in resource naming)
-
-  # === SERVICE NAMES ===
-  backend_service_name  = "cstudio-backend-dev"   # Backend Cloud Run service name
-  frontend_service_name = "cstudio-frontend-dev"  # Frontend Cloud Run service name
+  # NOTE: Service names are automatically generated from environment by the platform module
+  # Pattern: cstudio-{service}-{environment}
+  # Do NOT override service_name variables - they are computed, not configurable
 
   # === GITHUB CONFIGURATION ===
   github_conn_name   = "github-connection-name"  # Cloud Build GitHub connection (created manually in GCP Console)
@@ -123,14 +122,17 @@ locals {
   backend_invoker_identities = []  # Empty = public access. Add "user:email@example.com" to restrict
 
   # === CLOUD RUN JOB (Database Bootstrap) ===
-  enable_cloud_run_job      = false                # Enable database bootstrap job
-  bootstrap_job_name        = null                 # auto-generated if null
-  bootstrap_image_name      = "cstudio-bootstrap"  # Docker image name in Artifact Registry
-  bootstrap_job_env_vars    = {}                   # Bootstrap environment variables
-  bootstrap_job_secrets     = {}                   # Bootstrap secrets from Secret Manager
-  bootstrap_job_cpu         = "2000m"
-  bootstrap_job_memory      = "2048Mi"
-  bootstrap_job_timeout     = 600  # seconds
+  enable_cloud_run_job       = false               # Enable database bootstrap job
+  bootstrap_job_name         = null                # auto-generated if null
+  bootstrap_image_name       = "cstudio-bootstrap" # Docker image name in Artifact Registry
+  bootstrap_admin_user_email = null                # Email for initial admin user. REQUIRED if enable_cloud_run_job = true. Must be a valid email address.
+  bootstrap_job_env_vars = {
+    # Optional additional environment variables (exclude ADMIN_USER_EMAIL, which has its own dedicated variable)
+  }
+  bootstrap_job_secrets  = {}                  # Bootstrap secrets from Secret Manager
+  bootstrap_job_cpu      = "2000m"
+  bootstrap_job_memory   = "2048Mi"
+  bootstrap_job_timeout  = 600  # seconds
 
   # === STORAGE CONFIGURATION ===
   storage_cors_allowed_origins = ["*"]  # Dev: "*". Prod: specify exact domains
@@ -153,10 +155,6 @@ module "creative_studio_platform" {
   gcp_project_id = local.gcp_project_id
   gcp_region     = local.gcp_region
   environment    = local.environment
-
-  # Services
-  backend_service_name  = local.backend_service_name
-  frontend_service_name = local.frontend_service_name
 
   # GitHub
   github_conn_name   = local.github_conn_name
@@ -203,14 +201,15 @@ module "creative_studio_platform" {
   backend_invoker_identities = local.backend_invoker_identities
 
   # Bootstrap Job
-  enable_cloud_run_job       = local.enable_cloud_run_job
-  bootstrap_job_name         = local.bootstrap_job_name
-  bootstrap_image_name       = local.bootstrap_image_name
-  bootstrap_job_env_vars     = local.bootstrap_job_env_vars
-  bootstrap_job_secrets      = local.bootstrap_job_secrets
-  bootstrap_job_cpu          = local.bootstrap_job_cpu
-  bootstrap_job_memory       = local.bootstrap_job_memory
-  bootstrap_job_timeout      = local.bootstrap_job_timeout
+  enable_cloud_run_job        = local.enable_cloud_run_job
+  bootstrap_job_name          = local.bootstrap_job_name
+  bootstrap_image_name        = local.bootstrap_image_name
+  bootstrap_admin_user_email  = local.bootstrap_admin_user_email
+  bootstrap_job_env_vars      = local.bootstrap_job_env_vars
+  bootstrap_job_secrets       = local.bootstrap_job_secrets
+  bootstrap_job_cpu           = local.bootstrap_job_cpu
+  bootstrap_job_memory        = local.bootstrap_job_memory
+  bootstrap_job_timeout       = local.bootstrap_job_timeout
 
   # Storage
   storage_force_destroy        = local.storage_force_destroy

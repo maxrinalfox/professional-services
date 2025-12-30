@@ -20,7 +20,7 @@
 # Triggers on push to configured branch when backend/bootstrap/** files change
 resource "google_cloudbuild_trigger" "bootstrap" {
   count           = (var.enable_cloud_build && var.enable_cloud_run_job) ? 1 : 0
-  name            = "cstudio-bootstrap-trigger"
+  name            = "cstudio-${var.environment}-bootstrap-trigger"
   location        = var.gcp_region
   service_account = google_service_account.bootstrap_trigger_sa[0].id
   filename        = "examples/creative-studio/backend/cloudbuild-bootstrap.yaml"

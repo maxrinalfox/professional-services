@@ -117,15 +117,15 @@ variable "bootstrap_job_timeout" {
   default     = 3600
 }
 
-variable "initial_admin_user_email" {
+variable "bootstrap_admin_user_email" {
   type        = string
-  description = "Email of the initial admin user for bootstrap (deprecated: include in bootstrap_job_environment_variables[ADMIN_USER_EMAIL] instead)"
   nullable    = true
   default     = null
+  description = "Email address for the initial admin user to create during bootstrap."
 }
 
 variable "bootstrap_job_env_vars" {
   type        = map(string)
-  description = "Plain text environment variables for bootstrap job"
+  description = "Plain text environment variables for bootstrap job (excludes ADMIN_USER_EMAIL which has its own variable)"
   default     = {}
 }

@@ -51,7 +51,6 @@ variable "firebase_web_app_id" {
 }
 
 # Backend specific variables
-variable "backend_service_name" { type = string }
 variable "backend_custom_audiences" { type = list(string) }
 variable "be_env_vars" {
   type        = map(string)
@@ -71,7 +70,6 @@ variable "backend_runtime_secrets" {
 }
 
 # Frontend specific variables
-variable "frontend_service_name" { type = string }
 variable "frontend_custom_audiences" { type = list(string) }
 
 variable "fe_build_substitutions" {
@@ -230,9 +228,20 @@ variable "bootstrap_image_name" {
   default     = "cstudio-bootstrap"
 }
 
+variable "bootstrap_admin_user_email" {
+  type        = string
+  nullable    = false
+  description = "Email address for the initial admin user to create during bootstrap. Required and must be a valid email if enable_cloud_run_job is true."
+
+  validation {
+    condition     = var.bootstrap_admin_user_email == null || can(regex("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$", var.bootstrap_admin_user_email))
+    error_message = "bootstrap_admin_user_email must be a valid email address (e.g., admin@example.com) or null."
+  }
+}
+
 variable "bootstrap_job_env_vars" {
   type        = map(string)
-  description = "Plain text environment variables for the Cloud Run Job bootstrap container"
+  description = "Plain text environment variables for the Cloud Run Job bootstrap container (excludes ADMIN_USER_EMAIL which has its own variable)"
   default     = {}
 }
 
@@ -260,18 +269,4 @@ variable "bootstrap_job_timeout" {
   type        = number
   description = "Timeout in seconds for bootstrap Cloud Run Job"
   default     = 600
-}
-
-variable "initial_admin_user_email" {
-  type        = string
-  description = "Deprecated: include ADMIN_USER_EMAIL in bootstrap_job_environment_variables instead. Email address for the initial admin user to create during bootstrap"
-  nullable    = true
-  default     = null
-}
-
-variable "bootstrap_job_log_level" {
-  type        = string
-  description = "Deprecated: include LOG_LEVEL in bootstrap_job_environment_variables instead. Log level for bootstrap job (DEBUG, INFO, WARNING, ERROR)"
-  nullable    = true
-  default     = null
 }

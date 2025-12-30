@@ -47,8 +47,7 @@ gcp_project_id              # GCP project ID
 gcp_region                  # GCP region for resources
 firebase_project_id         # Firebase project ID
 environment                 # Environment name (dev, prod, etc.)
-service_name               # Cloud Run service name
-trigger_name               # Cloud Build trigger name
+service_name               # Firebase Hosting site ID
 resource_prefix            # Resource naming prefix (e.g., "cs-fe")
 
 # GitHub Configuration

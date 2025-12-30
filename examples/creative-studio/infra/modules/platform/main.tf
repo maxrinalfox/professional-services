@@ -34,6 +34,14 @@
 #   * VPC is enabled (DB is private, needs secure access through VPC connector)
 #   * DB has public IP (bootstrap job can run in Cloud Run with public IP access)
 locals {
+  # === SERVICE NAMING ===
+  # Service names are COMPUTED from the environment to ensure consistency
+  # Users cannot override these - they are derived automatically
+  # Pattern: cstudio-{service}-{environment}
+  # Examples: cstudio-backend-development, cstudio-backend-production
+  backend_service_name  = "cstudio-backend-${var.environment}"
+  frontend_service_name = "cstudio-frontend-${var.environment}"
+
   # Compute whether bootstrap job should be enabled
   # If enable_cloud_build is true, we likely want bootstrap job for DB initialization
   # The job is always useful: handles migrations, seeding, asset uploads
@@ -137,7 +145,7 @@ resource "google_cloudbuildv2_repository" "source_repo" {
 # --- COMPUTED LOCALS ---
 locals {
   region_code = join("", [for s in split("-", var.gcp_region) : substr(s, 0, 1)])
-  backend_url = "https://${var.backend_service_name}-${data.google_project.project.number}.${var.gcp_region}.run.app"
+  backend_url = "https://${local.backend_service_name}-${data.google_project.project.number}.${var.gcp_region}.run.app"
   frontend_url = "https://${var.gcp_project_id}.web.app"
 
   # --- DATABASE NAMING (Single Source of Truth) ---
@@ -282,7 +290,7 @@ module "backend_service" {
   gcp_project_id        = var.gcp_project_id
   gcp_region            = var.gcp_region
   environment           = var.environment
-  service_name          = var.backend_service_name
+  service_name          = local.backend_service_name
   resource_prefix       = "cs-be"
   github_conn_name      = var.github_conn_name
   github_repo_owner     = var.github_repo_owner
@@ -313,7 +321,7 @@ module "backend_service" {
 
   build_substitutions = merge(var.be_build_substitutions, {
     _REGION       = var.gcp_region
-    _SERVICE_NAME = var.backend_service_name
+    _SERVICE_NAME = local.backend_service_name
   })
 
   # VPC configuration
@@ -344,7 +352,6 @@ module "frontend_service" {
   gcp_region           = var.gcp_region
   firebase_project_id  = module.firebase.firebase_project_id != null ? module.firebase.firebase_project_id : var.gcp_project_id
   service_name         = var.gcp_project_id
-  trigger_name         = var.frontend_service_name
   environment          = var.environment
   resource_prefix      = "cs-fe"
   github_branch_name   = var.github_branch_name
@@ -355,8 +362,8 @@ module "frontend_service" {
     var.fe_build_substitutions,
     {
       _BACKEND_URL         = local.backend_url
-      _FE_SERVICE_NAME     = var.frontend_service_name
-      _BACKEND_SERVICE_ID  = var.backend_service_name
+      _FE_SERVICE_NAME     = local.frontend_service_name
+      _BACKEND_SERVICE_ID  = local.backend_service_name
       _FIREBASE_PROJECT_ID = var.gcp_project_id
       _FIREBASE_APP_ID     = var.firebase_web_app_id != null ? var.firebase_web_app_id : (var.enable_cloud_build && length(module.firebase.firebase_web_app_id) > 0 ? module.firebase.firebase_web_app_id : "")
 
@@ -439,6 +446,7 @@ module "bootstrap" {
   github_branch_name = var.github_branch_name
   bootstrap_job_name = var.bootstrap_job_name
   bootstrap_image_name = var.bootstrap_image_name
+  bootstrap_admin_user_email = var.bootstrap_admin_user_email
   vpc_connector_name = var.vpc_enable ? (length(module.vpc_network) > 0 ? module.vpc_network[0].vpc_connector_name : "") : ""
   vpc_connector_id = var.vpc_enable ? (length(module.vpc_network) > 0 ? module.vpc_network[0].vpc_connector_id : "") : ""
   cloud_sql_connection_name = module.postgresql.connection_name
@@ -447,6 +455,7 @@ module "bootstrap" {
   bootstrap_job_timeout = var.bootstrap_job_timeout
   bootstrap_job_env_vars = merge(
     var.bootstrap_job_env_vars,
+    var.bootstrap_admin_user_email != null ? { "ADMIN_USER_EMAIL" = var.bootstrap_admin_user_email } : {},
     {
       "USE_CLOUD_SQL"            = "true"
       "INSTANCE_CONNECTION_NAME" = module.postgresql.connection_name
