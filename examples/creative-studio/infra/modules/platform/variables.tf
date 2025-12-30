@@ -64,6 +64,12 @@ variable "be_build_substitutions" {
   default     = {}
 }
 
+variable "backend_runtime_secrets" {
+  type        = map(string)
+  description = "Maps environment variable names to Secret Manager secret names for the backend Cloud Run service at runtime."
+  default     = {}
+}
+
 # Frontend specific variables
 variable "frontend_service_name" { type = string }
 variable "frontend_custom_audiences" { type = list(string) }

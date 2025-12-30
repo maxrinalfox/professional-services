@@ -48,7 +48,7 @@ locals {
   gcp_region     = "us-central1"          # GCP region for all resources
 
   # === ENVIRONMENT IDENTITY ===
-  environment = "dev"  # Environment name (used in resource naming)
+  environment = "development"  # Environment name (used in resource naming)
 
   # === SERVICE NAMES ===
   backend_service_name  = "cstudio-backend-dev"   # Backend Cloud Run service name
@@ -77,6 +77,12 @@ locals {
     ENVIRONMENT                    = "development"
     FIREBASE_DB                    = "cstudio-dev"
     IDENTITY_PLATFORM_ALLOWED_ORGS = ""
+  }
+
+  # === BACKEND RUNTIME SECRETS ===
+  # Maps environment variable names to Secret Manager secret names
+  backend_runtime_secrets = {
+    "GOOGLE_TOKEN_AUDIENCE" = "OAUTH_CLIENT_ID"  # Map env var to unified OAuth secret
   }
 
   # === CLOUD BUILD SUBSTITUTIONS (Optional) ===
@@ -157,7 +163,8 @@ module "creative_studio_platform" {
   frontend_custom_audiences = local.frontend_custom_audiences
 
   # Backend Configuration
-  be_env_vars            = local.be_env_vars
+  be_env_vars             = local.be_env_vars
+  backend_runtime_secrets = local.backend_runtime_secrets
   be_build_substitutions = local.be_build_substitutions
   be_cpu                 = local.be_cpu
   be_memory              = local.be_memory
