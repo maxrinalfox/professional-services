@@ -127,24 +127,32 @@ The trigger executes the `examples/creative-studio/backend/cloudbuild.yaml` whic
 
 ### Build Substitutions
 
-The Cloud Build trigger automatically injects these substitutions:
+The Cloud Build trigger automatically injects these substitutions (from Terraform):
 
 ```
 _REGION              # GCP region
 _SERVICE_NAME        # Backend service name
+_REPO_NAME           # Artifact Registry repository name
 _ARTIFACT_REGISTRY   # Artifact Registry location
-_BACKEND_URL         # Predictable backend URL
-_DB_CONNECTION_NAME  # Cloud SQL connection string
-_DB_NAME             # Database name
-_DB_USER             # Database user
+
+# NEW: Environment variables and secrets (set by platform module)
+_BACKEND_ENV_VARS    # Comma-separated KEY=VALUE pairs for container env vars
+_BACKEND_SECRETS     # Comma-separated ENV_VAR=SECRET_NAME:VERSION pairs
 ```
 
-These are available in `cloudbuild.yaml` as:
+Example values passed by Terraform:
+```
+_BACKEND_ENV_VARS = "LOG_LEVEL=INFO,ENVIRONMENT=development,CORS_ORIGINS=[\"https://example.com\"]"
+_BACKEND_SECRETS = "GOOGLE_TOKEN_AUDIENCE=OAUTH_CLIENT_ID:latest"
+```
+
+These are used in `cloudbuild.yaml` deploy step:
 ```yaml
-docker build \
-  --build-arg REGION=$_REGION \
-  --build-arg SERVICE_NAME=$_SERVICE_NAME \
-  .
+gcloud run deploy $SERVICE_NAME \
+  --set-env-vars=$_BACKEND_ENV_VARS \
+  --set-secrets=$_BACKEND_SECRETS \
+  --image=$IMAGE \
+  ...
 ```
 
 ### Secrets in Cloud Build
@@ -162,38 +170,118 @@ env:
 
 ## Environment Variables & Secrets
 
+### Key Design: Infrastructure (Terraform) vs. Application Configuration (Cloud Build)
+
+**Important**: Environment variables and secrets are **NOT set by Terraform**. Instead:
+
+- **Terraform** creates the Cloud Run service infrastructure without env vars/secrets
+- **Cloud Build** sets all environment variables and secrets when deploying the application
+
+**Why this approach?**
+1. Service can be created before Secret Manager secrets have values
+2. Service can be created before IAM bindings exist (they're created separately by platform module)
+3. Cloud Run doesn't try to validate secrets during service creation
+4. Application configuration is managed by CI/CD pipeline, not infrastructure code
+5. Prevents "Permission denied on secret" errors during `terraform apply`
+
 ### Container Environment Variables
 
-Environment variables are passed to the Cloud Run service container:
+Environment variables are built in the platform module with both **user-customizable** and **protected** values:
+
+#### User-Customizable Variables
+Users provide these in their environment configuration (e.g., `be_env_vars`):
+```hcl
+{
+  "LOG_LEVEL"                      = "INFO"
+  "IDENTITY_PLATFORM_ALLOWED_ORGS" = ""
+  # Add any custom app-level variables here
+}
+```
+
+#### Protected (Auto-Computed) Variables
+The platform module automatically computes these and they **cannot be overridden**:
+```hcl
+backend_env_vars_protected = {
+  "ENVIRONMENT"  = var.environment              # e.g., "development" or "production"
+  "FIREBASE_DB"  = "cstudio-${environment}"   # e.g., "cstudio-development"
+}
+```
+
+#### Final Environment Variables (Merged)
+The platform module merges all sources with **protected values taking precedence**:
+```hcl
+backend_env_vars = merge(
+  var.be_env_vars,        # User variables (lowest priority)
+  {                        # Computed infrastructure vars (medium priority)
+    "CORS_ORIGINS"         = "[\"${frontend_url}\"]"
+    "GENMEDIA_BUCKET"      = bucket_name
+    "SIGNING_SA_EMAIL"     = service_account_email
+    "USE_CLOUD_SQL_PRIVATE_IP" = ...
+  },
+  backend_env_vars_protected  # Protected vars (highest priority - always win)
+)
+```
+
+**Result Example**: For environment="development":
+```hcl
+{
+  "LOG_LEVEL"                      = "INFO"
+  "IDENTITY_PLATFORM_ALLOWED_ORGS" = ""
+  "CORS_ORIGINS"                   = "[\"https://project.web.app\"]"
+  "GENMEDIA_BUCKET"                = "cs-genmedia-development-bucket"
+  "SIGNING_SA_EMAIL"               = "cs-be-development-run@project.iam.gserviceaccount.com"
+  "USE_CLOUD_SQL_PRIVATE_IP"       = "true"
+  "ENVIRONMENT"                    = "development"        # Protected
+  "FIREBASE_DB"                    = "cstudio-development" # Protected
+}
+```
+
+#### Passing to Cloud Build
+These environment variables are passed to Cloud Build as `_BACKEND_ENV_VARS` substitution (comma-separated KEY=VALUE pairs):
 
 ```hcl
-container_env_vars = {
-  "CORS_ORIGINS"     = "[\"https://frontend-url\"]"
-  "GENMEDIA_BUCKET"  = "bucket-name"
-  "SIGNING_SA_EMAIL" = "service-account@project.iam.gserviceaccount.com"
-  "DATABASE_URL"     = "postgresql://..."
-}
+_BACKEND_ENV_VARS = join(",", [for k, v in var.container_env_vars : "${k}=${v}"])
+# Result: "LOG_LEVEL=INFO,ENVIRONMENT=development,FIREBASE_DB=cstudio-development,..."
+```
+
+**Cloud Build then sets them** when deploying:
+```bash
+gcloud run deploy $SERVICE_NAME \
+  --set-env-vars=${_BACKEND_ENV_VARS} \
+  --image=$IMAGE \
+  ...
+```
+
+The `gcloud run deploy` command receives all variables including protected ones:
+```bash
+--set-env-vars=LOG_LEVEL=INFO,ENVIRONMENT=development,FIREBASE_DB=cstudio-development,...
 ```
 
 ### Runtime Secrets
 
-Secrets from Google Secret Manager are injected as environment variables:
+Secrets from Google Secret Manager are mapped to environment variables:
 
 ```hcl
-runtime_secrets = [
-  "api-key",
-  "jwt-secret",
-  "oauth-client-secret"
-]
+runtime_secrets = {
+  "GOOGLE_TOKEN_AUDIENCE" = "OAUTH_CLIENT_ID"  # Maps env var to secret name
+}
 ```
 
-These are mounted as Secret Manager references:
-```yaml
-serviceConfig:
-  secretVolumes:
-    - name: api-key
-      secretVersion: projects/PROJECT_ID/secrets/api-key/versions/latest
+These are passed to Cloud Build as `_BACKEND_SECRETS` substitution (comma-separated ENV_VAR=SECRET_NAME:VERSION pairs).
+
+**Cloud Build then sets them** when deploying:
+```bash
+gcloud run deploy $SERVICE_NAME \
+  --set-secrets=GOOGLE_TOKEN_AUDIENCE=OAUTH_CLIENT_ID:latest \
+  ...
 ```
+
+### Why Secrets Are Set by Cloud Build (Not Terraform)
+
+1. **Timing**: Terraform creates the service, then the platform module creates IAM bindings
+2. **Ordering**: Cloud Build runs AFTER IAM bindings exist
+3. **Decoupling**: Secrets don't need to exist or have values when service is created
+4. **Redeployment**: Cloud Build can update secrets and redeploy without Terraform changes
 
 ### Database Credentials
 

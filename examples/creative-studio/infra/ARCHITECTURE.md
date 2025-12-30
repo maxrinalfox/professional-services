@@ -589,12 +589,13 @@ graph LR
 ## Module Dependencies Summary
 
 ```
-google_project_service (17 APIs)
+google_project_service (25+ APIs)
     ↓
 ├─→ firebase (project, web app, Identity Platform)
 ├─→ storage (GCS buckets, service accounts)
 ├─→ networking (VPC, subnets, connectors)
-│   └─→ postgresql (Cloud SQL)
+├─→ postgresql (Cloud SQL)
+├─→ firestore (Firestore NoSQL - database name auto-computed from environment)
 ├─→ backend_service (creates backend SAs, Cloud Run, Cloud Build)
 ├─→ frontend_service (creates frontend SAs, Cloud Build, Hosting)
 ├─→ app_secrets (CREATES: OAUTH_CLIENT_ID secret + IAM bindings)
@@ -603,6 +604,141 @@ google_project_service (17 APIs)
 │   └─ provides: unified secret with multi-SA access
 └─→ bootstrap (Cloud Run Job)
 ```
+
+---
+
+## Single Source of Truth: Protected Variables Design
+
+### Problem Statement
+
+Before the refactoring, the system had multiple sources of truth that could get out of sync:
+
+```hcl
+# Environment configuration (user-provided)
+be_env_vars = {
+  ENVIRONMENT = "development"
+  FIREBASE_DB = "cstudio-development"
+  LOG_LEVEL   = "INFO"
+}
+
+# Module configuration (also user-provided)
+firestore_database_name = "cstudio-development"
+
+# These could mismatch:
+# be_env_vars.FIREBASE_DB = "cstudio-production"  (mistake)
+# firestore_database_name = "cstudio-development" (correct)
+# → Application looks for wrong database!
+```
+
+### Solution: Protected Environment Variables
+
+The platform module now computes critical values that **cannot be overridden**:
+
+```hcl
+# Single source of truth: environment variable
+firestore_database_name = "cstudio-${var.environment}"
+
+# Protected variables (computed, not user-configurable)
+backend_env_vars_protected = {
+  "ENVIRONMENT"  = var.environment              # "development"
+  "FIREBASE_DB"  = local.firestore_database_name # "cstudio-development"
+}
+
+# User can only customize application-level variables
+be_env_vars = {
+  LOG_LEVEL                      = "INFO"
+  IDENTITY_PLATFORM_ALLOWED_ORGS = ""
+  # ENVIRONMENT and FIREBASE_DB are auto-computed
+}
+
+# Merge with protected values taking precedence
+backend_env_vars = merge(
+  var.be_env_vars,           # User values (lowest priority)
+  { ... computed values ... }, # Infrastructure values (medium priority)
+  backend_env_vars_protected    # Protected values (highest priority - always win)
+)
+```
+
+### Benefits
+
+1. **Consistency Guarantee**: `FIREBASE_DB` env var **always matches** the actual Firestore database name
+2. **No User Override Risk**: Critical infrastructure values cannot be accidentally misconfigured
+3. **Single Source of Truth**: Database name derived from environment only, in one place
+4. **Simpler Configuration**: Users only set application-level variables (LOG_LEVEL, etc.)
+5. **Future-Proof**: New protected variables can be added without breaking existing setups
+
+### Which Variables Are Protected?
+
+| Variable | Computed From | User Override? | Why Protected? |
+|----------|---------------|----------------|----------------|
+| `ENVIRONMENT` | `var.environment` | ❌ No | Must match deployment environment |
+| `FIREBASE_DB` | `"cstudio-${environment}"` | ❌ No | Must match Firestore database name |
+| `CORS_ORIGINS` | Frontend URL | ❌ No | Computed from infrastructure |
+| `GENMEDIA_BUCKET` | Storage module | ❌ No | Computed from infrastructure |
+| `SIGNING_SA_EMAIL` | Storage module | ❌ No | Computed from infrastructure |
+| `LOG_LEVEL` | User input | ✅ Yes | Application-level configuration |
+| `IDENTITY_PLATFORM_ALLOWED_ORGS` | User input | ✅ Yes | Application-level configuration |
+
+### Data Flow: From Protected Vars to Cloud Build
+
+```
+Platform Module Locals:
+├─ firestore_database_name = "cstudio-${environment}"
+└─ backend_env_vars_protected = {
+     "ENVIRONMENT"  = environment
+     "FIREBASE_DB"  = firestore_database_name
+   }
+      ↓
+Backend Service Module:
+├─ container_env_vars = merge(user + computed + protected)
+└─ _BACKEND_ENV_VARS = join(",", [for k,v in container_env_vars : "${k}=${v}"])
+      ↓
+Cloud Build Trigger Substitutions:
+└─ _BACKEND_ENV_VARS = "LOG_LEVEL=INFO,ENVIRONMENT=development,FIREBASE_DB=cstudio-development,..."
+      ↓
+Cloud Build YAML (Deploy Step):
+└─ --set-env-vars=${_BACKEND_ENV_VARS}
+      ↓
+Cloud Run Environment:
+├─ ENVIRONMENT="development"
+├─ FIREBASE_DB="cstudio-development"
+├─ LOG_LEVEL="INFO"
+└─ ... (all other vars)
+```
+
+### Firestore Database Naming Guarantee
+
+The Firestore module name is **always** auto-computed:
+
+```hcl
+# Single line in platform module
+firestore_database_name = "cstudio-${var.environment}"
+```
+
+This ensures:
+- **Development environment** → database name is always `"cstudio-development"`
+- **Production environment** → database name is always `"cstudio-production"`
+- Users **cannot** set it to something else
+- The `FIREBASE_DB` environment variable will always match the actual database name
+
+### Merge Semantics (Why Protected Values Win)
+
+Terraform's `merge()` function uses **last-wins** semantics:
+
+```hcl
+backend_env_vars = merge(
+  { "ENVIRONMENT" = "wrong", "LOG_LEVEL" = "DEBUG" },   # 1st dict
+  { "ENVIRONMENT" = "correct", "CORS_ORIGINS" = "..." }, # 2nd dict
+  { "ENVIRONMENT" = "development", "FIREBASE_DB" = "..." } # 3rd dict (wins!)
+)
+
+# Result: ENVIRONMENT = "development" (from 3rd dict - last occurrence wins)
+#         LOG_LEVEL = "DEBUG" (from 1st dict - no override)
+#         CORS_ORIGINS = "..." (from 2nd dict)
+#         FIREBASE_DB = "..." (from 3rd dict)
+```
+
+By placing `backend_env_vars_protected` **last** in the merge, protected values always take precedence over user input or computed values.
 
 ---
 

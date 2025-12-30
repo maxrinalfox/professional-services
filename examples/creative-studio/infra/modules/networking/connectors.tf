@@ -31,7 +31,7 @@
 # Note: The connector_subnet is automatically created as part of this module.
 #       Google Cloud manages the VPC Connector resources within this subnet.
 resource "google_vpc_access_connector" "default" {
-  name    = "${var.name}-cs-connector"
+  name    = "${var.name}-cs"
   region  = var.gcp_region
   project = var.project_id
 

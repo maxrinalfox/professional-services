@@ -30,13 +30,13 @@ output "cloud_sql_connection_name" {
 }
 
 output "firestore_database_name" {
-  description = "The name of the Firestore database (if created)"
-  value       = try(module.firestore[0].database_name, null)
+  description = "The name of the Firestore database (auto-computed from environment)"
+  value       = module.firestore.database_name
 }
 
 output "firestore_database_id" {
-  description = "The ID of the Firestore database (if created)"
-  value       = try(module.firestore[0].database_id, null)
+  description = "The ID of the Firestore database"
+  value       = module.firestore.database_id
 }
 
 output "vpc_network_id" {

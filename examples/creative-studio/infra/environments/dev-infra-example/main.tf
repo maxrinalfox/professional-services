@@ -71,13 +71,13 @@ locals {
   frontend_custom_audiences = []  # Empty = auto-populated with GCP project ID
 
   # === BACKEND ENVIRONMENT VARIABLES ===
-  # These are passed to the backend Cloud Run service as environment variables
-  # NOTE: FIREBASE_DB must reference a Firestore database created separately
-  # (not created by Terraform - must be created manually or via backend setup)
+  # NOTE: ENVIRONMENT and FIREBASE_DB are automatically set by the platform module.
+  # Users should only customize application-level variables like LOG_LEVEL.
+  # The platform module auto-computes:
+  # - ENVIRONMENT = local.environment
+  # - FIREBASE_DB = "cstudio-${local.environment}" (matches firestore_database_name)
   be_env_vars = {
     LOG_LEVEL                      = "INFO"
-    ENVIRONMENT                    = local.environment
-    FIREBASE_DB                    = "cstudio-development"  # Must match your Firestore database name
     IDENTITY_PLATFORM_ALLOWED_ORGS = ""
   }
 
@@ -136,7 +136,7 @@ locals {
   storage_cors_allowed_origins = ["*"]  # Dev: "*". Prod: specify exact domains
 
   # === FIRESTORE CONFIGURATION ===
-  firestore_database_name                = "cstudio-development"  # Firestore database name
+  # Note: firestore_database_name is auto-computed by platform module as "cstudio-${environment}"
   firestore_deletion_protection_enabled   = false                 # Dev: false (allow deletion). Prod: true
 }
 
@@ -217,7 +217,7 @@ module "creative_studio_platform" {
   storage_cors_allowed_origins = local.storage_cors_allowed_origins
 
   # Firestore
-  firestore_database_name              = local.firestore_database_name
+  # Note: firestore_database_name is auto-computed by platform module, not configurable here
   firestore_deletion_protection_enabled = local.firestore_deletion_protection_enabled
 }
 

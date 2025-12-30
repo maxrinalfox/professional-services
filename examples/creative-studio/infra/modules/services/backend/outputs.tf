@@ -46,3 +46,8 @@ output "location" {
   description = "The location of the Cloud Run service."
   value       = google_cloud_run_v2_service.this.location
 }
+
+output "service_iam_done" {
+  description = "Dependency marker for IAM bindings. Used by other modules to ensure proper ordering."
+  value       = google_cloud_run_v2_service.this.id
+}

@@ -346,21 +346,22 @@ All commands should be run from within a specific environment's directory.
 3.  **Configure `main.tf`:** Edit `environments/staging/main.tf` and update the inline `locals` block:
     - `gcp_project_id`, `gcp_region`, and `environment = "staging"`
     - `backend_service_name` and `frontend_service_name` (e.g., `"cstudio-backend-staging"`)
-    - `be_env_vars` (simple flat map):
+    - `be_env_vars` (only user-customizable variables - protected vars are auto-computed):
       ```hcl
       be_env_vars = {
-        LOG_LEVEL                       = "INFO"
-        ENVIRONMENT                     = "staging"
-        FIREBASE_DB                     = "cstudio-staging"  # Must match Firestore database name
-        IDENTITY_PLATFORM_ALLOWED_ORGS  = ""
+        LOG_LEVEL                      = "INFO"
+        IDENTITY_PLATFORM_ALLOWED_ORGS = ""
+        # NOTE: ENVIRONMENT and FIREBASE_DB are auto-computed by platform module
+        # ENVIRONMENT = "staging"
+        # FIREBASE_DB = "cstudio-staging"
       }
       ```
     - Database configuration:
       ```hcl
-      firestore_database_name                = "cstudio-staging"
       firestore_deletion_protection_enabled  = true  # Prod: true, Dev: false
       cloud_sql_deletion_protection_enabled  = true  # Prod: true, Dev: false
       allow_destroy                          = false # Prod: false, Dev: true
+      # NOTE: firestore_database_name is auto-computed as "cstudio-${environment}"
       ```
     - Service sizing, GitHub config, and other values for staging
     - Set `allow_destroy = false` for production-like environments
@@ -454,10 +455,12 @@ Before running `terraform apply`, verify all prerequisites are complete:
   - [ ] `github_repo_name` = creative-studio (or your repo name)
   - [ ] `github_branch_name` = main (or your deployment branch)
   - [ ] `github_conn_name` = github-conn (or your connection name)
-  - [ ] `be_env_vars` configured with your environment values
+  - [ ] `be_env_vars` configured (user-customizable only: LOG_LEVEL, IDENTITY_PLATFORM_ALLOWED_ORGS, etc.)
+  - [ ] `firestore_deletion_protection_enabled` set appropriately (false for dev, true for prod)
   - [ ] `allow_destroy` set appropriately (true for dev, false for production)
   - [ ] `storage_cors_allowed_origins` set appropriately (["*"] for dev, specific domains for prod)
   - [ ] `vpc_enable`, `cloud_sql_public_ip_enabled`, `cloud_sql_deletion_protection_enabled` configured
+  - [ ] **Note:** ENVIRONMENT and FIREBASE_DB vars are auto-computed - do NOT configure them manually
 
 **Secrets Management:**
 - [ ] No additional configuration needed - Terraform manages all secrets

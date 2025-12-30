@@ -60,19 +60,33 @@ Use environment-specific naming for clarity:
 
 ## Integration with Platform Module
 
-The platform module automatically manages Firestore database creation:
+The platform module automatically manages Firestore database creation with **single source of truth** for the database name:
 
 ```hcl
-# In platform module call
-firestore_database_name              = "cstudio-production"
-firestore_deletion_protection_enabled = true
+# In platform module
+firestore_database_name = "cstudio-${var.environment}"  # Auto-computed from environment
+
+# In environment configuration
+firestore_deletion_protection_enabled = true  # Prod: true, Dev: false
 ```
 
-The Firestore module is only created if `firestore_database_name` is provided (uses `count` for optional creation).
+**Key Design**:
+- The Firestore database name is **always computed** from the environment variable (e.g., "cstudio-development", "cstudio-production")
+- Users **cannot override** the database name - it's determined entirely by the environment value
+- The `FIREBASE_DB` environment variable is set to this same value automatically
+- This ensures perfect consistency between the actual database and the application configuration
+
+### Why This Matters
+
+The Firestore module is **always created** (no longer conditional). This eliminates:
+- Manual configuration of database names
+- Risk of mismatched database names between Terraform and environment variables
+- User confusion about which database the application uses
+- Inconsistencies between development and production environments
 
 ## Important Notes
 
-1. **Default Database**: Firestore requires a default database named "(default)" which is created automatically when you enable Firestore in your project. This module creates additional named databases.
+1. **Database Naming**: This module creates named Firestore databases (e.g., "cstudio-development", "cstudio-production"). The special "(default)" database is created automatically by GCP when Firestore is first enabled - this module doesn't create that.
 
 2. **Provider**: This module uses the `google-beta` provider, which is required for full Firestore database management.
 

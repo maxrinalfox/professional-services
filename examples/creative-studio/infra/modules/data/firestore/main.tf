@@ -17,7 +17,7 @@
 resource "google_firestore_database" "default" {
   provider      = google-beta
   project       = var.project_id
-  name          = "(default)"  # Firestore requires default database
+  name          = var.database_name
   location_id   = var.gcp_region
   type          = "FIRESTORE_NATIVE"
 }

@@ -32,9 +32,9 @@ resource "google_artifact_registry_repository" "repo" {
 }
 
 resource "google_cloud_run_v2_service" "this" {
-  name             = var.service_name
-  location         = var.gcp_region
-  custom_audiences = var.custom_audiences
+  name                = var.service_name
+  location            = var.gcp_region
+  custom_audiences    = var.custom_audiences
   deletion_protection = false
 
   template {
@@ -84,19 +84,19 @@ resource "google_cloud_run_v2_service" "this" {
       }
 
       env {
-        name = "INSTANCE_CONNECTION_NAME"
+        name  = "INSTANCE_CONNECTION_NAME"
         value = var.cloud_sql_connection_name
       }
       env {
-        name = "DB_HOST"
+        name  = "DB_HOST"
         value = "/cloudsql/${var.cloud_sql_connection_name}"
       }
       env {
-        name = "DB_NAME"
+        name  = "DB_NAME"
         value = var.db_name
       }
       env {
-        name = "DB_USER"
+        name  = "DB_USER"
         value = var.db_user
       }
 
@@ -104,41 +104,26 @@ resource "google_cloud_run_v2_service" "this" {
         name = "DB_PASS"
         value_source {
           secret_key_ref {
-            secret = var.db_secret_id
+            secret  = var.db_secret_id
             version = "latest"
           }
         }
       }
 
-      # non secret env vars
-      dynamic "env" {
-        for_each = var.container_env_vars
-        content {
-          name  = env.key
-          value = env.value
-        }
-      }
-
-      # Runtime secrets: Map environment variable names to secret names
-      # GOOGLE_TOKEN_AUDIENCE is mapped to the unified OAUTH_CLIENT_ID secret
-      # This allows the backend code to read GOOGLE_TOKEN_AUDIENCE without changes,
-      # while the actual data comes from the unified OAUTH_CLIENT_ID secret
-      dynamic "env" {
-        for_each = var.runtime_secrets
-        content {
-          name = env.key # The ENV_VAR_NAME (e.g., GOOGLE_TOKEN_AUDIENCE)
-          value_source {
-            secret_key_ref {
-              # Map to unified OAuth credential secret
-              secret  = env.value  # The SECRET_NAME (maps to OAUTH_CLIENT_ID)
-              version = "latest"
-            }
-          }
-        }
-      }
+      # NOTE: All other environment variables (container_env_vars and runtime_secrets)
+      # are managed by Cloud Build, not Terraform. This allows:
+      # 1. Service to be created without needing placeholder values for secrets
+      # 2. Secrets to be mounted AFTER IAM bindings are created
+      # 3. Cloud Build to manage app configuration independently from infrastructure
+      #
+      # Cloud Build's deploy step (cloudbuild.yaml) uses gcloud run deploy with:
+      # - --set-env-vars for container_env_vars
+      # - --set-secrets for runtime_secrets (GOOGLE_TOKEN_AUDIENCE mapped to OAUTH_CLIENT_ID)
+      #
+      # See: examples/creative-studio/backend/cloudbuild.yaml (Deploy step)
 
       volume_mounts {
-        name = "cloudsql"
+        name       = "cloudsql"
         mount_path = "/cloudsql"
       }
     }
@@ -164,8 +149,14 @@ resource "google_cloud_run_v2_service" "this" {
   #
   # What Cloud Build manages:
   # - Actual Docker image (source code → Docker image → Artifact Registry → Cloud Run)
+  # - All environment variables and secrets (set via gcloud run deploy --set-env-vars --set-secrets)
   lifecycle {
-    ignore_changes = [template[0].containers[0].image, client, client_version]
+    ignore_changes = [
+      template[0].containers[0].image,
+      template[0].containers[0].env, # Cloud Build manages env vars and secrets
+      client,
+      client_version
+    ]
   }
 }
 
@@ -175,9 +166,15 @@ resource "google_cloudbuild_trigger" "this" {
   location        = var.gcp_region
   service_account = google_service_account.trigger_sa.id
   filename        = var.cloudbuild_yaml_path
-  substitutions   = merge(var.build_substitutions, {
-    _REPO_NAME           = google_artifact_registry_repository.repo.name
-    _ARTIFACT_REGISTRY   = google_artifact_registry_repository.repo.location
+  substitutions = merge(var.build_substitutions, {
+    _REPO_NAME         = google_artifact_registry_repository.repo.name
+    _ARTIFACT_REGISTRY = google_artifact_registry_repository.repo.location
+    # Environment variables: comma-separated KEY=VALUE pairs
+    # Cloud Build will use: gcloud run deploy --set-env-vars=_BACKEND_ENV_VARS
+    _BACKEND_ENV_VARS = join(",", [for k, v in var.container_env_vars : "${k}=${v}"])
+    # Runtime secrets: comma-separated ENV_VAR=SECRET_NAME:VERSION pairs
+    # Cloud Build will use: gcloud run deploy --set-secrets=_BACKEND_SECRETS
+    _BACKEND_SECRETS = join(",", [for env_var, secret_name in var.runtime_secrets : "${env_var}=${secret_name}:latest"])
   })
 
   repository_event_config {

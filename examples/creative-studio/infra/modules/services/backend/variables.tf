@@ -116,12 +116,12 @@ variable "enable_cloud_build_trigger" {
 }
 
 variable "cpu" {
-  type = string
+  type    = string
   default = "2000m"
 }
 
 variable "memory" {
-  type = string
+  type    = string
   default = "2048Mi"
 }
 

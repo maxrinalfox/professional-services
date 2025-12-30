@@ -130,7 +130,16 @@ steps:
       ]
 
   # Step 3: Deploy to Cloud Run using the gcloud CLI builder.
-  # This command updates the service with the new image, creating a new revision.
+  # This command creates or updates the service with:
+  # - New container image
+  # - Environment variables (from Terraform via _BACKEND_ENV_VARS)
+  # - Runtime secrets mapped from Secret Manager (from Terraform via _BACKEND_SECRETS)
+  #
+  # Why set env vars and secrets in Cloud Build (not Terraform)?
+  # - Terraform creates the service infrastructure without env vars/secrets
+  # - This allows the service to exist while IAM bindings are being created
+  # - Cloud Build sets env vars/secrets AFTER the service exists and IAM bindings are ready
+  # - Terraform's lifecycle.ignore_changes=[...env] prevents it from reverting these changes
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     id: 'Deploy'
     entrypoint: gcloud
@@ -141,6 +150,8 @@ steps:
       - '--image=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO_NAME}/${_SERVICE_NAME}:$SHORT_SHA'
       - '--region'
       - '${_REGION}'
+      - '--set-env-vars=${_BACKEND_ENV_VARS}'
+      - '--set-secrets=${_BACKEND_SECRETS}'
       - '--quiet' # Suppress interactive prompts for CI/CD environments
 
 # BEST PRACTICE: Explicitly declare the image(s) built by this pipeline.
@@ -155,6 +166,15 @@ substitutions:
   _SERVICE_NAME: 'creative-studio-backend'
   _REPO_NAME: 'cs-be-development-repo' # This matches local.artifact_repo_id
   _REGION: 'us-central1' # TODO: Make Region generic from users input
+
+  # Environment variables (comma-separated KEY=VALUE pairs)
+  # Set by Terraform Cloud Build trigger from backend module
+  _BACKEND_ENV_VARS: 'LOG_LEVEL=INFO,ENVIRONMENT=development'
+
+  # Runtime secrets (comma-separated ENV_VAR=SECRET_NAME:VERSION pairs)
+  # Set by Terraform Cloud Build trigger from backend module
+  # Maps GOOGLE_TOKEN_AUDIENCE env var to OAUTH_CLIENT_ID secret
+  _BACKEND_SECRETS: 'GOOGLE_TOKEN_AUDIENCE=OAUTH_CLIENT_ID:latest'
 
 options:
   logging: CLOUD_LOGGING_ONLY

@@ -140,6 +140,11 @@ locals {
   backend_url = "https://${var.backend_service_name}-${data.google_project.project.number}.${var.gcp_region}.run.app"
   frontend_url = "https://${var.gcp_project_id}.web.app"
 
+  # --- DATABASE NAMING (Single Source of Truth) ---
+  # Firestore database name is auto-computed from environment, not user-configurable
+  # This ensures FIREBASE_DB env var always matches the actual database name
+  firestore_database_name = "cstudio-${var.environment}"
+
   # Auto-computed Firebase SDK configuration
   firebase_sdk_config = length(module.firebase.firebase_web_app_config) > 0 ? {
     FIREBASE_API_KEY             = module.firebase.firebase_web_app_config[0].api_key
@@ -162,13 +167,24 @@ locals {
     var.frontend_custom_audiences
   ))
 
+  # --- PROTECTED BACKEND ENV VARS (Module-controlled, user cannot override) ---
+  # These are critical infrastructure variables that must be consistent
+  backend_env_vars_protected = {
+    "ENVIRONMENT"  = var.environment                    # Must match environment variable
+    "FIREBASE_DB"  = local.firestore_database_name     # Must match firestore_database_name
+  }
+
+  # --- FINAL BACKEND ENV VARS (Protected + User Customizations) ---
+  # User can override LOG_LEVEL, CORS_ORIGINS, etc., but not critical values
   backend_env_vars = merge(
-    var.be_env_vars,
+    var.be_env_vars,  # User-provided variables (LOG_LEVEL, IDENTITY_PLATFORM_ALLOWED_ORGS, etc.)
     {
+      # Infrastructure-managed variables (user cannot override these)
       "CORS_ORIGINS"     = "[\"${local.frontend_url}\"]"
       "GENMEDIA_BUCKET"  = module.storage.bucket_name
       "SIGNING_SA_EMAIL" = module.storage.bucket_writer_sa_email
-    }
+    },
+    local.backend_env_vars_protected  # Protected values override user input if conflicting
   )
 
   source_repository_id = var.enable_cloud_build ? google_cloudbuildv2_repository.source_repo[0].id : ""
@@ -228,14 +244,14 @@ module "postgresql" {
   ]
 }
 
-# Firestore Database (only created if firestore_database_name is provided)
+# Firestore Database (always created with auto-computed name from environment)
+# The database name is automatically derived from the environment variable for consistency
+# Example: environment = "development" → firestore_database_name = "cstudio-development"
 module "firestore" {
-  count = var.firestore_database_name != null ? 1 : 0
-
   source            = "../data/firestore"
   project_id        = var.gcp_project_id
   gcp_region        = var.gcp_region
-  database_name     = var.firestore_database_name
+  database_name     = local.firestore_database_name  # Auto-computed from environment
   allow_destroy     = var.allow_destroy
   deletion_protection_enabled = var.firestore_deletion_protection_enabled
 
@@ -428,6 +444,34 @@ module "bootstrap" {
     module.vpc_network,
     module.storage
   ]
+}
+
+# --- SECRET PERMISSION ORDERING ---
+# CRITICAL: Terraform creates resources in this order:
+# 1. Backend service module instantiates (creates Cloud Run service with secret references)
+# 2. App secrets module instantiates and depends on backend service outputs
+# 3. App secrets creates the IAM bindings granting the backend service account secret access
+#
+# The timing issue:
+# - Backend service is created before IAM bindings exist
+# - When Cloud Run service starts, it tries to access secrets immediately
+# - May get "Permission denied" if IAM binding isn't in place yet
+#
+# Solution:
+# - GCP eventually propagates the IAM binding change
+# - Cloud Run's service account gradually gains access
+# - If "Permission denied" occurs, running 'terraform apply' again will succeed
+#   (because IAM binding now exists and Cloud Run will re-auth)
+#
+# For deterministic behavior, use this null_resource to ensure app_secrets
+# completes before Terraform marks the deployment as successful
+resource "null_resource" "backend_secrets_ready" {
+  triggers = {
+    backend_id = module.backend_service.service_iam_done
+    secrets_id = jsonencode(module.app_secrets.accessor_bindings)
+  }
+
+  depends_on = [module.app_secrets]
 }
 
 # --- CROSS-MODULE PERMISSIONS ---

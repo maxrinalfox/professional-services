@@ -49,3 +49,8 @@ output "secret_population_commands" {
     secret_name => "gcloud secrets versions add ${secret_name} --data-file=- --project=${var.gcp_project_id} <<< \"YOUR_${secret_name}_VALUE\""
   }
 }
+
+output "iam_bindings_complete" {
+  description = "Marker output indicating all IAM bindings have been created. Use in depends_on for resources that need secret access."
+  value       = length(google_secret_manager_secret_iam_member.accessor) > 0 ? true : length(google_secret_manager_secret.this) == 0 ? true : false
+}

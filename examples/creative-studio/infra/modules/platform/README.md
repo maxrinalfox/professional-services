@@ -102,37 +102,55 @@ resource "google_secret_manager_secret_version" "db_password" {
 locals {
   # Backend URL computed from project number
   backend_url = "https://${var.backend_service_name}-${data.google_project.project.number}.${var.gcp_region}.run.app"
-  
+
   # Frontend URL predictable from Firebase
   frontend_url = "https://${var.gcp_project_id}.web.app"
-  
+
+  # Firestore database name: Single source of truth
+  # Auto-computed from environment to ensure consistency
+  # Examples: "cstudio-development" (environment="development")
+  #           "cstudio-production" (environment="production")
+  firestore_database_name = "cstudio-${var.environment}"
+
   # Firebase SDK config auto-discovered from Firebase module
   firebase_sdk_config = length(module.firebase.firebase_web_app_config) > 0 ? {
     FIREBASE_API_KEY             = module.firebase.firebase_web_app_config[0].api_key
     FIREBASE_AUTH_DOMAIN         = module.firebase.firebase_web_app_config[0].auth_domain
     # ... 5 more Firebase config values
   } : {}
-  
-  # Backend env vars computed with CORS origins, storage bucket, etc.
+
+  # Protected environment variables (override user input if conflicting)
+  # These are critical infrastructure values that MUST be consistent
+  backend_env_vars_protected = {
+    "ENVIRONMENT"  = var.environment                    # Must match the deployment environment
+    "FIREBASE_DB"  = local.firestore_database_name     # Must match Firestore database name
+  }
+
+  # Backend env vars: Protected values override user customizations
+  # Order matters: user vars → infrastructure computed vars → protected vars (last wins)
   backend_env_vars = merge(
-    var.be_env_vars,
+    var.be_env_vars,  # User-provided variables (LOG_LEVEL, IDENTITY_PLATFORM_ALLOWED_ORGS, etc.)
     {
       "CORS_ORIGINS"     = "[\"${local.frontend_url}\"]"
       "GENMEDIA_BUCKET"  = module.storage.bucket_name
-      "SIGNING_SA_EMAIL" = module.storage.bucket_reader_sa_email
-    }
+      "SIGNING_SA_EMAIL" = module.storage.bucket_writer_sa_email
+    },
+    local.backend_env_vars_protected  # Protected values always override
   )
-  
+
   # Source repo ID from Cloud Build connection (if enabled)
   source_repository_id = var.enable_cloud_build ? google_cloudbuildv2_repository.source_repo[0].id : ""
 }
 ```
 
 **Why This Matters**:
-- Predictable URLs eliminate manual configuration
-- Firebase config auto-discovery reduces manual setup
-- Custom audiences auto-populated with project ID
-- Reduces configuration errors
+- **Single Source of Truth**: Firestore database name derived from environment variable only
+- **No User Override**: Critical values (ENVIRONMENT, FIREBASE_DB) cannot be overridden by users
+- **Merge Semantics**: Protected values come last in merge(), so they always take precedence
+- **Predictable URLs**: Eliminate manual configuration
+- **Firebase Config Auto-Discovery**: Reduces manual setup
+- **Custom Audiences**: Auto-populated with project ID
+- **Consistency Guarantee**: FIREBASE_DB env var always matches actual firestore_database_name
 
 ### 4. Module Calls (Orchestration)
 
@@ -298,17 +316,26 @@ cloud_sql_deletion_protection_enabled    # Prevent accidental deletion (false fo
 
 #### Firestore (NoSQL)
 ```hcl
-firestore_database_name                  # Database name (e.g., "cstudio-production", null to skip)
 firestore_deletion_protection_enabled    # Prevent accidental deletion (false for dev, true for prod)
 ```
+
+**Important**: The Firestore database name is **automatically computed** from the environment variable:
+```hcl
+firestore_database_name = "cstudio-${var.environment}"
+# Examples:
+# - environment="development" → database="cstudio-development"
+# - environment="production" → database="cstudio-production"
+```
+
+Users **cannot override** the database name - it's determined entirely by the environment value. This ensures the `FIREBASE_DB` environment variable always matches the actual database name.
 
 #### Unified Destruction Control
 ```hcl
 allow_destroy  # Control destruction of critical resources (true for dev, false for prod)
-               # Applies to: Cloud SQL, storage bucket, and other destruction control
+               # Applies to: Cloud SQL, storage bucket, Firestore, and other resources
 ```
 
-**Note:** Firestore module is only created if `firestore_database_name` is provided. Set to `null` to skip Firestore creation.
+**Note:** Firestore module is always created (no longer conditional). The database name is always `"cstudio-${environment}"`.
 
 ### Bootstrap Configuration
 

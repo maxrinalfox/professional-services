@@ -152,12 +152,6 @@ variable "storage_cors_allowed_origins" {
 }
 
 # Firestore Configuration
-variable "firestore_database_name" {
-  type        = string
-  description = "The name of the Firestore database (e.g., 'cstudio-development', 'cstudio-production')"
-  default     = null
-}
-
 variable "firestore_deletion_protection_enabled" {
   type        = bool
   description = "Enable deletion protection for Firestore database (strongly recommended for production)"
