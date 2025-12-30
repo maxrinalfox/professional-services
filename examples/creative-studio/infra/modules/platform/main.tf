@@ -351,7 +351,8 @@ module "app_secrets" {
   secrets_config = {
     # Unified OAuth credential used by both frontend and backend
     "OAUTH_CLIENT_ID" = {
-      description = "Unified OAuth 2.0 Client ID for frontend and backend authentication"
+      # Description is truncated to 63 chars (GCP label limit)
+      description = "OAuth 2.0 Client ID for frontend and backend"
       accessors = [
         # Frontend Cloud Build needs access to inject into build
         module.frontend_service.trigger_sa_member,

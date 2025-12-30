@@ -20,8 +20,10 @@ resource "google_secret_manager_secret" "this" {
   project   = var.gcp_project_id
   secret_id = each.key
 
+  # Labels have a maximum value length of 63 characters
+  # Truncate description if needed
   labels = each.value.description != "" ? {
-    description = each.value.description
+    description = substr(each.value.description, 0, 63)
   } : {}
 
   replication {
