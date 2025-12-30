@@ -26,6 +26,10 @@ resource "google_storage_bucket" "genmedia" {
     response_header = ["Content-Type", "Access-Control-Allow-Origin", "x-goog-resumable", "Authorization", "Origin"]
     max_age_seconds = 3600
   }
+
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 resource "google_service_account" "bucket_writer_sa" {
