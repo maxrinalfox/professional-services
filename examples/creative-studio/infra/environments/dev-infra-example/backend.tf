@@ -12,9 +12,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-terraform {
-  backend "gcs" {
-    bucket = "cstudio-infra-example-cstudio-dev-tfstate"
-    prefix = "infra/dev/state"
-  }
-}
+# OPTIONAL: Remote Terraform State Backend
+# ============================================================================
+# Uncomment to store Terraform state in Google Cloud Storage (GCS) instead
+# of local state. This is recommended for team deployments.
+#
+# SETUP:
+# 1. Create GCS bucket: gsutil mb -p YOUR_PROJECT gs://YOUR_BUCKET_NAME
+# 2. Replace bucket name and prefix below with your values
+# 3. Uncomment the backend block
+# 4. Run: terraform init (Terraform will migrate state to GCS)
+#
+# For local development only, you can skip this and use local state.
+# ============================================================================
+
+# terraform {
+#   backend "gcs" {
+#     bucket = "YOUR_PROJECT-cstudio-dev-tfstate"  # Replace with your bucket name
+#     prefix = "infra/dev/state"                   # State file path in bucket
+#   }
+# }
