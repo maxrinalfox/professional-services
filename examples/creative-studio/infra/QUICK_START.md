@@ -263,17 +263,9 @@ be_env_vars = {
   IDENTITY_PLATFORM_ALLOWED_ORGS  = ""
 }
 
-# Note: GOOGLE_TOKEN_AUDIENCE is managed via Secret Manager (backend_runtime_secrets)
-# It is NOT included in be_env_vars because secrets should never be in version control
-
-# Backend Secrets (stored in Google Cloud Secret Manager)
-backend_secrets = [
-  "GOOGLE_TOKEN_AUDIENCE",  # OAuth Client ID for JWT validation
-]
-
-backend_runtime_secrets = {
-  "GOOGLE_TOKEN_AUDIENCE" = "GOOGLE_TOKEN_AUDIENCE"  # Maps env var to Secret Manager secret
-}
+# NOTE: Secrets are now managed centrally by Terraform's core/secrets module
+# No secret configuration needed in tfvars - just populate OAUTH_CLIENT_ID after terraform apply
+# (see infra/README.md section 8a for manual secret population)
 
 # Identity Platform (Optional - disabled by default)
 identity_platform_allow_anonymous           = true    # Allow guest access
@@ -366,19 +358,17 @@ Verify everything was created successfully:
 gcloud secrets list --project=YOUR_PROJECT_ID
 
 # You should see:
-# GOOGLE_TOKEN_AUDIENCE
-# GOOGLE_CLIENT_ID
-# creative-studio-db-password
-# (and Firebase SDK secrets)
+# OAUTH_CLIENT_ID           (unified secret for frontend & backend - empty version)
+# creative-studio-db-password (auto-generated database password)
+
+# Verify the OAUTH_CLIENT_ID secret exists (no version yet since you haven't populated it)
+gcloud secrets describe OAUTH_CLIENT_ID --project=YOUR_PROJECT_ID
 
 # Check Cloud Run services
 gcloud run services list --region=us-central1
 
 # Check Cloud SQL instance
 gcloud sql instances list
-
-# Check Secret Manager is populated
-gcloud secrets describe GOOGLE_TOKEN_AUDIENCE --project=YOUR_PROJECT_ID
 ```
 
 ---

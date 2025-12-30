@@ -260,31 +260,49 @@ frontend_secrets = [
 2. **Secret Accessor**: Read-only access to frontend secrets
 3. **Artifact Registry Reader**: Pull images
 
-## Autonomous Secret Management
+## Secret Management
 
-This module manages its own secrets via `secrets.tf`:
+**Application secrets are now managed centrally by the Platform module's `core/secrets` module.** This module creates its own Firebase SDK configuration secrets, but overall secret access is coordinated by the platform.
 
-### Secret Creation
+### How It Works
+
+1. **Unified OAuth Secret**: Platform module creates and manages `OAUTH_CLIENT_ID` secret (shared with backend)
+2. **Firebase SDK Config**: Frontend Cloud Build receives Firebase config via substitutions (not stored in Secret Manager)
+3. **Permission Granting**: Platform module automatically grants this frontend service account access to `OAUTH_CLIENT_ID`
+
+### Frontend Service Account
+
+This module exports the frontend service account member reference that the platform module uses:
+
 ```hcl
-resource "google_secret_manager_secret" "frontend" {
-  for_each = toset(var.frontend_secrets)
-  # Creates one secret per Firebase config item
+# Frontend module outputs
+output "trigger_sa_member" {
+  description = "Frontend Cloud Build trigger service account member string (for IAM)"
 }
 ```
 
-### Secret Versioning
-Each secret has versions:
-- `latest`: Current version (auto-updated on change)
-- Previous versions retained for rollback
+This is used by the platform module to grant access to unified secrets:
 
-### Secret Access Control
-Cloud Build trigger gets access to secrets:
 ```hcl
-resource "google_secret_manager_secret_iam_member" "trigger_frontend_access" {
-  role = "roles/secretmanager.secretAccessor"
-  member = google_cloudbuild_trigger.frontend.service_account
+# In platform module
+module "app_secrets" {
+  secrets_config = {
+    "OAUTH_CLIENT_ID" = {
+      accessors = [
+        module.frontend_service.trigger_sa_member,  # For Cloud Build injection
+      ]
+    }
+  }
 }
 ```
+
+### Firebase Configuration
+
+Firebase SDK configuration (API key, auth domain, etc.) is:
+- **Auto-discovered** from Firebase module outputs
+- **Injected** as Cloud Build substitutions (not stored in Secret Manager)
+- **Embedded** in the frontend application at build time
+- **Never passed** as runtime secrets (it's public configuration)
 
 ## Deployment Workflow
 

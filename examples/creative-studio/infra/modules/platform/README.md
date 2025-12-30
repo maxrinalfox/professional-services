@@ -183,7 +183,41 @@ module "bootstrap" {
 }
 ```
 
-### 5. Cross-Module IAM Bindings
+### 5. Centralized Secrets Management
+
+```hcl
+module "app_secrets" {
+  source = "../core/secrets"
+
+  secrets_config = {
+    # Unified OAuth credential used by both frontend and backend
+    "OAUTH_CLIENT_ID" = {
+      description = "OAuth 2.0 Client ID for frontend and backend"
+      accessors = [
+        # Frontend Cloud Build needs access to inject into build
+        module.frontend_service.trigger_sa_member,
+        # Backend Cloud Build needs access to validate during build
+        module.backend_service.trigger_sa_member,
+        # Backend Cloud Run needs access to read at runtime
+        module.backend_service.run_sa_member,
+      ]
+    }
+  }
+
+  depends_on = [
+    module.frontend_service,
+    module.backend_service
+  ]
+}
+```
+
+**Why This Matters**:
+- Single source of truth for secret-to-service-account mapping
+- Centralized permission granting for all application secrets
+- Automatic IAM binding management
+- Supports multiple service accounts per secret
+
+### 6. Cross-Module IAM Bindings
 
 ```hcl
 # Frontend trigger can query backend health
@@ -214,6 +248,7 @@ resource "google_project_iam_member" "backend_run_sa_bucket_reader" {
 - Centralizes all cross-module permissions
 - Explicit dependency declarations prevent race conditions
 - Clear audit trail of who has access to what
+- Separated from secret management concerns
 
 ## Configuration Variables
 
@@ -271,16 +306,17 @@ bootstrap_job_memory        # Memory allocation (default: "2048Mi")
 bootstrap_job_timeout       # Job timeout (default: 3600)
 ```
 
-### Secret Configuration
+### Build & Runtime Configuration
 
 ```hcl
-backend_secrets             # List of secrets for backend
-backend_runtime_secrets     # Secrets injected to backend
-frontend_secrets_additional # Additional frontend secrets
-bootstrap_job_secrets       # Secrets for bootstrap job
-be_build_substitutions      # Custom backend build vars
-fe_build_substitutions      # Custom frontend build vars
+be_build_substitutions      # Custom backend build variables
+fe_build_substitutions      # Custom frontend build variables
+be_env_vars                 # Backend environment variables (flat map)
+bootstrap_job_env_vars      # Bootstrap job environment variables
+bootstrap_job_secrets       # Bootstrap job secrets
 ```
+
+**Note:** Application secrets (OAUTH_CLIENT_ID, database password) are now managed centrally by the `core/secrets` module and automatically granted to appropriate service accounts.
 
 ## Module Outputs
 

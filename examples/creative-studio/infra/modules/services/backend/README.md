@@ -256,32 +256,44 @@ This:
 3. **Storage Object Creator**: Write to GenMedia bucket
 4. **Artifact Registry**: Read access to pull images
 
-## Autonomous Secret Management
+## Secret Management
 
-This module manages its own secrets via `secrets.tf`:
+**Secrets are now managed centrally by the Platform module's `core/secrets` module.** This module no longer creates its own secrets.
 
-### Secret Creation
+### How It Works
+
+1. **Secret Creation**: Platform module creates all application secrets (e.g., `OAUTH_CLIENT_ID`)
+2. **Permission Granting**: Platform module automatically grants this backend service account access via IAM bindings
+3. **Runtime Access**: Backend Cloud Run reads the secret using the mapped environment variable name (e.g., `GOOGLE_TOKEN_AUDIENCE`)
+
+### Backend Service Account
+
+This module exports the backend service account member references that the platform module uses:
+
 ```hcl
-resource "google_secret_manager_secret" "backend" {
-  for_each = toset(var.backend_secrets)
-  # Creates one secret per item in var.backend_secrets
+# Backend module outputs
+output "run_sa_member" {
+  description = "Backend Cloud Run service account member string (for IAM)"
+}
+
+output "trigger_sa_member" {
+  description = "Backend Cloud Build trigger service account member string (for IAM)"
 }
 ```
 
-### Secret Access Control
-Backend service account gets access to secrets:
-```hcl
-resource "google_secret_manager_secret_iam_member" "run_sa_backend_access" {
-  role = "roles/secretmanager.secretAccessor"
-  member = google_service_account.backend_sa.member
-}
-```
+These are used by the platform module to grant secret access:
 
-Cloud Build trigger gets access to secrets:
 ```hcl
-resource "google_secret_manager_secret_iam_member" "trigger_backend_access" {
-  role = "roles/secretmanager.secretAccessor"
-  member = google_cloudbuild_trigger.backend.service_account
+# In platform module
+module "app_secrets" {
+  secrets_config = {
+    "OAUTH_CLIENT_ID" = {
+      accessors = [
+        module.backend_service.trigger_sa_member,  # For Cloud Build
+        module.backend_service.run_sa_member,      # For Cloud Run runtime
+      ]
+    }
+  }
 }
 ```
 
