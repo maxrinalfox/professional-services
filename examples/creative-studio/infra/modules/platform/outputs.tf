@@ -29,6 +29,16 @@ output "cloud_sql_connection_name" {
   value       = module.postgresql.connection_name
 }
 
+output "firestore_database_name" {
+  description = "The name of the Firestore database (if created)"
+  value       = try(module.firestore[0].database_name, null)
+}
+
+output "firestore_database_id" {
+  description = "The ID of the Firestore database (if created)"
+  value       = try(module.firestore[0].database_id, null)
+}
+
 output "vpc_network_id" {
   description = "VPC network ID (if VPC is enabled)"
   value       = try(module.vpc_network[0].network_id, null)

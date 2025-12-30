@@ -29,6 +29,7 @@ The platform module is the **main entry point and orchestration layer** for the 
 │  │  ├─ module.storage (GCS, service accounts)              │
 │  │  ├─ module.vpc_network (VPC, subnets, connectors)       │
 │  │  ├─ module.postgresql (Cloud SQL database)              │
+│  │  ├─ module.firestore (Firestore NoSQL database)         │
 │  │  ├─ module.backend_service (Backend Cloud Run)          │
 │  │  ├─ module.frontend_service (Frontend Cloud Run)        │
 │  │  └─ module.bootstrap (Cloud Run Job)                    │
@@ -289,10 +290,25 @@ enable_cloud_build          # Also controls Firebase creation
 
 ### Database Configuration
 
+#### Cloud SQL (PostgreSQL)
 ```hcl
-cloud_sql_public_ip_enabled # Allow public IP access (dev)
-vpc_enable                  # Enable VPC networking (prod)
+cloud_sql_public_ip_enabled              # Allow public IP access (true for dev, false for prod)
+cloud_sql_deletion_protection_enabled    # Prevent accidental deletion (false for dev, true for prod)
 ```
+
+#### Firestore (NoSQL)
+```hcl
+firestore_database_name                  # Database name (e.g., "cstudio-production", null to skip)
+firestore_deletion_protection_enabled    # Prevent accidental deletion (false for dev, true for prod)
+```
+
+#### Unified Destruction Control
+```hcl
+allow_destroy  # Control destruction of critical resources (true for dev, false for prod)
+               # Applies to: Cloud SQL, storage bucket, and other destruction control
+```
+
+**Note:** Firestore module is only created if `firestore_database_name` is provided. Set to `null` to skip Firestore creation.
 
 ### Bootstrap Configuration
 
@@ -326,6 +342,8 @@ The platform module exports everything needed by environments:
 backend_service_url              # Backend Cloud Run service URL
 frontend_service_url             # Frontend Cloud Run service URL
 cloud_sql_connection_name        # Cloud SQL connection string
+firestore_database_name          # Firestore database name (if created)
+firestore_database_id            # Firestore database ID (if created)
 vpc_network_id                   # VPC network ID (if enabled)
 vpc_connector_id                 # VPC connector ID (if enabled)
 vpc_connector_name               # VPC connector name (if enabled)

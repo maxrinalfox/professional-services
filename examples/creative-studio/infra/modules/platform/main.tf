@@ -228,6 +228,22 @@ module "postgresql" {
   ]
 }
 
+# Firestore Database (only created if firestore_database_name is provided)
+module "firestore" {
+  count = var.firestore_database_name != null ? 1 : 0
+
+  source            = "../data/firestore"
+  project_id        = var.gcp_project_id
+  gcp_region        = var.gcp_region
+  database_name     = var.firestore_database_name
+  allow_destroy     = var.allow_destroy
+  deletion_protection_enabled = var.firestore_deletion_protection_enabled
+
+  depends_on = [
+    google_project_service.apis,
+  ]
+}
+
 # --- NETWORKING ---
 
 module "vpc_network" {

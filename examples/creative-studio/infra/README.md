@@ -351,9 +351,16 @@ All commands should be run from within a specific environment's directory.
       be_env_vars = {
         LOG_LEVEL                       = "INFO"
         ENVIRONMENT                     = "staging"
-        FIREBASE_DB                     = "cstudio-staging"
+        FIREBASE_DB                     = "cstudio-staging"  # Must match Firestore database name
         IDENTITY_PLATFORM_ALLOWED_ORGS  = ""
       }
+      ```
+    - Database configuration:
+      ```hcl
+      firestore_database_name                = "cstudio-staging"
+      firestore_deletion_protection_enabled  = true  # Prod: true, Dev: false
+      cloud_sql_deletion_protection_enabled  = true  # Prod: true, Dev: false
+      allow_destroy                          = false # Prod: false, Dev: true
       ```
     - Service sizing, GitHub config, and other values for staging
     - Set `allow_destroy = false` for production-like environments

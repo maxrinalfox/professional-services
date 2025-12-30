@@ -6,7 +6,8 @@ This document describes the complete Google Cloud Platform infrastructure for Cr
 
 The infrastructure is organized as a **modular Terraform deployment** that:
 - Deploys Cloud Run microservices (backend & frontend)
-- Manages Cloud SQL PostgreSQL database
+- Manages Cloud SQL PostgreSQL database (relational data)
+- Manages Firestore database (document/NoSQL data)
 - Configures Firebase (project, web app, Identity Platform, Hosting)
 - Orchestrates CI/CD with Cloud Build
 - Implements VPC networking for private Cloud SQL access
@@ -36,6 +37,7 @@ graph TB
         VPC["🌐 VPC Network"]
         VPCConn["🔌 VPC Connector"]
         CloudSQL["🗄️ Cloud SQL<br/>PostgreSQL"]
+        Firestore["📄 Firestore<br/>(NoSQL)"]
         DBSecret["🔐 DB Password<br/>Secret"]
     end
 
@@ -107,6 +109,7 @@ graph TB
     Frontend --> FirebaseHost
 
     Backend --> CloudSQL
+    Backend --> Firestore
     Backend --> Storage
     Backend --> Logs
 

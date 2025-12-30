@@ -259,9 +259,17 @@ frontend_custom_audiences = []
 be_env_vars = {
   LOG_LEVEL                       = "INFO"
   ENVIRONMENT                     = "development"
-  FIREBASE_DB                     = "cstudio-development"
+  FIREBASE_DB                     = "cstudio-development"  # Must match firestore_database_name below
   IDENTITY_PLATFORM_ALLOWED_ORGS  = ""
 }
+
+# Firestore Database Configuration
+firestore_database_name                = "cstudio-development"  # Firestore database name (optional)
+firestore_deletion_protection_enabled  = false                 # Dev: false, Prod: true
+
+# Cloud SQL Database Configuration
+cloud_sql_deletion_protection_enabled  = false  # Dev: false, Prod: true
+allow_destroy                          = true   # Dev: true (allow cleanup), Prod: false
 
 # NOTE: Secrets are now managed centrally by Terraform's core/secrets module
 # No secret configuration needed in tfvars - just populate OAUTH_CLIENT_ID after terraform apply

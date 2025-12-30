@@ -134,6 +134,10 @@ locals {
 
   # === STORAGE CONFIGURATION ===
   storage_cors_allowed_origins = ["*"]  # Dev: "*". Prod: specify exact domains
+
+  # === FIRESTORE CONFIGURATION ===
+  firestore_database_name                = "cstudio-development"  # Firestore database name
+  firestore_deletion_protection_enabled   = false                 # Dev: false (allow deletion). Prod: true
 }
 
 # ============================================================================
@@ -211,6 +215,10 @@ module "creative_studio_platform" {
   # Storage
   storage_force_destroy        = local.storage_force_destroy
   storage_cors_allowed_origins = local.storage_cors_allowed_origins
+
+  # Firestore
+  firestore_database_name              = local.firestore_database_name
+  firestore_deletion_protection_enabled = local.firestore_deletion_protection_enabled
 }
 
 # ============================================================================
