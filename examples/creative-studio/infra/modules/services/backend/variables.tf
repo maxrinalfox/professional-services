@@ -151,6 +151,14 @@ variable "db_secret_id" {
 variable "db_name" { type = string }
 variable "db_user" { type = string }
 
+# --- Admin User Configuration ---
+variable "admin_user_email" {
+  type        = string
+  nullable    = true
+  default     = null
+  description = "Email address for the initial admin user. Used by both bootstrap job and deployed service for idempotent admin user management."
+}
+
 # --- Cloud Run Access Control ---
 variable "invoker_identities" {
   type        = list(string)

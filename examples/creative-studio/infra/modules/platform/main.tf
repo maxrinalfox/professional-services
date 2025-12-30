@@ -333,6 +333,9 @@ module "backend_service" {
   db_user                   = module.postgresql.db_user
   db_secret_id              = google_secret_manager_secret.db_password.secret_id
 
+  # Admin user configuration
+  admin_user_email = var.bootstrap_admin_user_email
+
   # Cloud Run access control
   invoker_identities = var.backend_invoker_identities
 

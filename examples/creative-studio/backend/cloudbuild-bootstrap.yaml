@@ -197,7 +197,8 @@ substitutions:
   # Terraform constructs the complete _BOOTSTRAP_ENV_VARS from the platform module's bootstrap_job_env_vars
   # This includes: USE_CLOUD_SQL, INSTANCE_CONNECTION_NAME, USE_CLOUD_SQL_PRIVATE_IP, DB_NAME, DB_USER, PROJECT_ID, GENMEDIA_BUCKET, ENVIRONMENT
   # Plus any user-provided variables (LOG_LEVEL, ADMIN_USER_EMAIL, etc.)
-  _BOOTSTRAP_ENV_VARS: 'USE_CLOUD_SQL=true,INSTANCE_CONNECTION_NAME=PROJECT:REGION:INSTANCE,USE_CLOUD_SQL_PRIVATE_IP=true,DB_NAME=creative_studio,DB_USER=studio_user,PROJECT_ID=PROJECT,GENMEDIA_BUCKET=BUCKET,ENVIRONMENT=development'
+  # CRITICAL: ADMIN_USER_EMAIL must be provided by Terraform for admin user creation
+  _BOOTSTRAP_ENV_VARS: 'USE_CLOUD_SQL=true,INSTANCE_CONNECTION_NAME=PROJECT:REGION:INSTANCE,USE_CLOUD_SQL_PRIVATE_IP=true,DB_NAME=creative_studio,DB_USER=studio_user,PROJECT_ID=PROJECT,GENMEDIA_BUCKET=BUCKET,ENVIRONMENT=development,ADMIN_USER_EMAIL=admin@example.com'
 
   # Secrets (comma-separated KEY=secret-name:version pairs)
   _BOOTSTRAP_SECRETS: 'DB_PASS=creative-studio-db-password:latest'

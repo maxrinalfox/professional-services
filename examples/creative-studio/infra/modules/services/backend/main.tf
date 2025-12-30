@@ -160,7 +160,7 @@ resource "google_cloudbuild_trigger" "this" {
     _DB_NAME                  = var.db_name
     _DB_USER                  = var.db_user
     # Environment variables: comma-separated KEY=VALUE pairs
-    # Includes both application vars (from container_env_vars) and database connection vars
+    # Includes both application vars (from container_env_vars), database connection vars, and admin user config
     # Cloud Build will use: gcloud run deploy --set-env-vars=_BACKEND_ENV_VARS
     _BACKEND_ENV_VARS = join(",", concat(
       [for k, v in var.container_env_vars : "${k}=${v}"],
@@ -169,7 +169,8 @@ resource "google_cloudbuild_trigger" "this" {
         "DB_HOST=/cloudsql/${var.cloud_sql_connection_name}",
         "DB_NAME=${var.db_name}",
         "DB_USER=${var.db_user}"
-      ]
+      ],
+      var.admin_user_email != null ? ["ADMIN_USER_EMAIL=${var.admin_user_email}"] : []
     ))
     # Runtime secrets: comma-separated ENV_VAR=SECRET_NAME:VERSION pairs
     # Includes DB_PASS secret and application-level secrets (GOOGLE_TOKEN_AUDIENCE)

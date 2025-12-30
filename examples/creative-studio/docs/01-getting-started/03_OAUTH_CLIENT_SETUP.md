@@ -85,7 +85,7 @@ gcloud firebase projects describe YOUR_PROJECT_ID
 
    **For Production:**
    ```
-   https://foxsports-prod-ops-sandbox.firebaseapp.com
+   https://<your-firebase-project>.firebaseapp.com
    https://cstudio-frontend-production.web.app
    ```
 
@@ -102,7 +102,7 @@ gcloud firebase projects describe YOUR_PROJECT_ID
 A dialog will appear with your credentials. **Copy the Client ID** - you'll need it immediately:
 
 ```
-Client ID: 600251015884-06amgtspn16dv201i2j3h1vce5l0en4e.apps.googleusercontent.com
+Client ID: <YOUR_CLIENT_ID>.apps.googleusercontent.com
 Client secret: [you won't need this for frontend]
 ```
 
@@ -118,7 +118,7 @@ The OAuth Client validates that requests come from registered origins. Without y
 
 ### The Allowed URLs List
 
-For **Creative Studio** in the **prod_ops_sandbox** environment:
+For **Creative Studio**:
 
 ```
 Development (Local):
@@ -126,10 +126,10 @@ Development (Local):
   ✓ http://localhost:8080
 
 Production:
-  ✓ https://foxsports-prod-ops-sandbox.firebaseapp.com
+  ✓ https://<your-firebase-project>.firebaseapp.com
   ✓ https://cstudio-frontend-production.web.app
 
-Staging (future):
+Staging (optional):
   ✓ https://staging-cstudio.web.app
 ```
 
@@ -191,7 +191,7 @@ export const environment = {
   // ... other config ...
 
   // Google OAuth - Get from Google Cloud Console
-  GOOGLE_CLIENT_ID: '600251015884-06amgtspn16dv201i2j3h1vce5l0en4e.apps.googleusercontent.com',
+  GOOGLE_CLIENT_ID: '<YOUR_CLIENT_ID>.apps.googleusercontent.com',
 };
 ```
 
@@ -202,7 +202,7 @@ After deployment, verify the Client ID was injected:
 **In Browser Console:**
 ```javascript
 console.log(environment.GOOGLE_CLIENT_ID)
-// Should output: 600251015884-06amgtspn16dv201i2j3h1vce5l0en4e.apps.googleusercontent.com
+// Should output: <YOUR_CLIENT_ID>.apps.googleusercontent.com
 // Should NOT output: GOOGLE_CLIENT_ID_PLACEHOLDER
 ```
 
@@ -224,8 +224,8 @@ gcloud oauth-configurations list \
 The FedCM request is what was failing:
 
 ```bash
-CLIENT_ID="600251015884-06amgtspn16dv201i2j3h1vce5l0en4e.apps.googleusercontent.com"
-ORIGIN="https://foxsports-prod-ops-sandbox.firebaseapp.com"
+CLIENT_ID="<YOUR_CLIENT_ID>.apps.googleusercontent.com"
+ORIGIN="https://<your-firebase-project>.firebaseapp.com"
 
 curl "https://accounts.google.com/gsi/fedcm/clientmetadata?client_id=$CLIENT_ID" \
   -H "Accept: application/json" \
@@ -238,7 +238,7 @@ curl "https://accounts.google.com/gsi/fedcm/clientmetadata?client_id=$CLIENT_ID"
 
 ### Test 3: Try Login in Browser
 
-1. Open: `https://foxsports-prod-ops-sandbox.firebaseapp.com/login`
+1. Open: `https://<your-firebase-project>.firebaseapp.com/login`
 2. Click "Login with Google"
 3. Should see One Tap UI or popup (not 403 error)
 4. Should be able to sign in with your Google account
@@ -257,7 +257,7 @@ curl "https://accounts.google.com/gsi/fedcm/clientmetadata?client_id=$CLIENT_ID"
 1. Go to **APIs & Services → Credentials**
 2. Click on your Web application credential
 3. Scroll to **Authorized JavaScript origins**
-4. Add: `https://foxsports-prod-ops-sandbox.firebaseapp.com`
+4. Add: `https://<your-firebase-project>.firebaseapp.com`
 5. Click **SAVE**
 6. Wait 5-10 minutes for propagation
 7. Try login again
@@ -342,7 +342,7 @@ curl "https://accounts.google.com/gsi/fedcm/clientmetadata?client_id=$CLIENT_ID"
 
 **Frontend environment.ts:**
 ```typescript
-GOOGLE_CLIENT_ID: '600251015884-....apps.googleusercontent.com'
+GOOGLE_CLIENT_ID: '<YOUR_CLIENT_ID>.apps.googleusercontent.com'
 ```
 
 **Start local dev:**
@@ -352,12 +352,12 @@ npm start
 # App runs on http://localhost:4200
 ```
 
-### Production (prod_ops_sandbox)
+### Production
 
 **Google Cloud Console:**
 - Authorized JavaScript Origins:
   ```
-  https://foxsports-prod-ops-sandbox.firebaseapp.com
+  https://<your-firebase-project>.firebaseapp.com
   https://cstudio-frontend-production.web.app
   ```
 
@@ -367,7 +367,7 @@ npm start
 
 **After Terraform Apply:**
 ```bash
-./scripts/inspect-deployment.sh frontend prod_ops_sandbox
+./scripts/inspect-deployment.sh frontend <your-environment>
 # Verify GOOGLE_CLIENT_ID is injected correctly
 ```
 
@@ -383,14 +383,14 @@ npm start
 
 ---
 
-## Quick Reference: All Authorized URLs for prod_ops_sandbox
+## Quick Reference: All Authorized URLs
 
-Copy-paste this list into **Authorized JavaScript Origins** in Google Cloud Console:
+Copy-paste this list into **Authorized JavaScript Origins** in Google Cloud Console (replace placeholders with your actual URLs):
 
 ```
 http://localhost:4200
 http://localhost:8080
-https://foxsports-prod-ops-sandbox.firebaseapp.com
+https://<your-firebase-project>.firebaseapp.com
 https://cstudio-frontend-production.web.app
 ```
 

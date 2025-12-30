@@ -121,8 +121,9 @@ substitutions:
 
   # Environment variables (comma-separated KEY=VALUE pairs)
   # Set by Terraform Cloud Build trigger from backend module
-  # Includes application vars + database connection vars
-  _BACKEND_ENV_VARS: 'LOG_LEVEL=INFO,ENVIRONMENT=development,INSTANCE_CONNECTION_NAME=project:region:instance,DB_HOST=/cloudsql/project:region:instance,DB_NAME=creative_studio,DB_USER=cs_app'
+  # Includes application vars, database connection vars, and admin user email
+  # Variables: LOG_LEVEL, ENVIRONMENT, INSTANCE_CONNECTION_NAME, DB_HOST, DB_NAME, DB_USER, ADMIN_USER_EMAIL (if configured)
+  _BACKEND_ENV_VARS: 'LOG_LEVEL=INFO,ENVIRONMENT=development,INSTANCE_CONNECTION_NAME=project:region:instance,DB_HOST=/cloudsql/project:region:instance,DB_NAME=creative_studio,DB_USER=cs_app,ADMIN_USER_EMAIL=admin@example.com'
 
   # Runtime secrets (comma-separated ENV_VAR=SECRET_NAME:VERSION pairs)
   # Set by Terraform Cloud Build trigger from backend module
