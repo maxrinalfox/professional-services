@@ -29,6 +29,12 @@ variable "frontend_oauth_secret_id" {
   default     = "OAUTH_CLIENT_ID"
 }
 
+variable "frontend_secrets_created" {
+  type        = map(string)
+  description = "Map of created frontend secrets (for dependency management)"
+  default     = {}
+}
+
 # Grant the trigger service account (Cloud Build) access to OAuth credential
 # This is needed if backend build steps require the credential
 resource "google_secret_manager_secret_iam_member" "trigger_oauth_access" {
@@ -37,6 +43,9 @@ resource "google_secret_manager_secret_iam_member" "trigger_oauth_access" {
   role      = "roles/secretmanager.secretAccessor"
   member    = google_service_account.trigger_sa.member
   project   = var.gcp_project_id
+
+  # Explicit dependency on frontend secret creation to ensure proper ordering
+  depends_on = [var.frontend_secrets_created]
 }
 
 # Grant the runtime service account (Cloud Run) access to OAuth credential
@@ -47,4 +56,7 @@ resource "google_secret_manager_secret_iam_member" "run_sa_oauth_access" {
   role      = "roles/secretmanager.secretAccessor"
   member    = google_service_account.run_sa.member
   project   = var.gcp_project_id
+
+  # Explicit dependency on frontend secret creation to ensure proper ordering
+  depends_on = [var.frontend_secrets_created]
 }

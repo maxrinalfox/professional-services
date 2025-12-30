@@ -292,6 +292,10 @@ module "backend_service" {
   # Backend secrets
   backend_secrets = var.backend_secrets
 
+  # Pass frontend secrets for proper dependency ordering
+  # This ensures backend IAM bindings wait for frontend secret creation
+  frontend_secrets_created = module.frontend_service.frontend_secrets_created
+
   depends_on = [
     google_project_service.apis
   ]
