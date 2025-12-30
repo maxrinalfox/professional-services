@@ -24,17 +24,17 @@ variable "gcp_region" {
 
 variable "environment" {
   type        = string
-  description = "The deployment environment (development, production, or sandbox)."
+  description = "The deployment environment (development or production)."
 
   validation {
-    condition     = contains(["development", "production", "sandbox"], var.environment)
-    error_message = "Environment must be one of: 'development', 'production', or 'sandbox'."
+    condition     = contains(["development", "production"], var.environment)
+    error_message = "Environment must be one of: 'development' or 'production'."
   }
 }
 
 variable "force_destroy" {
   type        = bool
-  description = "Allow Terraform to delete the storage bucket even if it contains objects. Set to true for dev/sandbox environments only."
+  description = "Allow Terraform to delete the storage bucket even if it contains objects. Set to true for development environments only."
   default     = false
 }
 
