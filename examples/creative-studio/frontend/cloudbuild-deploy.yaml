@@ -40,6 +40,22 @@ steps:
       #!/bin/bash
       set -e
 
+      echo "📝 Pre-validation: Displaying all environment variables..."
+      echo ""
+      echo "=== CONFIGURATION VALUES ==="
+      echo "PROJECT_ID: $PROJECT_ID"
+      echo "BACKEND_URL: $BACKEND_URL"
+      echo "FIREBASE_API_KEY: $FIREBASE_API_KEY"
+      echo "FIREBASE_AUTH_DOMAIN: $FIREBASE_AUTH_DOMAIN"
+      echo "FIREBASE_PROJECT_ID_SDK: $FIREBASE_PROJECT_ID_SDK"
+      echo "FIREBASE_STORAGE_BUCKET: $FIREBASE_STORAGE_BUCKET"
+      echo "FIREBASE_MESSAGING_SENDER_ID: $FIREBASE_MESSAGING_SENDER_ID"
+      echo "FIREBASE_APP_ID: $FIREBASE_APP_ID"
+      echo "FIREBASE_MEASUREMENT_ID: $FIREBASE_MEASUREMENT_ID"
+      echo "BACKEND_SERVICE_ID: $BACKEND_SERVICE_ID"
+      echo "OAUTH_CLIENT_ID: $OAUTH_CLIENT_ID"
+      echo ""
+
       echo "📝 Injecting configuration into application files..."
       echo ""
 
@@ -65,6 +81,23 @@ steps:
       sed -i "s|SITE_ID_PLACEHOLDER|${PROJECT_ID}|g" firebase.json
       sed -i "s|BACKEND_SERVICE_ID_PLACEHOLDER|${BACKEND_SERVICE_ID}|g" firebase.json
 
+      echo ""
+      echo "📝 Post-validation: Verifying injected values..."
+      echo ""
+      echo "=== VERIFICATION ==="
+      echo "Checking environment.prod.ts for injected values:"
+      grep "apiKey:" src/environments/environment.prod.ts
+      grep "authDomain:" src/environments/environment.prod.ts
+      grep "projectId:" src/environments/environment.prod.ts
+      grep "storageBucket:" src/environments/environment.prod.ts
+      grep "messagingSenderId:" src/environments/environment.prod.ts
+      grep "appId:" src/environments/environment.prod.ts
+      grep "measurementId:" src/environments/environment.prod.ts
+      grep "GOOGLE_CLIENT_ID:" src/environments/environment.prod.ts
+      grep "backendURL:" src/environments/environment.prod.ts
+      echo ""
+      echo "Checking firebase.json for injected values:"
+      grep "hosting:" firebase.json | head -3
       echo ""
       echo "✅ All configuration injections completed successfully!"
     dir: examples/creative-studio/frontend
