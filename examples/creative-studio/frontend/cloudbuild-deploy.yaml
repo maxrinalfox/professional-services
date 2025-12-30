@@ -25,6 +25,7 @@ steps:
     id: 'Inject Environment Variables'
     secretEnv:
       - 'OAUTH_CLIENT_ID'
+    waitFor: ['Install Dependencies']
     script: |
       #!/bin/bash
       set -e
@@ -125,7 +126,7 @@ steps:
 
         Summary:
         ────────────────────────────────────────────
-        ✓ All 7 required secrets validated
+        ✓ Dependencies injected
         ✓ Frontend built with valid configuration
         ✓ Deployed to Firebase Hosting
 
