@@ -13,94 +13,75 @@
 # limitations under the License.
 
 steps:
-  # Step 0: Validate required secrets are configured (and not placeholders)
-  - name: 'gcr.io/cloud-builders/gcloud'
+  # Step 0: Validate required secrets are configured in Secret Manager
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     id: 'Validate Backend Secrets'
-    entrypoint: 'bash'
-    args:
-      - '-c'
-      - |
-        #!/bin/bash
-        set -e
+    env:
+      - 'PROJECT_ID=$PROJECT_ID'
+    script: |
+      #!/bin/bash
+      set -e
 
-        echo "════════════════════════════════════════════════════════════════"
-        echo "🔐 VALIDATING REQUIRED BACKEND SECRETS"
-        echo "════════════════════════════════════════════════════════════════"
+      echo "════════════════════════════════════════════════════════════════"
+      echo "🔐 VALIDATING REQUIRED BACKEND SECRETS IN SECRET MANAGER"
+      echo "════════════════════════════════════════════════════════════════"
+      echo ""
+
+      FAILED_SECRETS=()
+
+      # Check if the secret has a latest version with content
+      SECRET_VALUE=$(gcloud secrets versions access latest --secret="OAUTH_CLIENT_ID" --project=${PROJECT_ID} 2>/dev/null || echo "")
+      if [ -z "$SECRET_VALUE" ]; then
+        echo "❌ EMPTY: OAUTH_CLIENT_ID secret exists but has no value"
+        echo "   Description: OAuth 2.0 Client ID for JWT token audience validation"
+        FAILED_SECRETS+=("OAUTH_CLIENT_ID")
         echo ""
+      else
+        echo "✅ VALID: OAUTH_CLIENT_ID secret exists and has a value"
+        echo ""
+      fi
 
-        # Backend secrets that must be manually configured
-        declare -A REQUIRED_SECRETS=(
-          [GOOGLE_TOKEN_AUDIENCE]="OAuth 2.0 Client ID for JWT token audience validation"
-        )
+      echo "════════════════════════════════════════════════════════════════"
 
-        FAILED_SECRETS=()
-        PLACEHOLDER_PATTERN="placeholder_.*_will_be_updated"
-
-        for SECRET_NAME in "${!REQUIRED_SECRETS[@]}"; do
-          SECRET_VALUE="${!SECRET_NAME}"
-          SECRET_DESC="${REQUIRED_SECRETS[$SECRET_NAME]}"
-
-          # Check if secret exists and is not empty
-          if [ -z "$SECRET_VALUE" ]; then
-            echo "❌ MISSING: $SECRET_NAME"
-            echo "   Description: $SECRET_DESC"
-            echo "   Status: [EMPTY]"
-            FAILED_SECRETS+=("$SECRET_NAME")
-            echo ""
-          elif [[ "$SECRET_VALUE" =~ $PLACEHOLDER_PATTERN ]]; then
-            echo "❌ NOT POPULATED: $SECRET_NAME"
-            echo "   Description: $SECRET_DESC"
-            echo "   Status: [PLACEHOLDER - needs real value]"
-            FAILED_SECRETS+=("$SECRET_NAME")
-            echo ""
-          else
-            echo "✅ VALID: $SECRET_NAME"
-            echo "   Description: $SECRET_DESC"
-            echo ""
-          fi
+      if [ ${#FAILED_SECRETS[@]} -gt 0 ]; then
+        echo ""
+        echo "❌ BUILD FAILED: ${#FAILED_SECRETS[@]} secret(s) not properly configured"
+        echo ""
+        echo "Missing or empty secrets:"
+        for SECRET in "${FAILED_SECRETS[@]}"; do
+          echo "  • $SECRET"
         done
-
-        echo "════════════════════════════════════════════════════════════════"
-
-        if [ ${#FAILED_SECRETS[@]} -gt 0 ]; then
-          echo ""
-          echo "❌ BUILD FAILED: ${#FAILED_SECRETS[@]} secret(s) not properly configured"
-          echo ""
-          echo "Missing or placeholder secrets:"
-          for SECRET in "${FAILED_SECRETS[@]}"; do
-            echo "  • $SECRET"
-          done
-          echo ""
-          echo "HOW TO FIX:"
-          echo "─────────────────────────────────────────────────────────────"
-          echo "The GOOGLE_TOKEN_AUDIENCE secret must be set to your OAuth 2.0"
-          echo "Client ID (OAUTH_CLIENT_ID in Secret Manager)."
-          echo ""
-          echo "This is the SAME value as used by the frontend."
-          echo ""
-          echo "Steps:"
-          echo "1. If you haven't created the OAuth Client ID in GCP Console:"
-          echo "   https://console.cloud.google.com/apis/credentials?project=${PROJECT_ID}"
-          echo ""
-          echo "2. Once you have the Client ID, populate the secret:"
-          echo "   $ gcloud secrets versions add OAUTH_CLIENT_ID \\"
-          echo "       --data-file=- --project=${PROJECT_ID} \\"
-          echo "       <<< \"YOUR_CLIENT_ID.apps.googleusercontent.com\""
-          echo ""
-          echo "3. Cloud Run will automatically mount it as GOOGLE_TOKEN_AUDIENCE"
-          echo ""
-          echo "4. After populating the secret, retry the backend build."
-          echo "─────────────────────────────────────────────────────────────"
-          exit 1
-        fi
-
-        echo "✅ All required backend secrets are properly configured!"
         echo ""
-        echo "Note: Database password is auto-configured via Terraform."
+        echo "HOW TO FIX:"
+        echo "─────────────────────────────────────────────────────────────"
+        echo "The OAUTH_CLIENT_ID secret must be created in Google Secret Manager."
+        echo "This is the SAME value used by both frontend and backend."
         echo ""
+        echo "Steps:"
+        echo "1. If you haven't created the OAuth Client ID in GCP Console:"
+        echo "   https://console.cloud.google.com/apis/credentials?project=$PROJECT_ID"
+        echo ""
+        echo "2. Create a new OAuth 2.0 Client ID (if not already created)"
+        echo ""
+        echo "3. Create the OAUTH_CLIENT_ID secret in Secret Manager:"
+        echo "   $ gcloud secrets create OAUTH_CLIENT_ID --replication-policy=automatic"
+        echo ""
+        echo "4. Populate the secret with your OAuth Client ID:"
+        echo "   $ gcloud secrets versions add OAUTH_CLIENT_ID \\"
+        echo "       --data-file=- --project=$PROJECT_ID \\"
+        echo "       <<< \"YOUR_CLIENT_ID.apps.googleusercontent.com\""
+        echo ""
+        echo "5. After populating the secret, retry the backend build."
+        echo "─────────────────────────────────────────────────────────────"
+        exit 1
+      fi
 
-    secretEnv:
-      - GOOGLE_TOKEN_AUDIENCE
+      echo "✅ All required backend secrets are properly configured!"
+      echo ""
+      echo "Note: Database password is auto-configured via Terraform."
+      echo ""
+      echo "Note: GOOGLE_TOKEN_AUDIENCE will be injected at runtime via Cloud Run."
+      echo ""
 
   # Step 1: Build the container image using the standard Docker builder.
   # Using SHORT_SHA for the tag is a best practice for traceability.
@@ -140,19 +121,36 @@ steps:
   # - This allows the service to exist while IAM bindings are being created
   # - Cloud Build sets env vars/secrets AFTER the service exists and IAM bindings are ready
   # - Terraform's lifecycle.ignore_changes=[...env] prevents it from reverting these changes
+  #
+  # Note: Using env: section to assign Cloud Build substitutions to shell vars first
+  # This follows the bootstrap pattern and avoids Cloud Build substitution validation issues
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     id: 'Deploy'
-    entrypoint: gcloud
-    args:
-      - 'run'
-      - 'deploy'
-      - '${_SERVICE_NAME}'
-      - '--image=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO_NAME}/${_SERVICE_NAME}:$SHORT_SHA'
-      - '--region'
-      - '${_REGION}'
-      - '--set-env-vars=${_BACKEND_ENV_VARS}'
-      - '--set-secrets=${_BACKEND_SECRETS}'
-      - '--quiet' # Suppress interactive prompts for CI/CD environments
+    env:
+      - 'PROJECT_ID=$PROJECT_ID'
+      - 'SERVICE_NAME=${_SERVICE_NAME}'
+      - 'REGION=${_REGION}'
+      - 'REPO_NAME=${_REPO_NAME}'
+      - 'SHORT_SHA=$SHORT_SHA'
+      - 'BACKEND_ENV_VARS=${_BACKEND_ENV_VARS}'
+      - 'BACKEND_SECRETS=${_BACKEND_SECRETS}'
+    script: |
+      #!/bin/bash
+      set -e
+
+      IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO_NAME}/${SERVICE_NAME}:${SHORT_SHA}"
+
+      echo "Deploying backend service..."
+      echo "Service: $SERVICE_NAME"
+      echo "Region: $REGION"
+      echo "Image: $IMAGE"
+
+      gcloud run deploy "$SERVICE_NAME" \
+        --image="$IMAGE" \
+        --region="$REGION" \
+        --set-env-vars="$BACKEND_ENV_VARS" \
+        --set-secrets="$BACKEND_SECRETS" \
+        --quiet
 
 # BEST PRACTICE: Explicitly declare the image(s) built by this pipeline.
 # This integrates the build with Google Cloud's security features, like showing

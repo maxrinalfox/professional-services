@@ -298,7 +298,13 @@ module "backend_service" {
     }
   )
 
-  runtime_secrets       = var.backend_runtime_secrets
+  runtime_secrets = merge(
+    var.backend_runtime_secrets,
+    {
+      "GOOGLE_TOKEN_AUDIENCE" = "OAUTH_CLIENT_ID"
+      "DB_PASS"               = google_secret_manager_secret.db_password.secret_id
+    }
+  )
   custom_audiences      = local.backend_custom_audiences_computed
   scaling_min_instances = 1
   source_repository_id  = local.source_repository_id
@@ -419,7 +425,14 @@ module "bootstrap" {
   enable_cloud_run_job = local.enable_cloud_run_job_computed
 
   genmedia_bucket_name = module.storage.bucket_name
-  bootstrap_job_secrets = var.bootstrap_job_secrets
+  bootstrap_job_secrets = merge(
+    var.bootstrap_job_secrets,
+    {
+      "DB_PASS" = {
+        secret_id = google_secret_manager_secret.db_password.secret_id
+      }
+    }
+  )
 
   # Cloud Build trigger config
   source_repository_id = local.source_repository_id
@@ -435,7 +448,14 @@ module "bootstrap" {
   bootstrap_job_env_vars = merge(
     var.bootstrap_job_env_vars,
     {
-      "GENMEDIA_BUCKET" = module.storage.bucket_name
+      "USE_CLOUD_SQL"            = "true"
+      "INSTANCE_CONNECTION_NAME" = module.postgresql.connection_name
+      "USE_CLOUD_SQL_PRIVATE_IP" = var.vpc_enable ? "true" : "false"
+      "DB_NAME"                  = module.postgresql.db_name
+      "DB_USER"                  = module.postgresql.db_user
+      "PROJECT_ID"               = var.gcp_project_id
+      "GENMEDIA_BUCKET"          = module.storage.bucket_name
+      "ENVIRONMENT"              = var.environment
     }
   )
 

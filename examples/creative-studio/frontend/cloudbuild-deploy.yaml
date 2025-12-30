@@ -13,93 +13,75 @@
 # limitations under the License.
 
 steps:
-  # 0. Validate OAuth secrets are configured (only manual secret now)
-  - name: 'gcr.io/cloud-builders/gcloud'
-    id: 'Validate OAuth Secrets'
-    entrypoint: 'bash'
-    args:
-      - '-c'
-      - |
-        #!/bin/bash
-        set -e
+  # Step 0: Validate required secrets are configured in Secret Manager
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    id: 'validate_secrets'
+    env:
+      - 'PROJECT_ID=$PROJECT_ID'
+    script: |
+      #!/bin/bash
+      set -e
 
-        echo "════════════════════════════════════════════════════════════════"
-        echo "🔐 VALIDATING REQUIRED OAUTH SECRETS"
-        echo "════════════════════════════════════════════════════════════════"
+      echo "════════════════════════════════════════════════════════════════"
+      echo "🔐 VALIDATING REQUIRED BACKEND SECRETS IN SECRET MANAGER"
+      echo "════════════════════════════════════════════════════════════════"
+      echo ""
+
+      FAILED_SECRETS=()
+
+      # Check if the secret has a latest version with content
+      SECRET_VALUE=$(gcloud secrets versions access latest --secret="OAUTH_CLIENT_ID" --project=${PROJECT_ID} 2>/dev/null || echo "")
+      if [ -z "$SECRET_VALUE" ]; then
+        echo "❌ EMPTY: OAUTH_CLIENT_ID secret exists but has no value"
+        echo "   Description: OAuth 2.0 Client ID for JWT token audience validation"
+        FAILED_SECRETS+=("OAUTH_CLIENT_ID")
         echo ""
+      else
+        echo "✅ VALID: OAUTH_CLIENT_ID secret exists and has a value"
+        echo ""
+      fi
 
-        # OAuth credential secret (unified for both frontend and backend)
-        declare -A SECRETS=(
-          [OAUTH_CLIENT_ID]="OAuth 2.0 Client ID (must be created in GCP Console)"
-        )
+      echo "════════════════════════════════════════════════════════════════"
 
-        FAILED_SECRETS=()
-        PLACEHOLDER_PATTERN="placeholder_.*_will_be_updated"
-
-        for SECRET_NAME in "${!SECRETS[@]}"; do
-          SECRET_VALUE="$${!SECRET_NAME}"
-          SECRET_DESC="${SECRETS[$SECRET_NAME]}"
-
-          # Check if secret exists and is not empty
-          if [ -z "$SECRET_VALUE" ]; then
-            echo "❌ MISSING: $SECRET_NAME"
-            echo "   Description: $SECRET_DESC"
-            echo "   Current value: [EMPTY]"
-            FAILED_SECRETS+=("$SECRET_NAME")
-            echo ""
-          elif [[ "$SECRET_VALUE" =~ $PLACEHOLDER_PATTERN ]]; then
-            echo "❌ NOT POPULATED: $SECRET_NAME"
-            echo "   Description: $SECRET_DESC"
-            echo "   Current value: [PLACEHOLDER - needs real value]"
-            FAILED_SECRETS+=("$SECRET_NAME")
-            echo ""
-          else
-            echo "✅ VALID: $SECRET_NAME"
-            echo "   Description: $SECRET_DESC"
-            echo ""
-          fi
+      if [ ${#FAILED_SECRETS[@]} -gt 0 ]; then
+        echo ""
+        echo "❌ BUILD FAILED: ${#FAILED_SECRETS[@]} secret(s) not properly configured"
+        echo ""
+        echo "Missing or empty secrets:"
+        for SECRET in "${FAILED_SECRETS[@]}"; do
+          echo "  • $SECRET"
         done
-
-        echo "════════════════════════════════════════════════════════════════"
-
-        if [ ${#FAILED_SECRETS[@]} -gt 0 ]; then
-          echo ""
-          echo "❌ BUILD FAILED: ${#FAILED_SECRETS[@]} secret(s) not properly configured"
-          echo ""
-          echo "Missing or placeholder secrets:"
-          for SECRET in "${FAILED_SECRETS[@]}"; do
-            echo "  • $SECRET"
-          done
-          echo ""
-          echo "HOW TO FIX:"
-          echo "─────────────────────────────────────────────────────────────"
-          echo "Create the OAuth Client ID in GCP Console:"
-          echo ""
-          echo "1. Go to: https://console.cloud.google.com/apis/credentials?project=${PROJECT_ID}"
-          echo "2. Create a new OAuth 2.0 Client ID of type 'Web application'"
-          echo "3. Add authorized redirect URIs:"
-          echo "   • https://${PROJECT_ID}.firebaseapp.com/__/auth/handler"
-          echo "   • https://${PROJECT_ID}.web.app/__/auth/handler"
-          echo ""
-          echo "4. Then populate the secret (this is the SAME value for backend too):"
-          echo ""
-          echo "   $ gcloud secrets versions add OAUTH_CLIENT_ID \\"
-          echo "       --data-file=- --project=${PROJECT_ID} \\"
-          echo "       <<< \"YOUR_OAUTH_CLIENT_ID\""
-          echo ""
-          echo "5. After the secret is populated, retry the frontend build."
-          echo "6. Backend will use the SAME OAUTH_CLIENT_ID secret (no separate setup needed)"
-          echo "─────────────────────────────────────────────────────────────"
-          exit 1
-        fi
-
-        echo "✅ All required OAuth secrets are properly configured!"
         echo ""
-        echo "Note: Firebase SDK secrets are auto-configured from Terraform."
-        echo "Note: Backend will use the SAME OAUTH_CLIENT_ID secret."
+        echo "HOW TO FIX:"
+        echo "─────────────────────────────────────────────────────────────"
+        echo "The OAUTH_CLIENT_ID secret must be created in Google Secret Manager."
+        echo "This is the SAME value used by both frontend and backend."
         echo ""
-    secretEnv:
-      - OAUTH_CLIENT_ID
+        echo "Steps:"
+        echo "1. If you haven't created the OAuth Client ID in GCP Console:"
+        echo "   https://console.cloud.google.com/apis/credentials?project=$PROJECT_ID"
+        echo ""
+        echo "2. Create a new OAuth 2.0 Client ID (if not already created)"
+        echo ""
+        echo "3. Create the OAUTH_CLIENT_ID secret in Secret Manager:"
+        echo "   $ gcloud secrets create OAUTH_CLIENT_ID --replication-policy=automatic"
+        echo ""
+        echo "4. Populate the secret with your OAuth Client ID:"
+        echo "   $ gcloud secrets versions add OAUTH_CLIENT_ID \\"
+        echo "       --data-file=- --project=$PROJECT_ID \\"
+        echo "       <<< \"YOUR_CLIENT_ID.apps.googleusercontent.com\""
+        echo ""
+        echo "5. After populating the secret, retry the backend build."
+        echo "─────────────────────────────────────────────────────────────"
+        exit 1
+      fi
+
+      echo "✅ All required backend secrets are properly configured!"
+      echo ""
+      echo "Note: Database password is auto-configured via Terraform."
+      echo ""
+      echo "Note: GOOGLE_TOKEN_AUDIENCE will be injected at runtime via Cloud Run."
+      echo ""
 
   # 1. Install dependencies
   - name: 'node:20-alpine' # Standardized version
@@ -107,34 +89,67 @@ steps:
     entrypoint: 'npm'
     args: ['ci']
     dir: examples/creative-studio/frontend
-    waitFor: ['Validate OAuth Secrets']
+    waitFor: ['validate_secrets']
 
   # 2. Inject Secrets and Config from the build environment
   - name: 'gcr.io/cloud-builders/gcloud'
     id: 'Inject Environment Variables'
-    entrypoint: 'bash'
-    args:
-      - '-c'
-      - |
-        # Inject into Angular app (environment.prod.ts)
-        sed -i "s|BACKEND_URL_PLACEHOLDER|${_BACKEND_URL}/api|g" src/environments/environment.prod.ts
-        sed -i "s|GOOGLE_CLIENT_ID_PLACEHOLDER|${OAUTH_CLIENT_ID}|g" src/environments/environment.prod.ts
-        # Inject Firebase config from substitutions (auto-discovered via Terraform)
-        sed -i "s|FIREBASE_API_KEY_PLACEHOLDER|${_FIREBASE_API_KEY}|g" src/environments/environment.prod.ts
-        sed -i "s|FIREBASE_AUTH_DOMAIN_PLACEHOLDER|${_FIREBASE_AUTH_DOMAIN}|g" src/environments/environment.prod.ts
-        sed -i "s|FIREBASE_PROJECT_ID_PLACEHOLDER|${_FIREBASE_PROJECT_ID_SDK}|g" src/environments/environment.prod.ts
-        sed -i "s|FIREBASE_STORAGE_BUCKET_PLACEHOLDER|${_FIREBASE_STORAGE_BUCKET}|g" src/environments/environment.prod.ts
-        sed -i "s|FIREBASE_SENDER_ID_PLACEHOLDER|${_FIREBASE_MESSAGING_SENDER_ID}|g" src/environments/environment.prod.ts
-        sed -i "s|FIREBASE_APP_ID_PLACEHOLDER|${_FIREBASE_APP_ID}|g" src/environments/environment.prod.ts
-        sed -i "s|FIREBASE_MEASUREMENT_ID_PLACEHOLDER|${_FIREBASE_MEASUREMENT_ID}|g" src/environments/environment.prod.ts
+    env:
+      - 'PROJECT_ID=$PROJECT_ID'
+      - 'BACKEND_URL=${_BACKEND_URL}'
+      - 'FIREBASE_API_KEY=${_FIREBASE_API_KEY}'
+      - 'FIREBASE_AUTH_DOMAIN=${_FIREBASE_AUTH_DOMAIN}'
+      - 'FIREBASE_PROJECT_ID_SDK=${_FIREBASE_PROJECT_ID_SDK}'
+      - 'FIREBASE_STORAGE_BUCKET=${_FIREBASE_STORAGE_BUCKET}'
+      - 'FIREBASE_MESSAGING_SENDER_ID=${_FIREBASE_MESSAGING_SENDER_ID}'
+      - 'FIREBASE_APP_ID=${_FIREBASE_APP_ID}'
+      - 'FIREBASE_MEASUREMENT_ID=${_FIREBASE_MEASUREMENT_ID}'
+      - 'BACKEND_SERVICE_ID=${_BACKEND_SERVICE_ID}'
+    script: |
+      #!/bin/bash
+      set -e
 
-        # Inject into Firebase config (firebase.json)
-        sed -i "s|SITE_ID_PLACEHOLDER|${PROJECT_ID}|g" firebase.json
-        sed -i "s|BACKEND_SERVICE_ID_PLACEHOLDER|${_BACKEND_SERVICE_ID}|g" firebase.json
+      echo "📝 Injecting configuration into application files..."
+      echo ""
+
+      # Retrieve OAUTH_CLIENT_ID from Secret Manager
+      echo "Retrieving OAUTH_CLIENT_ID from Secret Manager..."
+      OAUTH_CLIENT_ID=$(gcloud secrets versions access latest --secret="OAUTH_CLIENT_ID" --project="${PROJECT_ID}")
+
+      if [ -z "$OAUTH_CLIENT_ID" ]; then
+        echo "❌ ERROR: Failed to retrieve OAUTH_CLIENT_ID from Secret Manager"
+        exit 1
+      fi
+
+      echo "✅ Successfully retrieved OAUTH_CLIENT_ID"
+      echo ""
+
+      # Inject into Angular app (environment.prod.ts)
+      echo "Injecting backend URL into environment.prod.ts..."
+      sed -i "s|BACKEND_URL_PLACEHOLDER|${BACKEND_URL}/api|g" src/environments/environment.prod.ts
+
+      echo "Injecting OAuth Client ID into environment.prod.ts..."
+      sed -i "s|GOOGLE_CLIENT_ID_PLACEHOLDER|${OAUTH_CLIENT_ID}|g" src/environments/environment.prod.ts
+
+      # Inject Firebase config from substitutions (auto-discovered via Terraform)
+      echo "Injecting Firebase SDK configuration into environment.prod.ts..."
+      sed -i "s|FIREBASE_API_KEY_PLACEHOLDER|${FIREBASE_API_KEY}|g" src/environments/environment.prod.ts
+      sed -i "s|FIREBASE_AUTH_DOMAIN_PLACEHOLDER|${FIREBASE_AUTH_DOMAIN}|g" src/environments/environment.prod.ts
+      sed -i "s|FIREBASE_PROJECT_ID_PLACEHOLDER|${FIREBASE_PROJECT_ID_SDK}|g" src/environments/environment.prod.ts
+      sed -i "s|FIREBASE_STORAGE_BUCKET_PLACEHOLDER|${FIREBASE_STORAGE_BUCKET}|g" src/environments/environment.prod.ts
+      sed -i "s|FIREBASE_SENDER_ID_PLACEHOLDER|${FIREBASE_MESSAGING_SENDER_ID}|g" src/environments/environment.prod.ts
+      sed -i "s|FIREBASE_APP_ID_PLACEHOLDER|${FIREBASE_APP_ID}|g" src/environments/environment.prod.ts
+      sed -i "s|FIREBASE_MEASUREMENT_ID_PLACEHOLDER|${FIREBASE_MEASUREMENT_ID}|g" src/environments/environment.prod.ts
+
+      # Inject into Firebase config (firebase.json)
+      echo "Injecting Firebase project configuration..."
+      sed -i "s|SITE_ID_PLACEHOLDER|${PROJECT_ID}|g" firebase.json
+      sed -i "s|BACKEND_SERVICE_ID_PLACEHOLDER|${BACKEND_SERVICE_ID}|g" firebase.json
+
+      echo ""
+      echo "✅ All configuration injections completed successfully!"
     dir: examples/creative-studio/frontend
-    secretEnv:
-      - OAUTH_CLIENT_ID
-    waitFor: ['Validate OAuth Secrets']
+    waitFor: ['validate_secrets']
 
   # 3. Build the application
   - name: 'node:20-alpine' # Use the same version

@@ -742,6 +742,57 @@ By placing `backend_env_vars_protected` **last** in the merge, protected values 
 
 ---
 
+## Environment Variables Reference
+
+Each service requires specific environment variables at build time and runtime. Rather than duplicating this information, refer to the authoritative documentation in each module:
+
+### Bootstrap Job Environment Variables
+**Location:** `../backend/BOOTSTRAP.md` (Lines 85-104)
+
+Required environment variables:
+- `USE_CLOUD_SQL` - Enable Cloud SQL connector
+- `INSTANCE_CONNECTION_NAME` - Cloud SQL connection string (PROJECT:REGION:INSTANCE)
+- `USE_CLOUD_SQL_PRIVATE_IP` - Use private IP for connection
+- `DB_NAME` - Database name (creative_studio)
+- `DB_USER` - Database username (studio_user)
+- `PROJECT_ID` - GCP project ID
+- `GENMEDIA_BUCKET` - Cloud Storage bucket name (auto-provided by Terraform)
+- `ENVIRONMENT` - Deployment environment (auto-provided by Terraform)
+- `LOG_LEVEL` - Application logging level (user-customizable)
+- `ADMIN_USER_EMAIL` - Admin user email (user-customizable)
+
+**Single Source of Truth:** `infra/modules/platform/main.tf` lines 435-447 (`bootstrap_job_env_vars` merge)
+
+### Backend Service Environment Variables
+**Location:** `modules/services/backend/README.md` (Lines 225-236)
+
+The backend environment variables are built from three sources:
+1. User-customizable variables (LOG_LEVEL, IDENTITY_PLATFORM_ALLOWED_ORGS)
+2. Computed infrastructure variables (CORS_ORIGINS, GENMEDIA_BUCKET, SIGNING_SA_EMAIL, USE_CLOUD_SQL_PRIVATE_IP)
+3. Protected variables (ENVIRONMENT, FIREBASE_DB)
+
+**Single Source of Truth:** `infra/modules/platform/main.tf` lines 170-188 (`backend_env_vars` merge)
+
+### Frontend Service Build Substitutions
+**Location:** `modules/services/frontend/README.md` (Lines 141-159)
+
+Build substitutions provided to Cloud Build:
+- `_BACKEND_URL` - Backend service URL (auto-computed)
+- `_FIREBASE_API_KEY` - Firebase SDK API key (auto-discovered)
+- `_FIREBASE_AUTH_DOMAIN` - Firebase auth domain (auto-discovered)
+- `_FIREBASE_PROJECT_ID_SDK` - Firebase project ID (auto-discovered)
+- `_FIREBASE_STORAGE_BUCKET` - Firebase storage bucket (auto-discovered)
+- `_FIREBASE_MESSAGING_SENDER_ID` - Firebase messaging sender ID (auto-discovered)
+- `_FIREBASE_APP_ID` - Firebase app ID (auto-discovered, NOT a secret)
+- `_FIREBASE_MEASUREMENT_ID` - Firebase measurement ID (auto-discovered)
+
+**Single Source of Truth:** `infra/modules/platform/main.tf` lines 348-366 (`build_substitutions` merge)
+
+### Key Design Principle
+**Single Source of Truth:** All environment variables are computed in the **Platform Module** (`modules/platform/main.tf`), not in Cloud Build YAML files. This prevents duplication and conflicting configurations.
+
+---
+
 ## Recommended Reading
 
 - **[README.md](./README.md)** - Quick start guide and setup
