@@ -20,10 +20,14 @@ resource "google_secret_manager_secret" "this" {
   project   = var.gcp_project_id
   secret_id = each.key
 
-  # Labels have a maximum value length of 63 characters
-  # Truncate description if needed
+  # Labels must be lowercase alphanumeric with hyphens/underscores, max 63 chars
+  # Convert to lowercase and replace invalid characters with hyphens
   labels = each.value.description != "" ? {
-    description = substr(each.value.description, 0, 63)
+    description = substr(
+      replace(lower(each.value.description), "/[^a-z0-9_-]/", "-"),
+      0,
+      63
+    )
   } : {}
 
   replication {
