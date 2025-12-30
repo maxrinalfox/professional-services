@@ -59,8 +59,7 @@ graph TB
     end
 
     subgraph "OAuth & Authentication"
-        OAuthSecret["🔐 GOOGLE_CLIENT_ID<br/>Secret"]
-        AudienceSecret["🔐 GOOGLE_TOKEN_AUDIENCE<br/>Secret"]
+        OAuthSecret["🔐 OAUTH_CLIENT_ID<br/>Secret (Unified)<br/>Used by both frontend & backend"]
     end
 
     subgraph "Bootstrap Automation"
@@ -90,11 +89,14 @@ graph TB
     CloudSQL --> DBSecret
 
     ConfigSM --> OAuthSecret
-    ConfigSM --> AudienceSecret
 
     GitRepo --> CBConn
     CBConn --> BackendBuild
     CBConn --> FrontendBuild
+
+    OAuthSecret --> BackendBuild
+    OAuthSecret --> FrontendBuild
+    OAuthSecret --> Backend
 
     BackendBuild --> AR
     FrontendBuild --> AR
@@ -106,7 +108,6 @@ graph TB
 
     Backend --> CloudSQL
     Backend --> Storage
-    Backend --> AudienceSecret
     Backend --> Logs
 
     Frontend --> OAuthSecret
@@ -285,16 +286,14 @@ graph TB
         FrontendBuild["🏗️ Frontend Build"]
     end
 
-    subgraph "Manual OAuth Setup"
+    subgraph "OAuth Setup"
         GCPConsole["🔐 GCP Console"]
-        ClientID["🔐 GOOGLE_CLIENT_ID<br/>(create OAuth)"]
-        Audience["🔐 GOOGLE_TOKEN_AUDIENCE<br/>(set = CLIENT_ID)"]
+        ClientID["🔐 OAuth 2.0 Client ID<br/>(create once)"]
     end
 
-    subgraph "Secret Manager"
+    subgraph "Unified Secret"
         SM["🔐 Secret Manager"]
-        SMClientID["GOOGLE_CLIENT_ID<br/>(placeholder)"]
-        SMAudience["GOOGLE_TOKEN_AUDIENCE<br/>(placeholder)"]
+        UnifiedSecret["OAUTH_CLIENT_ID<br/>(single secret)<br/>used by both services"]
     end
 
     TF -->|Auto-discovers| Firebase
@@ -302,13 +301,11 @@ graph TB
     SDK -->|Injected as| BuildSubs
     BuildSubs -->|Used in| FrontendBuild
 
-    GCPConsole -->|Manual| ClientID
-    GCPConsole -->|Manual| Audience
-    ClientID -->|Stored in| SMClientID
-    Audience -->|Stored in| SMAudience
-    SM -->|Used by| FrontendBuild
-
-    FrontendBuild -->|Reads| SM
+    GCPConsole -->|Manual setup| ClientID
+    ClientID -->|Populated into| UnifiedSecret
+    SM -->|Manages| UnifiedSecret
+    UnifiedSecret -->|Read by| FrontendBuild
+    UnifiedSecret -->|Read by| Backend
 
     style TF fill:#ffcc80
     style Firebase fill:#ff9800
@@ -317,10 +314,9 @@ graph TB
     style FrontendBuild fill:#ff9800
     style GCPConsole fill:#1976d2
     style ClientID fill:#ff4081
-    style Audience fill:#ff4081
     style SM fill:#ff4081
-    style SMClientID fill:#f50057
-    style SMAudience fill:#f50057
+    style UnifiedSecret fill:#f50057
+    style Backend fill:#ff9800
 ```
 
 ---
@@ -459,8 +455,9 @@ graph LR
 - **GitHub Connection** - Repository integration
 
 ### Secrets & Configuration
-- **Secret Manager** - OAuth credentials storage
+- **Secret Manager** - Unified OAuth credential (`OAUTH_CLIENT_ID`) used by both frontend and backend
 - **Cloud Build Substitutions** - Firebase SDK config injection
+- **Terraform Secret Mapping** - Cloud Run environment variable to Secret Manager secret mapping
 
 ### Monitoring & Logging
 - **Cloud Logging** - Application logs
@@ -473,25 +470,51 @@ graph LR
 
 ## Configuration Management
 
+### Secrets Management Architecture
+
+**Unified OAuth Credential (`OAUTH_CLIENT_ID`):**
+- Single secret stored in Secret Manager
+- Created and managed by Terraform `core/secrets` module
+- Accessible to:
+  - Frontend Cloud Build (injects as `GOOGLE_CLIENT_ID` into build)
+  - Backend Cloud Build (validates during build)
+  - Backend Cloud Run (mounts as `GOOGLE_TOKEN_AUDIENCE` at runtime)
+- **Key Design:** Same secret value, different environment variable names per service
+  - Frontend app reads: `environment.GOOGLE_CLIENT_ID`
+  - Backend app reads: `config_service.GOOGLE_TOKEN_AUDIENCE`
+  - Terraform handles the mapping via `secret_key_ref` in Cloud Run configuration
+
+**Service Account Permissions:**
+- `cs-fe-{env}-trig` - Cloud Build trigger for frontend (reads OAUTH_CLIENT_ID)
+- `cs-be-{env}-trig` - Cloud Build trigger for backend (reads OAUTH_CLIENT_ID)
+- `cs-be-{env}-run` - Cloud Run runtime for backend (reads OAUTH_CLIENT_ID)
+
 ### Environment Variables by Service
 
 **Backend Cloud Run:**
 - `DB_HOST` - Cloud SQL private IP (via VPC)
 - `DB_USER` - Database user
 - `DB_NAME` - Database name
-- `CORS_ORIGINS` - Frontend URL
-- `GENMEDIA_BUCKET` - Cloud Storage bucket
-- `SIGNING_SA_EMAIL` - Storage writer service account
+- `GOOGLE_TOKEN_AUDIENCE` - OAuth Client ID (via Secret Manager secret mapping)
+- `CORS_ORIGINS` - Frontend URL (auto-populated)
+- `GENMEDIA_BUCKET` - Cloud Storage bucket (auto-populated)
+- `SIGNING_SA_EMAIL` - Storage writer service account (auto-populated)
 - Custom env vars from `.tfvars`
 
-**Frontend Cloud Run:**
+**Frontend Cloud Build:**
+- `GOOGLE_CLIENT_ID` - OAuth Client ID (via `OAUTH_CLIENT_ID` secret)
+- `_BACKEND_URL` - Backend API endpoint
+- `_FIREBASE_*` - Firebase SDK config (via Cloud Build substitutions)
+- Injects into: `environment.prod.ts` configuration file
+
+**Frontend Application (Browser):**
+- `GOOGLE_CLIENT_ID` - Injected at build time from secret
 - `FIREBASE_API_KEY` - Via Cloud Build substitution
 - `FIREBASE_AUTH_DOMAIN` - Via Cloud Build substitution
 - `FIREBASE_PROJECT_ID` - Via Cloud Build substitution
 - `FIREBASE_STORAGE_BUCKET` - Via Cloud Build substitution
 - `FIREBASE_MESSAGING_SENDER_ID` - Via Cloud Build substitution
 - `FIREBASE_MEASUREMENT_ID` - Via Cloud Build substitution (optional)
-- `GOOGLE_CLIENT_ID` - Via Secret Manager
 - `BACKEND_URL` - API endpoint
 
 ---
@@ -535,20 +558,28 @@ graph LR
    - Frontend is public (via Firebase Hosting)
    - Backend accessible only via Cloud Run
 
-2. **Secret Management**
-   - OAuth credentials in Secret Manager
-   - Firebase SDK config via Cloud Build substitutions
-   - Database password as Secret Manager secret
+2. **Unified Secret Management**
+   - Single `OAUTH_CLIENT_ID` secret for both frontend and backend
+   - Centralized secret creation and permission management via `core/secrets` module
+   - Terraform handles secret-to-environment-variable mapping (no code changes needed)
+   - Firebase SDK config via Cloud Build substitutions (not stored in Secret Manager)
+   - Database password as separate Secret Manager secret (auto-generated)
+   - Build-time validation catches missing secrets early
 
 3. **Service Account Isolation**
-   - Separate run and trigger service accounts
+   - Separate run and trigger service accounts per service
    - Minimal IAM permissions (principle of least privilege)
-   - Cross-account impersonation for Cloud Build
+   - Permissions granted at secret creation time (single location)
+   - No scattered IAM bindings across multiple modules
 
 4. **Access Control**
    - Cloud Run invoker role for public access
    - Custom audiences for authentication
-   - Secret Manager accessor role for secrets
+   - Secret Manager accessor role for secrets (managed centrally)
+   - Three service accounts with OAUTH_CLIENT_ID access:
+     - Frontend trigger (Cloud Build)
+     - Backend trigger (Cloud Build)
+     - Backend runtime (Cloud Run)
 
 ---
 
@@ -561,8 +592,12 @@ google_project_service (17 APIs)
 ├─→ storage (GCS buckets, service accounts)
 ├─→ networking (VPC, subnets, connectors)
 │   └─→ postgresql (Cloud SQL)
-├─→ backend_service (Cloud Run + Cloud Build)
-├─→ frontend_service (Cloud Run + Cloud Build + Hosting)
+├─→ backend_service (creates backend SAs, Cloud Run, Cloud Build)
+├─→ frontend_service (creates frontend SAs, Cloud Build, Hosting)
+├─→ app_secrets (CREATES: OAUTH_CLIENT_ID secret + IAM bindings)
+│   ├─ depends_on: backend_service.trigger_sa, backend_service.run_sa
+│   ├─ depends_on: frontend_service.trigger_sa
+│   └─ provides: unified secret with multi-SA access
 └─→ bootstrap (Cloud Run Job)
 ```
 
