@@ -100,31 +100,6 @@ variable "fe_memory" {
   default = "2048Mi"
 }
 
-variable "frontend_secrets_additional" {
-  type        = list(string)
-  description = "Additional secret names (beyond auto-computed Firebase SDK config) required by the frontend build. Firebase secrets (API_KEY, AUTH_DOMAIN, etc.) are auto-populated from the Firebase web app configuration."
-  default     = ["GOOGLE_CLIENT_ID"] # Add any additional secrets needed by the frontend
-}
-
-# DEPRECATED: frontend_secrets is now auto-computed from Firebase web app config
-# Keeping for backward compatibility during transition
-variable "frontend_secrets" {
-  type        = list(string)
-  description = "DEPRECATED: This variable is no longer used. Firebase SDK secrets are now auto-discovered from the Firebase web app configuration."
-  default     = []
-}
-
-variable "backend_secrets" {
-  type        = list(string)
-  description = "A list of secret names required by the backend build."
-  default     = []
-}
-
-variable "backend_runtime_secrets" {
-  type        = map(string)
-  description = "Secrets to mount in the backend container at runtime."
-  default     = {}
-}
 
 variable "enable_cloud_build" {
   type        = bool

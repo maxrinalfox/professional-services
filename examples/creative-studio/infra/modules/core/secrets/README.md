@@ -54,6 +54,10 @@ secrets_config = {
       "serviceAccount:cs-be-trigger-dev@project.iam.gserviceaccount.com",
       "serviceAccount:cs-be-run-dev@project.iam.gserviceaccount.com",
     ]
+    version_adders = [  # OPTIONAL: Ops team members who can rotate secrets
+      "group:ops-team@company.com",
+      "user:admin@company.com",
+    ]
   }
   # Add more secrets as needed
 }
@@ -62,7 +66,10 @@ secrets_config = {
 **Structure:**
 - **Key**: Secret name (e.g., `OAUTH_CLIENT_ID`)
 - **description**: Human-readable description (optional, max 63 chars after sanitization)
-- **accessors**: List of service account member strings that can access this secret
+- **accessors**: List of service account member strings that can access/read this secret
+- **version_adders** (OPTIONAL): List of users/groups/SAs who can add/rotate secret versions
+  - Useful for ops teams managing production secrets
+  - Receives `roles/secretmanager.secretVersionAdder` role
 
 ### `gcp_project_id` (Required)
 
@@ -273,21 +280,149 @@ Input:  "OAuth 2.0 Client ID for Frontend & Backend (Auto-Discovered)"
 Output: "oauth-2-0-client-id-for-frontend-backend-au"  (truncated to 63 chars)
 ```
 
+## Role-Based Access Control
+
+### Secret Accessor Role (`roles/secretmanager.secretAccessor`)
+
+Granted to services and systems that **read** secret values:
+
+```hcl
+accessors = [
+  module.frontend_service.trigger_sa_member,  # Cloud Build can read secret
+  module.backend_service.trigger_sa_member,   # Cloud Build can read secret
+  module.backend_service.run_sa_member,       # Cloud Run can read secret
+]
+```
+
+**Use case**: Runtime services, Cloud Build pipelines, and applications that need to access secrets.
+
+### Secret Version Adder Role (`roles/secretmanager.secretVersionAdder`)
+
+Granted to users/groups/SAs that **create/rotate** secret versions:
+
+```hcl
+version_adders = [
+  "group:ops-team@company.com",      # Ops team can rotate secrets
+  "user:admin@company.com",          # Admin can add new versions
+]
+```
+
+**Use case**: Operations teams, security teams, and admins managing secret rotation and updates in production.
+
+**Important**: Version adders can add/update secret versions, but they do NOT automatically get read access. If needed, add them to `accessors` as well.
+
 ## Outputs
 
 This module exports:
 
 ```hcl
 output "secrets" {
-  description = "Created secret resources"
+  description = "All created secret resources (keyed by secret_id)"
   value       = google_secret_manager_secret.this
 }
 
-output "iam_bindings" {
-  description = "Created IAM bindings"
+output "secret_names" {
+  description = "List of all secret names (useful for scripts)"
+  value       = ["OAUTH_CLIENT_ID", "DATABASE_PASSWORD", ...]
+}
+
+output "secret_ids" {
+  description = "Full resource IDs for each secret"
+  value = {
+    OAUTH_CLIENT_ID = "projects/PROJECT_ID/secrets/OAUTH_CLIENT_ID"
+  }
+}
+
+output "accessor_bindings" {
+  description = "Accessor IAM bindings (for reference/debugging)"
   value       = google_secret_manager_secret_iam_member.accessor
 }
+
+output "version_adder_bindings" {
+  description = "Version adder IAM bindings (for reference/debugging)"
+  value       = google_secret_manager_secret_iam_member.version_adder
+}
+
+output "secret_population_commands" {
+  description = "Helper gcloud commands for populating secrets"
+  value = {
+    OAUTH_CLIENT_ID = "gcloud secrets versions add OAUTH_CLIENT_ID --data-file=- --project=PROJECT_ID <<< \"YOUR_VALUE\""
+  }
+}
 ```
+
+### Using the Output Commands
+
+After `terraform apply`, use the output commands to quickly populate secrets:
+
+```bash
+# Get all secret population commands
+terraform output secret_population_commands
+
+# Run a specific command (copy-paste from output)
+gcloud secrets versions add OAUTH_CLIENT_ID --data-file=- --project=my-project <<< "YOUR_CLIENT_ID_VALUE"
+
+# Verify secret was created
+gcloud secrets describe OAUTH_CLIENT_ID --project=my-project
+gcloud secrets versions list OAUTH_CLIENT_ID --project=my-project
+```
+
+## Production Example: Ops Team Secret Rotation
+
+Here's a realistic production setup where ops teams can rotate secrets:
+
+```hcl
+# In platform module
+module "app_secrets" {
+  source = "../core/secrets"
+
+  gcp_project_id = var.gcp_project_id
+
+  secrets_config = {
+    "OAUTH_CLIENT_ID" = {
+      description = "OAuth 2.0 Client ID for frontend and backend"
+      # Services that READ the secret (at build time and runtime)
+      accessors = [
+        module.frontend_service.trigger_sa_member,
+        module.backend_service.trigger_sa_member,
+        module.backend_service.run_sa_member,
+      ]
+      # Ops team that can ROTATE the secret in production
+      version_adders = [
+        "group:ops-team@company.com",
+      ]
+    }
+  }
+}
+```
+
+**After deployment**, ops team can rotate secrets without Terraform:
+
+```bash
+# List who has version adder access
+gcloud secrets get-iam-policy OAUTH_CLIENT_ID --project=PROJECT_ID
+
+# Add a new secret version (ops team member)
+gcloud secrets versions add OAUTH_CLIENT_ID \
+  --data-file=- \
+  --project=PROJECT_ID \
+  <<< "NEW_OAUTH_CLIENT_ID_VALUE"
+
+# Verify version was added
+gcloud secrets versions list OAUTH_CLIENT_ID --project=PROJECT_ID
+
+# Check version details
+gcloud secrets versions describe latest \
+  --secret=OAUTH_CLIENT_ID \
+  --project=PROJECT_ID
+```
+
+**Key Benefits**:
+- ✅ Services don't have write access to secrets (only read)
+- ✅ Ops team can rotate secrets without Terraform changes
+- ✅ Secret rotation doesn't require code deployment
+- ✅ Clear audit trail of who changed what and when
+- ✅ GCP logs all secret operations automatically
 
 ## Best Practices
 
@@ -364,6 +499,30 @@ depends_on = [
   module.frontend_service,
   module.backend_service,
 ]
+```
+
+### 6. **Separate Read Access (accessors) from Write Access (version_adders)**
+
+Services should only read, ops teams should only write/rotate:
+
+```hcl
+# Good: Clear separation of concerns
+"API_KEY" = {
+  accessors = [
+    "serviceAccount:backend-run-sa@project.iam.gserviceaccount.com",
+  ]
+  version_adders = [
+    "group:ops-team@company.com",
+  ]
+}
+
+# Bad: Services with write access (security risk)
+"API_KEY" = {
+  accessors = [
+    "serviceAccount:backend-run-sa@project.iam.gserviceaccount.com",
+    "user:ops-person@company.com",  # ❌ Ops mixed with services
+  ]
+}
 ```
 
 ## Troubleshooting

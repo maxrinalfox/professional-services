@@ -44,13 +44,29 @@ locals {
       for accessor in config.accessors : {
         secret_name = secret_name
         accessor    = accessor
-        pair_key    = "${secret_name}:${accessor}"
+        pair_key    = "${secret_name}:accessor:${accessor}"
       }
     ]
   ])
 
   secret_accessor_map = {
     for pair in local.secret_accessor_pairs :
+    pair.pair_key => pair
+  }
+
+  # Grant Secret Manager Secret Version Adder role (for ops/admin teams to rotate secrets)
+  secret_version_adder_pairs = flatten([
+    for secret_name, config in var.secrets_config : [
+      for version_adder in config.version_adders : {
+        secret_name = secret_name
+        version_adder = version_adder
+        pair_key    = "${secret_name}:version_adder:${version_adder}"
+      }
+    ]
+  ])
+
+  secret_version_adder_map = {
+    for pair in local.secret_version_adder_pairs :
     pair.pair_key => pair
   }
 }
@@ -63,6 +79,16 @@ resource "google_secret_manager_secret_iam_member" "accessor" {
   secret_id = google_secret_manager_secret.this[each.value.secret_name].secret_id
   role      = "roles/secretmanager.secretAccessor"
   member    = each.value.accessor
+}
+
+resource "google_secret_manager_secret_iam_member" "version_adder" {
+  provider = google-beta
+  for_each = local.secret_version_adder_map
+
+  project   = google_secret_manager_secret.this[each.value.secret_name].project
+  secret_id = google_secret_manager_secret.this[each.value.secret_name].secret_id
+  role      = "roles/secretmanager.secretVersionAdder"
+  member    = each.value.version_adder
 }
 
 # Secret versions must be populated manually

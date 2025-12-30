@@ -18,3 +18,34 @@ output "secrets" {
     for secret in google_secret_manager_secret.this : secret.secret_id => secret
   }
 }
+
+output "secret_names" {
+  description = "List of all created secret names (useful for reference in scripts)"
+  value       = keys(google_secret_manager_secret.this)
+}
+
+output "secret_ids" {
+  description = "Map of secret names to their full resource IDs (projects/{project}/secrets/{secret_id})"
+  value = {
+    for secret_name, secret in google_secret_manager_secret.this :
+    secret_name => secret.id
+  }
+}
+
+output "accessor_bindings" {
+  description = "Created Secret Manager Accessor IAM bindings (read access to secret versions)"
+  value       = google_secret_manager_secret_iam_member.accessor
+}
+
+output "version_adder_bindings" {
+  description = "Created Secret Manager Version Adder IAM bindings (ability to add/rotate secret versions)"
+  value       = google_secret_manager_secret_iam_member.version_adder
+}
+
+output "secret_population_commands" {
+  description = "Helper commands to populate secrets manually via gcloud CLI"
+  value = {
+    for secret_name in keys(google_secret_manager_secret.this) :
+    secret_name => "gcloud secrets versions add ${secret_name} --data-file=- --project=${var.gcp_project_id} <<< \"YOUR_${secret_name}_VALUE\""
+  }
+}

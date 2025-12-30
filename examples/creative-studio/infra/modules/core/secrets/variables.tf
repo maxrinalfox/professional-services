@@ -19,8 +19,9 @@ variable "gcp_project_id" {
 
 variable "secrets_config" {
   type = map(object({
-    description = optional(string, "")
-    accessors   = list(string)
+    description        = optional(string, "")
+    accessors          = list(string)
+    version_adders     = optional(list(string), [])
   }))
   description = <<-EOT
     Configuration for secrets to create and who should have access to them.
@@ -33,11 +34,18 @@ variable "secrets_config" {
           "serviceAccount:sa1@project.iam.gserviceaccount.com",  # Full member format
           "user:email@example.com"                                # Can use any IAM member format
         ]
+        version_adders = [  # OPTIONAL: Users/groups who can add new secret versions
+          "group:ops-team@company.com",
+          "user:admin@company.com"
+        ]
       }
     }
 
-    Each secret is created with the specified accessors granted the Secret Manager Accessor role.
-    Multiple accessors can be specified for a single secret.
+    Each secret is created with the specified accessors granted the Secret Manager Accessor role
+    (can read secret versions). Multiple accessors can be specified for a single secret.
+
+    version_adders (OPTIONAL): Users/groups/service accounts who can add/rotate secret versions.
+    Useful for ops teams managing production secrets. Granted roles/secretmanager.secretVersionAdder role.
 
     Accessor format: Pass the .member attribute of service account resources.
     Example: google_service_account.my_sa.member
