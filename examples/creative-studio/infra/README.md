@@ -20,26 +20,33 @@ This infrastructure is managed using a modular, environment-based approach with 
 
 ## 📁 Directory Structure
 
-The project is organized into `modules` and `environments`.
+The project is organized into `modules` and `environments` with a simplified environment-per-directory approach.
 
 ```
 infrastructure/
 │
 ├── modules/                # Reusable "Blueprints"
-│   ├── cloud-run-service/  # Defines how to build ONE service
-│   └── platform/           # Defines the ENTIRE application platform
+│   ├── platform/           # Main module: Defines the ENTIRE application platform
+│   ├── core/               # Core resources (storage, secrets, VPC)
+│   ├── data/               # Data layer (Cloud SQL, Firestore)
+│   └── services/           # Service modules (backend, frontend, bootstrap)
 │
 └── environments/
-    ├── dev/                # Configuration for the 'dev' environment
-    │   ├── main.tf         # Calls the platform module with dev values
-    │   ├── backend.tf      # Defines where to store the dev state file
-    │   └── dev.tfvars      # Contains all variables for dev
+    ├── dev-infra-example/  # Development environment configuration
+    │   ├── main.tf         # Inline locals + platform module call (all config in one file)
+    │   └── backend.tf      # Optional: Remote state configuration (commented out by default)
     │
-    └── prod/               # Configuration for the 'prod' environment
-        └── ...
+    └── prod_ops_sandbox/   # Production sandbox environment configuration
+        ├── main.tf         # Inline locals + platform module call (all config in one file)
+        └── backend.tf      # Optional: Remote state configuration (commented out by default)
 ```
-* **`/modules`**: Contains reusable building blocks. The `platform` module is the main entry point, which in turn uses the `cloud-run-service` module.
-* **`/environments`**: Contains a directory for each distinct deployment environment. These directories call the `platform` module with the correct set of variables.
+
+**Key Design Principles:**
+* **`/modules`**: Reusable building blocks with centralized validation and outputs
+* **`/environments`**: Thin configuration layer with inline `locals` block (no separate `variables.tf` or `outputs.tf`)
+* **One file per environment:** All configuration is in `main.tf` with clear section comments
+* **Optional `backend.tf`:** Commented out by default; uncomment and configure if using GCS remote state
+* **No duplication:** Validation logic and outputs remain in modules, not environments
 
 ---
 ## ⚠️ Pre-Deployment Guide
@@ -60,9 +67,11 @@ The deployment process has multiple phases:
 | 7. Setup OAuth (Optional) | ✅ **NOW IN TERRAFORM** | `google_identity_platform_oauth_idp_config` | **✅ Implemented** |
 
 **Phase 1B: Configure Terraform** (5 minutes)
-- Edit `terraform.auto.tfvars` with values from Phase 1A
-- Set `firebase_web_app_id` (from Step 4 above)
-- Set GitHub configuration
+- Navigate to your environment directory: `cd infra/environments/dev-infra-example`
+- Edit `main.tf` locals block with values from Phase 1A
+- Set `firebase_web_app_id` in locals (from Step 4 above)
+- Set GitHub configuration (github_repo_owner, github_repo_name, github_branch_name, github_conn_name)
+- (Optional) Uncomment `backend.tf` and configure GCS bucket if using remote state
 
 **Phase 1C: Deploy Infrastructure** (15 minutes)
 - `terraform init && terraform plan && terraform apply`
@@ -72,6 +81,7 @@ The deployment process has multiple phases:
 **Phase 1D: Verify** (5 minutes)
 - Check secrets created in Secret Manager
 - Test deployed services
+- Review terraform outputs for API URLs and connection strings
 
 ⏸️ **FOR NOW: Follow the "Manual Setup Steps" below** (Steps 1-6 above, manual column)
 
@@ -206,20 +216,25 @@ This approach requires manual creation in the Firebase Console:
    gcloud firebase apps list --project=YOUR_GCP_PROJECT_ID
    # Output example:
    # 1:123456789:web:abc123xyz456def
-   # Copy this value → Use as firebase_web_app_id in terraform.auto.tfvars
+   # Copy this value → Use as firebase_web_app_id in your environment's main.tf locals block
    ```
 
 📖 **Reference:** Based on [Firebase Terraform Getting Started Guide](https://firebase.google.com/docs/projects/terraform/get-started)
 
-### 6. Create a GCS Bucket for Terraform State
-Terraform needs a GCS bucket to store its state file for each environment. This must be done manually because the backend configuration is read before Terraform can create any resources.
+### 6. Create a GCS Bucket for Terraform State (Optional)
+Terraform can store state locally or in a GCS bucket. The default is local state, which is fine for initial development.
 
-**Run this command for each environment (dev, prod, etc.), making sure to use a globally unique bucket name:**
-```bash
-# Example for the 'dev' environment
-export PROJECT_ID=your-gcp-project && \
-gsutil mb -p $PROJECT_ID gs://$PROJECT_ID-cstudio-dev-tfstate
-```
+**For remote state (recommended for production):**
+1. Create a GCS bucket for each environment:
+   ```bash
+   export PROJECT_ID=your-gcp-project && \
+   gsutil mb -p $PROJECT_ID gs://$PROJECT_ID-cstudio-dev-tfstate
+   ```
+2. Edit your environment's `backend.tf` file (currently commented out)
+3. Configure the bucket name and uncomment the `terraform` block
+4. Run `terraform init` to migrate state to the bucket
+
+**For initial development:** Skip this step and use local state. You can add remote state later by editing `backend.tf`.
 
 ### 7. Connect GitHub to Cloud Build (Manual - Phase 2 Still Needed)
 You must authorize Google Cloud Build to access your GitHub repository. This cannot be automated and must be done manually.
@@ -229,7 +244,7 @@ You must authorize Google Cloud Build to access your GitHub repository. This can
 3.  Choose **GitHub (Cloud Build GitHub App)** as the source.
 4.  Follow the prompts to authenticate and install the GitHub App on your account.
 5.  Grant access to your GitHub repository.
-6.  Note the **Connection Name** (e.g., `github-conn`) as you will need it for `terraform.auto.tfvars`.
+6.  Note the **Connection Name** (e.g., `github-conn`) as you will need it for the `github_conn_name` in your environment's `main.tf` locals block.
 
 **Why it's manual:** GCP doesn't provide a Terraform resource to create Cloud Build connections (this is a GCP limitation, not a Terraform limitation). You must create the connection in the GCP Console, then reference it in Terraform.
 
@@ -245,11 +260,10 @@ This step creates the OAuth Client ID that will be used for authentication. Curr
    - `http://localhost:3000/auth/callback` (for local testing)
 6. Click **Create**
 7. Copy the **Client ID** (not the Client Secret)
-8. Use this value in `terraform.auto.tfvars` for:
+8. Use this value in your environment's `main.tf` locals block for:
    - `backend_custom_audiences` - Add Client ID to this list
    - `frontend_custom_audiences` - Add Client ID to this list
    - `identity_platform_google_oauth_client_id` - Set to your OAuth Client ID
-   - `backend_runtime_secrets` mapping - Will fetch GOOGLE_TOKEN_AUDIENCE from Secret Manager
 
 ### 8a. OAuth Credential Management (Unified)
 
@@ -327,12 +341,12 @@ All commands should be run from within a specific environment's directory.
 
 **One Environment Per Directory:** Each directory deploys to ONE environment only. Configuration is flat and simple.
 
-1.  **Perform Manual Setup:** Create a new GCS bucket for the staging state (see Manual Step #3 above).
+1.  **Perform Manual Setup:** (Optional) Create a new GCS bucket for staging state if using remote state.
 2.  **Create the Directory:** Copy the template: `cp -r environments/dev-infra-example environments/staging`
-3.  **Configure `backend.tf`:** Edit `environments/staging/backend.tf` to point to your new staging GCS bucket.
-4.  **Configure `terraform.auto.tfvars`:** Update the file with:
+3.  **Configure `main.tf`:** Edit `environments/staging/main.tf` and update the inline `locals` block:
     - `gcp_project_id`, `gcp_region`, and `environment = "staging"`
-    - Update `be_env_vars` (simple flat map):
+    - `backend_service_name` and `frontend_service_name` (e.g., `"cstudio-backend-staging"`)
+    - `be_env_vars` (simple flat map):
       ```hcl
       be_env_vars = {
         LOG_LEVEL                       = "INFO"
@@ -341,7 +355,11 @@ All commands should be run from within a specific environment's directory.
         IDENTITY_PLATFORM_ALLOWED_ORGS  = ""
       }
       ```
-    - Update service names and other values for staging
+    - Service sizing, GitHub config, and other values for staging
+    - Set `allow_destroy = false` for production-like environments
+4.  **Configure `backend.tf` (Optional):** If using remote state:
+    - Uncomment the `terraform` block in `backend.tf`
+    - Update the bucket name to point to your staging GCS bucket
 5.  **Deploy:**
     ```bash
     cd environments/staging
@@ -350,26 +368,26 @@ All commands should be run from within a specific environment's directory.
     ```
 
 
-#### Deploying an Existing Environment (e.g., `dev`)
+#### Deploying an Existing Environment (e.g., `dev-infra-example`)
 
-1.  **Navigate to the `dev` directory:**
+1.  **Navigate to the environment directory:**
     ```bash
-    cd environments/dev
+    cd environments/dev-infra-example
     ```
 2.  **Initialize Terraform:**
-    This downloads the necessary providers and configures the remote state backend.
+    This downloads the necessary providers and configures the remote state backend (if configured in `backend.tf`).
     ```bash
     terraform init
     ```
 3.  **Plan the changes:**
     Always review the plan carefully before applying.
     ```bash
-    terraform plan -var-file="dev.tfvars"
+    terraform plan
     ```
 4.  **Apply the changes:**
     This will build and deploy the infrastructure.
     ```bash
-    terraform apply -var-file="dev.tfvars"
+    terraform apply
     ```
 
 ---
@@ -419,24 +437,30 @@ Before running `terraform apply`, verify all prerequisites are complete:
 ### Configuration Files Setup (Done Per Environment)
 
 **Terraform Files:**
-- [ ] `terraform.auto.tfvars` (or `ENV.tfvars`) created and filled:
+- [ ] Navigate to your environment directory (e.g., `cd infra/environments/dev-infra-example`)
+- [ ] Edit `main.tf` locals block and verify all values are set:
   - [ ] `gcp_project_id` = YOUR_GCP_PROJECT_ID
   - [ ] `gcp_region` = YOUR_REGION (e.g., `us-central1`)
-  - [ ] `environment` = dev|staging|prod
-  - [ ] `firebase_web_app_id` = 1:PROJECT_NUMBER:web:HASH
+  - [ ] `environment` = development|production
+  - [ ] `firebase_web_app_id` = 1:PROJECT_NUMBER:web:HASH (or null for auto-create)
   - [ ] `github_repo_owner` = YOUR_GITHUB_USERNAME
   - [ ] `github_repo_name` = creative-studio (or your repo name)
   - [ ] `github_branch_name` = main (or your deployment branch)
   - [ ] `github_conn_name` = github-conn (or your connection name)
   - [ ] `be_env_vars` configured with your environment values
+  - [ ] `allow_destroy` set appropriately (true for dev, false for production)
+  - [ ] `storage_cors_allowed_origins` set appropriately (["*"] for dev, specific domains for prod)
+  - [ ] `vpc_enable`, `cloud_sql_public_ip_enabled`, `cloud_sql_deletion_protection_enabled` configured
 
 **Secrets Management:**
 - [ ] No additional configuration needed - Terraform manages all secrets
 - [ ] Secrets are created and permissions granted automatically via `core/secrets` module
 - [ ] After `terraform apply`, manually populate `OAUTH_CLIENT_ID` secret (see section 8a above)
 
-**Backend Configuration:**
-- [ ] `backend.tf` exists and points to correct GCS bucket
+**Backend Configuration (Optional):**
+- [ ] (Optional) If using remote state, edit `backend.tf` and uncomment the `terraform` block
+- [ ] Update bucket name to point to your GCS state bucket
+- [ ] Run `terraform init` to migrate state to remote backend
 
 ### Ready to Deploy
 
