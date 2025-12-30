@@ -25,35 +25,25 @@ steps:
     id: 'Inject Environment Variables'
     secretEnv:
       - 'OAUTH_CLIENT_ID'
-    env:
-      - 'PROJECT_ID=$PROJECT_ID'
-      - 'BACKEND_URL=${_BACKEND_URL}'
-      - 'FIREBASE_API_KEY=${_FIREBASE_API_KEY}'
-      - 'FIREBASE_AUTH_DOMAIN=${_FIREBASE_AUTH_DOMAIN}'
-      - 'FIREBASE_PROJECT_ID_SDK=${_FIREBASE_PROJECT_ID_SDK}'
-      - 'FIREBASE_STORAGE_BUCKET=${_FIREBASE_STORAGE_BUCKET}'
-      - 'FIREBASE_MESSAGING_SENDER_ID=${_FIREBASE_MESSAGING_SENDER_ID}'
-      - 'FIREBASE_APP_ID=${_FIREBASE_APP_ID}'
-      - 'FIREBASE_MEASUREMENT_ID=${_FIREBASE_MEASUREMENT_ID}'
-      - 'BACKEND_SERVICE_ID=${_BACKEND_SERVICE_ID}'
     script: |
       #!/bin/bash
       set -e
 
-      echo "📝 Pre-validation: Displaying all environment variables..."
+      echo "📝 Pre-validation: Displaying all Cloud Build substitutions..."
       echo ""
-      echo "=== CONFIGURATION VALUES ==="
-      echo "PROJECT_ID: $PROJECT_ID"
-      echo "BACKEND_URL: $BACKEND_URL"
-      echo "FIREBASE_API_KEY: $FIREBASE_API_KEY"
-      echo "FIREBASE_AUTH_DOMAIN: $FIREBASE_AUTH_DOMAIN"
-      echo "FIREBASE_PROJECT_ID_SDK: $FIREBASE_PROJECT_ID_SDK"
-      echo "FIREBASE_STORAGE_BUCKET: $FIREBASE_STORAGE_BUCKET"
-      echo "FIREBASE_MESSAGING_SENDER_ID: $FIREBASE_MESSAGING_SENDER_ID"
-      echo "FIREBASE_APP_ID: $FIREBASE_APP_ID"
-      echo "FIREBASE_MEASUREMENT_ID: $FIREBASE_MEASUREMENT_ID"
-      echo "BACKEND_SERVICE_ID: $BACKEND_SERVICE_ID"
-      echo "OAUTH_CLIENT_ID: $OAUTH_CLIENT_ID"
+      echo "=== SUBSTITUTION VALUES ==="
+      echo "_BACKEND_URL: ${_BACKEND_URL}"
+      echo "_FIREBASE_API_KEY: ${_FIREBASE_API_KEY}"
+      echo "_FIREBASE_AUTH_DOMAIN: ${_FIREBASE_AUTH_DOMAIN}"
+      echo "_FIREBASE_PROJECT_ID_SDK: ${_FIREBASE_PROJECT_ID_SDK}"
+      echo "_FIREBASE_STORAGE_BUCKET: ${_FIREBASE_STORAGE_BUCKET}"
+      echo "_FIREBASE_MESSAGING_SENDER_ID: ${_FIREBASE_MESSAGING_SENDER_ID}"
+      echo "_FIREBASE_APP_ID: ${_FIREBASE_APP_ID}"
+      echo "_FIREBASE_MEASUREMENT_ID: ${_FIREBASE_MEASUREMENT_ID}"
+      echo "_BACKEND_SERVICE_ID: ${_BACKEND_SERVICE_ID}"
+      echo "_FIREBASE_PROJECT_ID: ${_FIREBASE_PROJECT_ID}"
+      echo "OAUTH_CLIENT_ID (from Secret Manager): $OAUTH_CLIENT_ID"
+      echo "PROJECT_ID (from Cloud Build): $PROJECT_ID"
       echo ""
 
       echo "📝 Injecting configuration into application files..."
@@ -61,25 +51,25 @@ steps:
 
       # Inject into Angular app (environment.prod.ts)
       echo "Injecting backend URL into environment.prod.ts..."
-      sed -i "s|BACKEND_URL_PLACEHOLDER|${BACKEND_URL}/api|g" src/environments/environment.prod.ts
+      sed -i "s|BACKEND_URL_PLACEHOLDER|${_BACKEND_URL}/api|g" src/environments/environment.prod.ts
 
       echo "Injecting OAuth Client ID into environment.prod.ts..."
       sed -i "s|GOOGLE_CLIENT_ID_PLACEHOLDER|${OAUTH_CLIENT_ID}|g" src/environments/environment.prod.ts
 
       # Inject Firebase config from substitutions (auto-discovered via Terraform)
       echo "Injecting Firebase SDK configuration into environment.prod.ts..."
-      sed -i "s|FIREBASE_API_KEY_PLACEHOLDER|${FIREBASE_API_KEY}|g" src/environments/environment.prod.ts
-      sed -i "s|FIREBASE_AUTH_DOMAIN_PLACEHOLDER|${FIREBASE_AUTH_DOMAIN}|g" src/environments/environment.prod.ts
-      sed -i "s|FIREBASE_PROJECT_ID_PLACEHOLDER|${FIREBASE_PROJECT_ID_SDK}|g" src/environments/environment.prod.ts
-      sed -i "s|FIREBASE_STORAGE_BUCKET_PLACEHOLDER|${FIREBASE_STORAGE_BUCKET}|g" src/environments/environment.prod.ts
-      sed -i "s|FIREBASE_SENDER_ID_PLACEHOLDER|${FIREBASE_MESSAGING_SENDER_ID}|g" src/environments/environment.prod.ts
-      sed -i "s|FIREBASE_APP_ID_PLACEHOLDER|${FIREBASE_APP_ID}|g" src/environments/environment.prod.ts
-      sed -i "s|FIREBASE_MEASUREMENT_ID_PLACEHOLDER|${FIREBASE_MEASUREMENT_ID}|g" src/environments/environment.prod.ts
+      sed -i "s|FIREBASE_API_KEY_PLACEHOLDER|${_FIREBASE_API_KEY}|g" src/environments/environment.prod.ts
+      sed -i "s|FIREBASE_AUTH_DOMAIN_PLACEHOLDER|${_FIREBASE_AUTH_DOMAIN}|g" src/environments/environment.prod.ts
+      sed -i "s|FIREBASE_PROJECT_ID_PLACEHOLDER|${_FIREBASE_PROJECT_ID_SDK}|g" src/environments/environment.prod.ts
+      sed -i "s|FIREBASE_STORAGE_BUCKET_PLACEHOLDER|${_FIREBASE_STORAGE_BUCKET}|g" src/environments/environment.prod.ts
+      sed -i "s|FIREBASE_SENDER_ID_PLACEHOLDER|${_FIREBASE_MESSAGING_SENDER_ID}|g" src/environments/environment.prod.ts
+      sed -i "s|FIREBASE_APP_ID_PLACEHOLDER|${_FIREBASE_APP_ID}|g" src/environments/environment.prod.ts
+      sed -i "s|FIREBASE_MEASUREMENT_ID_PLACEHOLDER|${_FIREBASE_MEASUREMENT_ID}|g" src/environments/environment.prod.ts
 
       # Inject into Firebase config (firebase.json)
       echo "Injecting Firebase project configuration..."
-      sed -i "s|SITE_ID_PLACEHOLDER|${PROJECT_ID}|g" firebase.json
-      sed -i "s|BACKEND_SERVICE_ID_PLACEHOLDER|${BACKEND_SERVICE_ID}|g" firebase.json
+      sed -i "s|SITE_ID_PLACEHOLDER|${_FIREBASE_PROJECT_ID}|g" firebase.json
+      sed -i "s|BACKEND_SERVICE_ID_PLACEHOLDER|${_BACKEND_SERVICE_ID}|g" firebase.json
 
       echo ""
       echo "📝 Post-validation: Verifying injected values..."
