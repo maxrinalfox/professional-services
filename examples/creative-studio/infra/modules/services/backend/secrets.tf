@@ -13,67 +13,38 @@
 # limitations under the License.
 
 # --- Backend Service Secrets Management ---
-# This module creates and manages all secrets required by the backend service
-# Each secret is provisioned with IAM bindings to the Cloud Build trigger SA
+# Backend secrets are now consolidated with frontend secrets:
+# - OAuth credential (OAUTH_CLIENT_ID) is created by the frontend module
+# - Backend only needs IAM permissions to access the unified OAuth credential
+#
+# Note: The unified OAUTH_CLIENT_ID secret is mounted as GOOGLE_TOKEN_AUDIENCE
+# env var in Cloud Run (mapping is configured in main.tf)
 
-# Create the "shell" for each backend secret
-resource "google_secret_manager_secret" "backend" {
-  for_each = toset(var.backend_secrets)
-  provider = google-beta
+# Backend service accounts need access to the unified OAuth credential secret
+# This secret is created by the frontend module as "OAUTH_CLIENT_ID"
 
-  project   = var.gcp_project_id
-  secret_id = each.key
-
-  replication {
-    auto {}
-  }
+variable "frontend_oauth_secret_id" {
+  type        = string
+  description = "The OAuth credential secret ID from the frontend module (OAUTH_CLIENT_ID)"
+  default     = "OAUTH_CLIENT_ID"
 }
 
-# Grant the trigger service account (Cloud Build) access to backend secrets
-# This allows Cloud Build to read secrets during the build process
-resource "google_secret_manager_secret_iam_member" "trigger_backend_access" {
-  for_each = toset(var.backend_secrets)
-  provider = google-beta
-
-  project   = google_secret_manager_secret.backend[each.key].project
-  secret_id = google_secret_manager_secret.backend[each.key].secret_id
+# Grant the trigger service account (Cloud Build) access to OAuth credential
+# This is needed if backend build steps require the credential
+resource "google_secret_manager_secret_iam_member" "trigger_oauth_access" {
+  provider  = google-beta
+  secret_id = var.frontend_oauth_secret_id
   role      = "roles/secretmanager.secretAccessor"
   member    = google_service_account.trigger_sa.member
+  project   = var.gcp_project_id
 }
 
-# Create placeholder versions for each secret
-# These ensure Cloud Run can reference the secret path even if the actual
-# secret data will be added later or already exists
-resource "google_secret_manager_secret_version" "backend" {
-  for_each = toset(var.backend_secrets)
-  provider = google-beta
-
-  secret      = google_secret_manager_secret.backend[each.key].id
-  secret_data = "placeholder_${each.key}_will_be_updated"
-
-  lifecycle {
-    # Once created, subsequent applies won't overwrite the secret data
-    # This allows manual updates via gcloud or GCP console
-    ignore_changes = [secret_data]
-  }
-}
-
-# Grant the runtime service account (Cloud Run) access to backend secrets
-# The runtime service account needs secret access to read GOOGLE_TOKEN_AUDIENCE at runtime
-resource "google_secret_manager_secret_iam_member" "run_sa_backend_access" {
-  for_each = toset(var.backend_secrets)
-  provider = google-beta
-
-  project   = google_secret_manager_secret.backend[each.key].project
-  secret_id = google_secret_manager_secret.backend[each.key].secret_id
+# Grant the runtime service account (Cloud Run) access to OAuth credential
+# This allows Cloud Run to mount GOOGLE_TOKEN_AUDIENCE from OAUTH_CLIENT_ID secret
+resource "google_secret_manager_secret_iam_member" "run_sa_oauth_access" {
+  provider  = google-beta
+  secret_id = var.frontend_oauth_secret_id
   role      = "roles/secretmanager.secretAccessor"
   member    = google_service_account.run_sa.member
-
-  depends_on = [google_secret_manager_secret.backend]
-}
-
-# Export created secrets for reference by other modules
-output "backend_secrets" {
-  value       = { for k, v in google_secret_manager_secret.backend : k => v.secret_id }
-  description = "Created backend secret IDs"
+  project   = var.gcp_project_id
 }

@@ -119,14 +119,18 @@ resource "google_cloud_run_v2_service" "this" {
         }
       }
 
-      # secrets
+      # Runtime secrets: Map environment variable names to secret names
+      # GOOGLE_TOKEN_AUDIENCE is mapped to the unified OAUTH_CLIENT_ID secret
+      # This allows the backend code to read GOOGLE_TOKEN_AUDIENCE without changes,
+      # while the actual data comes from the unified OAUTH_CLIENT_ID secret
       dynamic "env" {
         for_each = var.runtime_secrets
         content {
-          name = env.key # The ENV_VAR_NAME
+          name = env.key # The ENV_VAR_NAME (e.g., GOOGLE_TOKEN_AUDIENCE)
           value_source {
             secret_key_ref {
-              secret  = env.value # The SECRET_NAME
+              # Map to unified OAuth credential secret
+              secret  = env.value  # The SECRET_NAME (maps to OAUTH_CLIENT_ID)
               version = "latest"
             }
           }

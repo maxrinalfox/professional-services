@@ -61,21 +61,24 @@ be_memory = "2048Mi"   # Backend Memory (default: 2 GB)
 fe_cpu    = "2000m"    # Frontend CPU (default: 2 CPUs)
 fe_memory = "2048Mi"   # Frontend Memory (default: 2 GB)
 
-# --- Frontend Secrets ---
-# Firebase SDK secrets (API_KEY, AUTH_DOMAIN, PROJECT_ID, STORAGE_BUCKET, MESSAGING_SENDER_ID, MEASUREMENT_ID)
-# are now AUTO-DISCOVERED from the Firebase web app configuration via firebase_web_app_id.
-# Only specify ADDITIONAL secrets needed beyond the standard Firebase SDK config
+# --- OAuth Credential (Unified) ---
+# Single OAuth 2.0 Client ID used by both frontend and backend
+# - Frontend: Cloud Build injects it into the application as GOOGLE_CLIENT_ID
+# - Backend: Cloud Run mounts it as GOOGLE_TOKEN_AUDIENCE env var
+#
+# IMPORTANT: Both services use the SAME secret value (OAUTH_CLIENT_ID)
 frontend_secrets_additional = [
-  "GOOGLE_CLIENT_ID",  # Your Google OAuth 2.0 Client ID for web (if using OAuth)
+  "OAUTH_CLIENT_ID",  # Unified OAuth 2.0 Client ID
 ]
 
-# --- Backend Secrets ---
 backend_secrets = [
-  "GOOGLE_TOKEN_AUDIENCE",  # JWT audience for backend API authentication
+  "OAUTH_CLIENT_ID",  # Same secret (unified with frontend)
 ]
 
+# Map environment variable name to secret name
+# GOOGLE_TOKEN_AUDIENCE env var is populated from OAUTH_CLIENT_ID secret
 backend_runtime_secrets = {
-  "GOOGLE_TOKEN_AUDIENCE" = "GOOGLE_TOKEN_AUDIENCE"
+  "GOOGLE_TOKEN_AUDIENCE" = "OAUTH_CLIENT_ID"  # Map env var to unified secret
 }
 
 # Identity Platform configuration is managed via GCP Console (sign-in methods, OAuth settings, etc.)

@@ -17,8 +17,12 @@
 # Firebase SDK secrets are passed directly via Cloud Build substitutions (_FIREBASE_*),
 # so they are no longer stored in Secret Manager.
 
-# Create secrets only for authentication (OAuth) - not for Firebase SDK config
-# Firebase SDK values are auto-discovered via Terraform and injected as substitutions
+# Create the unified OAuth credential secret
+# This single secret is used by both:
+# - Frontend: Cloud Build injects it into the application
+# - Backend: Cloud Run mounts it as an environment variable
+#
+# IMPORTANT: This must be set to your OAuth 2.0 Client ID (same value for both services)
 resource "google_secret_manager_secret" "frontend" {
   for_each = toset(var.frontend_secrets)
   provider = google-beta
@@ -43,22 +47,10 @@ resource "google_secret_manager_secret_iam_member" "trigger_frontend_access" {
   member    = google_service_account.trigger_sa.member
 }
 
-# Create placeholder versions for OAuth secrets
-# These ensure Cloud Build can reference the secret path even if the actual
-# secret data will be added later (must be set manually via gcloud or GCP console)
-resource "google_secret_manager_secret_version" "frontend" {
-  for_each = toset(var.frontend_secrets)
-  provider = google-beta
-
-  secret      = google_secret_manager_secret.frontend[each.key].id
-  secret_data = "placeholder_${each.key}_will_be_updated"
-
-  lifecycle {
-    # Once created, subsequent applies won't overwrite the secret data
-    # This allows manual updates via gcloud or GCP console
-    ignore_changes = [secret_data]
-  }
-}
+# Secret versions must be populated manually before deployments
+# Frontend Cloud Build will validate that secrets are populated and fail with
+# clear error messages if they are missing or contain placeholder values.
+# See infra/README.md for secret population instructions
 
 # Export created secrets for reference by other modules
 output "frontend_secrets_created" {

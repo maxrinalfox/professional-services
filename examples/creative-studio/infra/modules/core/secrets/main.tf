@@ -46,19 +46,12 @@ resource "google_secret_manager_secret_iam_member" "accessor" {
   member = strcontains(var.accessor_sa_email, ":") ? var.accessor_sa_email : "serviceAccount:${var.accessor_sa_email}"
 }
 
-# 3. Create a placeholder version for each secret
-# This ensures Cloud Run (and other services) can reference the secret path
-# even if the actual secret data will be added later or already exists
-resource "google_secret_manager_secret_version" "this" {
-  provider    = google-beta
-  for_each    = toset(var.secret_names)
-
-  secret      = google_secret_manager_secret.this[each.key].id
-  secret_data = "placeholder_${each.key}_will_be_updated"
-
-  lifecycle {
-    # Once created, subsequent applies won't overwrite the secret data
-    # This allows manual updates via gcloud or GCP console
-    ignore_changes = [secret_data]
-  }
-}
+# 3. Secret versions must be populated manually
+# Terraform intentionally does NOT create placeholder versions.
+# This ensures:
+# - Fast-fail: Missing secrets caught at build time, not runtime
+# - Clear feedback: Build pipelines validate and report missing secrets
+# - No false confidence: Deployments don't appear successful when they won't work
+#
+# Populate secrets manually using:
+#   gcloud secrets versions add SECRET_NAME --data-file=- --project=PROJECT_ID <<< "VALUE"
