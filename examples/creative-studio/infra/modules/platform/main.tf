@@ -289,13 +289,6 @@ module "backend_service" {
   # Cloud Build trigger
   enable_cloud_build_trigger = var.enable_cloud_build
 
-  # Backend secrets
-  backend_secrets = var.backend_secrets
-
-  # Pass frontend secrets for proper dependency ordering
-  # This ensures backend IAM bindings wait for frontend secret creation
-  frontend_secrets_created = module.frontend_service.frontend_secrets_created
-
   depends_on = [
     google_project_service.apis
   ]
@@ -337,12 +330,43 @@ module "frontend_service" {
   )
 
   enable_cloud_build_trigger = var.enable_cloud_build
-  # Only OAuth secrets need to be in Secret Manager - Firebase SDK secrets are passed via substitutions
-  frontend_secrets           = var.frontend_secrets_additional
 
   depends_on = [
     google_project_service.apis,
     module.firebase
+  ]
+}
+
+# --- SECRETS MANAGEMENT ---
+# Centralized secret creation and permission management
+# All application secrets are created here and permissions are granted to the appropriate service accounts
+# This is defined AFTER the service modules so we can reference their service account members
+module "app_secrets" {
+  source = "../core/secrets"
+
+  gcp_project_id = var.gcp_project_id
+
+  # Secrets configuration with their accessors
+  # Structure: secret_name -> { description, accessors: [list of service account members] }
+  secrets_config = {
+    # Unified OAuth credential used by both frontend and backend
+    "OAUTH_CLIENT_ID" = {
+      description = "Unified OAuth 2.0 Client ID for frontend and backend authentication"
+      accessors = [
+        # Frontend Cloud Build needs access to inject into build
+        module.frontend_service.trigger_sa_member,
+        # Backend Cloud Build needs access to validate during build
+        module.backend_service.trigger_sa_member,
+        # Backend Cloud Run needs access to read at runtime
+        module.backend_service.run_sa_member,
+      ]
+    }
+  }
+
+  depends_on = [
+    google_project_service.apis,
+    module.frontend_service,
+    module.backend_service
   ]
 }
 

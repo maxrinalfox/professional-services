@@ -47,9 +47,3 @@ variable "enable_cloud_build_trigger" {
   default = true
 }
 
-# --- Frontend Secrets Management ---
-variable "frontend_secrets" {
-  type        = list(string)
-  description = "A list of secret names required by the frontend build"
-  default     = []
-}

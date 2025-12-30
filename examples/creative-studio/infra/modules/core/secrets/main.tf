@@ -12,41 +12,54 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# 1. Create the "shell" for each secret in the list
+# Create secrets with auto-replication
 resource "google_secret_manager_secret" "this" {
   provider = google-beta
-  for_each = toset(var.secret_names) # Loop over the list of names
+  for_each = var.secrets_config
 
   project   = var.gcp_project_id
-  secret_id = each.key # Use the name from the list as the secret_id
+  secret_id = each.key
+
+  labels = each.value.description != "" ? {
+    description = each.value.description
+  } : {}
 
   replication {
     auto {}
   }
 }
 
-# 2. Grant the accessor role for each secret to the specified service account
-#
-# IMPORTANT: This binding intelligently handles both formats:
-# - If accessor_sa_email contains ":" (full member format), use as-is
-#   Example: "serviceAccount:my-sa@project.iam.gserviceaccount.com"
-# - If accessor_sa_email is just email, prefix with "serviceAccount:"
-#   Example: "my-sa@project.iam.gserviceaccount.com" → "serviceAccount:my-sa@project.iam.gserviceaccount.com"
-#
-# Best practice: Pass the .member attribute of service account resources for consistency:
-#   accessor_sa_email = google_service_account.my_sa.member
-resource "google_secret_manager_secret_iam_member" "accessor" {
-  provider = google-beta
-  for_each = toset(var.secret_names) # Loop over the same list
+# Grant Secret Manager Accessor role to all specified service accounts
+# Creates a flattened map of (secret_name, accessor) pairs and grants each accessor
+# permission to access the corresponding secret
+locals {
+  secret_accessor_pairs = flatten([
+    for secret_name, config in var.secrets_config : [
+      for accessor in config.accessors : {
+        secret_name = secret_name
+        accessor    = accessor
+        pair_key    = "${secret_name}:${accessor}"
+      }
+    ]
+  ])
 
-  project   = google_secret_manager_secret.this[each.key].project
-  secret_id = google_secret_manager_secret.this[each.key].secret_id
-  role      = "roles/secretmanager.secretAccessor"
-  # Intelligently detect format: if it contains ":", assume it's full member format; otherwise prefix with "serviceAccount:"
-  member = strcontains(var.accessor_sa_email, ":") ? var.accessor_sa_email : "serviceAccount:${var.accessor_sa_email}"
+  secret_accessor_map = {
+    for pair in local.secret_accessor_pairs :
+    pair.pair_key => pair
+  }
 }
 
-# 3. Secret versions must be populated manually
+resource "google_secret_manager_secret_iam_member" "accessor" {
+  provider = google-beta
+  for_each = local.secret_accessor_map
+
+  project   = google_secret_manager_secret.this[each.value.secret_name].project
+  secret_id = google_secret_manager_secret.this[each.value.secret_name].secret_id
+  role      = "roles/secretmanager.secretAccessor"
+  member    = each.value.accessor
+}
+
+# Secret versions must be populated manually
 # Terraform intentionally does NOT create placeholder versions.
 # This ensures:
 # - Fast-fail: Missing secrets caught at build time, not runtime

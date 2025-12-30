@@ -17,22 +17,37 @@ variable "gcp_project_id" {
   description = "The GCP Project ID where the secrets will be created."
 }
 
-variable "secret_names" {
-  type        = list(string)
-  description = "A list of secret IDs to create (e.g., [\"FIREBASE_API_KEY\", \"GOOGLE_CLIENT_ID\"])."
-}
-
-variable "accessor_sa_email" {
-  type        = string
+variable "secrets_config" {
+  type = map(object({
+    description = optional(string, "")
+    accessors   = list(string)
+  }))
   description = <<-EOT
-    The member identifier (email or .member format) of the service account that will be granted
-    Secret Manager Accessor permission.
+    Configuration for secrets to create and who should have access to them.
 
-    Accepts two formats:
-    - Email format (will be prefixed with "serviceAccount:"): "my-sa@project.iam.gserviceaccount.com"
-    - Full member format (used as-is): "serviceAccount:my-sa@project.iam.gserviceaccount.com"
+    Structure:
+    {
+      "SECRET_NAME" = {
+        description = "Optional description"
+        accessors   = [
+          "serviceAccount:sa1@project.iam.gserviceaccount.com",  # Full member format
+          "user:email@example.com"                                # Can use any IAM member format
+        ]
+      }
+    }
 
-    Recommendation: Pass the .member attribute of a service account resource for consistency:
-    accessor_sa_email = google_service_account.my_sa.member
+    Each secret is created with the specified accessors granted the Secret Manager Accessor role.
+    Multiple accessors can be specified for a single secret.
+
+    Accessor format: Pass the .member attribute of service account resources.
+    Example: google_service_account.my_sa.member
   EOT
+
+  validation {
+    condition = alltrue([
+      for secret_name, config in var.secrets_config :
+      length(config.accessors) > 0
+    ])
+    error_message = "Each secret must have at least one accessor."
+  }
 }
