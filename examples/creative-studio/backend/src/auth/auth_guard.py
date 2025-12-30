@@ -106,6 +106,14 @@ async def get_current_user(
                 detail="Could not create or retrieve user profile.",
             )
 
+        # Ensure the configured admin user always has admin role
+        if email == config_service.ADMIN_USER_EMAIL:
+            if UserRoleEnum.ADMIN not in user_doc.roles:
+                logger.info(f"Granting admin role to configured admin user: {email}")
+                updated_roles = list(set(user_doc.roles) | {UserRoleEnum.ADMIN})
+                await user_service.user_repo.update(user_doc.id, {"roles": updated_roles})
+                user_doc.roles = [UserRoleEnum(role) if isinstance(role, str) else role for role in updated_roles]
+
         if not user_doc.picture:
             user_doc.picture = picture
             # We need to update the user. Since user_doc is a Pydantic model, we can't just save it.

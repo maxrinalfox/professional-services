@@ -108,10 +108,10 @@ async def ensure_admin_user_exists(db: AsyncSession) -> Optional[UserModel]:
             )
             user_data = new_user_dto.model_dump()
             user_data["roles"] = [UserRoleEnum.USER, UserRoleEnum.ADMIN]
-            
+
             created_user = await user_repo.create(user_data)
             logger.info(
-                f"Successfully created admin user document for '{admin_email}'. ID: {created_user.id}"
+                f"Successfully created admin user document for '{admin_email}'. ID: {created_user.id}, Roles: {created_user.roles}"
             )
             return created_user
 
