@@ -131,10 +131,17 @@ variable "enable_identity_platform" {
   default     = true
 }
 
+# Destruction Control
+variable "allow_destroy" {
+  type        = bool
+  description = "Allow Terraform to destroy critical resources (storage bucket, Cloud SQL database). Set to true for development/test environments only. Production should always be false."
+  default     = false
+}
+
 # Storage Configuration
 variable "storage_force_destroy" {
   type        = bool
-  description = "Allow Terraform to delete the storage bucket even if it contains objects. Set to true for development environments only."
+  description = "Allow Terraform to delete the storage bucket even if it contains objects. Set to true for development environments only. DEPRECATED: Use allow_destroy instead."
   default     = false
 }
 

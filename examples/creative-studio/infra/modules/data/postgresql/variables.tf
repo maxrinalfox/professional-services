@@ -31,6 +31,12 @@ variable "vpc_network_id" {
   default     = null
 }
 
+variable "allow_destroy" {
+  type        = bool
+  description = "Allow Terraform to destroy the Cloud SQL database instance. Set to true for development/test environments only."
+  default     = false
+}
+
 variable "deletion_protection_enabled" {
   type        = bool
   description = "Enable deletion protection for Cloud SQL instance (strongly recommended for production)"

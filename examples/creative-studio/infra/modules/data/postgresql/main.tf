@@ -39,10 +39,6 @@ resource "google_sql_database_instance" "default" {
   }
 
   deletion_protection = var.deletion_protection_enabled
-
-  lifecycle {
-    prevent_destroy = true
-  }
 }
 
 resource "google_sql_database" "default" {

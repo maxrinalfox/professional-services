@@ -192,6 +192,7 @@ module "storage" {
   gcp_project_id           = var.gcp_project_id
   gcp_region               = var.gcp_region
   environment              = var.environment
+  allow_destroy            = var.allow_destroy
   force_destroy            = var.storage_force_destroy
   cors_allowed_origins     = var.storage_cors_allowed_origins
 
@@ -211,6 +212,9 @@ module "postgresql" {
 
   # Control whether the instance has a public IP
   public_ip_enabled = var.cloud_sql_public_ip_enabled
+
+  # Destruction control
+  allow_destroy = var.allow_destroy
 
   # Deletion protection
   deletion_protection_enabled = var.cloud_sql_deletion_protection_enabled

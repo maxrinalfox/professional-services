@@ -32,6 +32,12 @@ variable "environment" {
   }
 }
 
+variable "allow_destroy" {
+  type        = bool
+  description = "Allow Terraform to destroy the storage bucket. Set to true for development/test environments only."
+  default     = false
+}
+
 variable "force_destroy" {
   type        = bool
   description = "Allow Terraform to delete the storage bucket even if it contains objects. Set to true for development environments only."

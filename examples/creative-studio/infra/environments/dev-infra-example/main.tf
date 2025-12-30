@@ -105,6 +105,13 @@ locals {
   # === FIREBASE IDENTITY PLATFORM ===
   enable_identity_platform = true  # Enable user authentication
 
+  # === DESTRUCTION CONTROL ===
+  allow_destroy = true  # Dev: true (allow easy cleanup). Prod: false (prevent accidents)
+
+  # === STORAGE & DATABASE PROTECTION ===
+  storage_force_destroy                    = true   # Dev: true (empty and delete bucket). Prod: false
+  cloud_sql_deletion_protection_enabled    = false  # Dev: false (allow deletion). Prod: true
+
   # === VPC NETWORKING (for private Cloud SQL) ===
   vpc_enable                = false            # Dev: false. Prod: true for private database
   vpc_primary_subnet_cidr   = "10.0.0.0/24"   # Primary subnet for Cloud Run
@@ -124,11 +131,7 @@ locals {
   bootstrap_job_timeout     = 600  # seconds
 
   # === STORAGE CONFIGURATION ===
-  storage_force_destroy        = false  # Dev: false (caution when deleting). Prod: definitely false
   storage_cors_allowed_origins = ["*"]  # Dev: "*". Prod: specify exact domains
-
-  # === DELETION PROTECTION ===
-  cloud_sql_deletion_protection_enabled = false  # Dev: false. Prod: true
 }
 
 # ============================================================================
@@ -181,6 +184,9 @@ module "creative_studio_platform" {
 
   # Identity Platform
   enable_identity_platform = local.enable_identity_platform
+
+  # Destruction Control
+  allow_destroy = local.allow_destroy
 
   # VPC
   vpc_enable                = local.vpc_enable
