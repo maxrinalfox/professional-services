@@ -72,10 +72,12 @@ locals {
 
   # === BACKEND ENVIRONMENT VARIABLES ===
   # These are passed to the backend Cloud Run service as environment variables
+  # NOTE: FIREBASE_DB must reference a Firestore database created separately
+  # (not created by Terraform - must be created manually or via backend setup)
   be_env_vars = {
     LOG_LEVEL                      = "INFO"
-    ENVIRONMENT                    = "development"
-    FIREBASE_DB                    = "cstudio-dev"
+    ENVIRONMENT                    = local.environment
+    FIREBASE_DB                    = "cstudio-development"  # Must match your Firestore database name
     IDENTITY_PLATFORM_ALLOWED_ORGS = ""
   }
 
