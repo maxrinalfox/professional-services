@@ -60,13 +60,14 @@ resource "google_project_iam_member" "bootstrap_sa_secret_accessor" {
   member  = google_service_account.bootstrap_sa[0].member
 }
 
-# Grant bootstrap job SA permission to create/upload objects to GCS bucket
+# Grant bootstrap job SA permission to create/upload/delete objects to GCS bucket
 # This is needed for seed_vto_assets and seed_media_templates functions
 # Uses bucket_name from storage module output for consistency
-resource "google_storage_bucket_iam_member" "bootstrap_sa_gcs_object_creator" {
+# objectUser allows: create, read, update, delete on objects (minimal necessary permissions)
+resource "google_storage_bucket_iam_member" "bootstrap_sa_gcs_object_user" {
   count  = var.enable_cloud_run_job ? 1 : 0
   bucket = var.genmedia_bucket_name
-  role   = "roles/storage.objectCreator"
+  role   = "roles/storage.objectUser"
   member = google_service_account.bootstrap_sa[0].member
 }
 
