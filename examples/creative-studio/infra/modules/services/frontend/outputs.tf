@@ -13,21 +13,21 @@
 # limitations under the License.
 
 output "url" {
-  description = "The default URL of the Firebase Hosting site."
+  description = "The default URL of the Firebase Hosting site (the actual frontend URL for users)"
   value       = google_firebase_hosting_site.this.default_url
 }
 
 output "site_id" {
-  description = "The ID of the Firebase Hosting site."
+  description = "The ID of the Firebase Hosting site"
   value       = google_firebase_hosting_site.this.site_id
 }
 
 output "trigger_sa_email" {
-  description = "The email of the service account used by the build trigger."
+  description = "The email of the service account used by the Cloud Build trigger (for permissions configuration)"
   value       = google_service_account.trigger_sa.email
 }
 
 output "trigger_sa_member" {
-  description = "The member identifier (formatted for IAM bindings) of the build trigger service account."
+  description = "The member identifier (formatted for IAM bindings) of the build trigger service account"
   value       = google_service_account.trigger_sa.member
 }

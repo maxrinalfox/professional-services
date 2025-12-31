@@ -13,11 +13,41 @@
 # limitations under the License.
 
 output "connection_name" {
-  value = google_sql_database_instance.default.connection_name
+  description = "Cloud SQL connection name (for Cloud SQL Connector, use in Python Connector)"
+  value       = google_sql_database_instance.default.connection_name
 }
+
+output "instance_name" {
+  description = "Cloud SQL instance name"
+  value       = google_sql_database_instance.default.name
+}
+
+output "public_ip_address" {
+  description = "Public IP address of the Cloud SQL instance (for local development connections)"
+  value       = google_sql_database_instance.default.public_ip_address
+}
+
+output "private_ip_address" {
+  description = "Private IP address of the Cloud SQL instance (for VPC connections)"
+  value       = google_sql_database_instance.default.private_ip_address
+}
+
 output "db_name" {
-  value = google_sql_database.default.name
+  description = "PostgreSQL database name"
+  value       = google_sql_database.default.name
 }
+
 output "db_user" {
-  value = google_sql_user.default.name
+  description = "PostgreSQL database user"
+  value       = google_sql_user.default.name
+}
+
+output "postgres_version" {
+  description = "PostgreSQL database version"
+  value       = google_sql_database_instance.default.database_version
+}
+
+output "region" {
+  description = "GCP region where the Cloud SQL instance is deployed"
+  value       = google_sql_database_instance.default.region
 }
