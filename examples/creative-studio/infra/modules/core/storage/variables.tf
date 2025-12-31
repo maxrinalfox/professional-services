@@ -32,19 +32,13 @@ variable "environment" {
   }
 }
 
-variable "allow_destroy" {
+variable "storage_allow_destroy" {
   type        = bool
-  description = "Allow Terraform to destroy the storage bucket. Set to true for development/test environments only."
+  description = "Allow Terraform to destroy the storage bucket and delete its contents. Set to true for development/test environments only. Production should use false."
   default     = false
 }
 
-variable "force_destroy" {
-  type        = bool
-  description = "Allow Terraform to delete the storage bucket even if it contains objects. Set to true for development environments only."
-  default     = false
-}
-
-variable "cors_allowed_origins" {
+variable "storage_cors_allowed_origins" {
   type        = list(string)
   description = "List of allowed origins for CORS requests. Use [\"*\"] to allow all origins, or specify specific domains for production."
   default     = ["*"]

@@ -110,7 +110,6 @@ locals {
   allow_destroy = true  # Dev: true (allow easy cleanup). Prod: false (prevent accidents)
 
   # === STORAGE & DATABASE PROTECTION ===
-  storage_force_destroy                    = true   # Dev: true (empty and delete bucket). Prod: false
   cloud_sql_deletion_protection_enabled    = false  # Dev: false (allow deletion). Prod: true
 
   # === VPC NETWORKING (for private Cloud SQL) ===
@@ -212,7 +211,6 @@ module "creative_studio_platform" {
   bootstrap_job_timeout       = local.bootstrap_job_timeout
 
   # Storage
-  storage_force_destroy        = local.storage_force_destroy
   storage_cors_allowed_origins = local.storage_cors_allowed_origins
 
   # Firestore
@@ -250,14 +248,20 @@ output "secret_population_commands" {
 }
 
 output "infrastructure_ready" {
-  description = "Infrastructure deployment summary"
+  description = "Infrastructure deployment summary with computed resource names"
   value = {
-    project_id = local.gcp_project_id
-    region     = local.gcp_region
-    environment = local.environment
-    backend_url = module.creative_studio_platform.backend_service_url
-    frontend_url = "https://${local.gcp_project_id}.web.app"
-    next_steps = "1. Populate OAUTH_CLIENT_ID secret (see secret_population_commands output)\n2. Push code to GitHub to trigger Cloud Build\n3. Monitor builds in GCP Console > Cloud Build"
+    project_id               = local.gcp_project_id
+    region                   = local.gcp_region
+    environment              = local.environment
+    firestore_database_name  = module.creative_studio_platform.firestore_database_name
+    backend_url              = module.creative_studio_platform.backend_service_url
+    frontend_url             = "https://${local.gcp_project_id}.web.app"
+    next_steps               = "1. Populate OAUTH_CLIENT_ID secret (see secret_population_commands output)\n2. Push code to GitHub to trigger Cloud Build\n3. Monitor builds in GCP Console > Cloud Build"
   }
   sensitive = false
+}
+
+output "firestore_database_name" {
+  description = "Computed Firestore database name (format: cstudio-{environment})"
+  value       = module.creative_studio_platform.firestore_database_name
 }

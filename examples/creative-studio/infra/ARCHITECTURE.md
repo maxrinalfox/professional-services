@@ -793,6 +793,98 @@ Build substitutions provided to Cloud Build:
 
 ---
 
+---
+
+## Infrastructure Variable Naming Convention
+
+### Overview
+All Terraform variables follow a strict naming convention to prevent confusion and ensure consistency across modules.
+
+### Naming Patterns
+
+**Project-level Variables (Module Level)**
+- Prefix: `gcp_` for Google Cloud project references
+- Examples: `gcp_project_id`, `gcp_region`
+- Applies to: All modules
+
+**Service-Specific Variables (Module Level)**
+- Prefix: `<service>_` (lowercase service name)
+- Examples:
+  - `storage_allow_destroy` (storage module)
+  - `storage_cors_allowed_origins` (storage module)
+  - `cloud_sql_public_ip_enabled` (postgresql module)
+  - `firestore_deletion_protection_enabled` (firestore module)
+
+**Destruction Control Variables (Cross-Module Standard)**
+- Name: `allow_destroy` (platform module) → maps to service-specific variables
+- Usage: Single source of truth at platform level for dev vs prod
+- Platform passes to all modules: `storage_allow_destroy`, existing `allow_destroy` patterns
+- **IMPORTANT:** Use `allow_destroy = true` for dev, `allow_destroy = false` for production
+
+**Database & Deletion Protection**
+- Pattern: `<service>_deletion_protection_enabled`
+- Examples: `cloud_sql_deletion_protection_enabled`, `firestore_deletion_protection_enabled`
+- Recommended: `false` for dev, `true` for production
+
+### Variable Naming Issues Fixed (v1.1)
+
+**ISSUE #1 - RESOLVED: Conflicting Destruction Control Variables**
+- **Removed:** `storage_force_destroy` (deprecated platform variable)
+- **Consolidated:** All destruction control now uses `allow_destroy` at platform level
+- **Updated:** Storage module now uses `storage_allow_destroy` (consistent prefixing)
+- **Impact:** Single source of truth eliminates bucket deletion confusion
+
+**ISSUE #2 - Incomplete: Bootstrap Environment Variable Protection**
+- **Status:** Awaiting refinement in upcoming release
+- **Current:** Bootstrap job has basic env vars without full protection
+- **Future:** Will implement protected variables pattern for critical database vars
+- **Tracking:** See GitHub Issues for planned improvements
+
+**ISSUE #3 - RESOLVED: Inconsistent Variable Naming Across Modules**
+- **Fixed:** Storage module variables now use `storage_` prefix
+- **Pattern:** All variables now follow `<service>_<attribute>` naming
+- **Benefit:** Developers know exactly which module a variable affects
+
+**ISSUE #4 - RESOLVED: Firestore Database Name Visibility**
+- **Added:** New `firestore_database_name` output in environment layer
+- **Format:** Automatically computed as `cstudio-{environment}`
+- **Usage:** Run `terraform output firestore_database_name` to verify
+- **Benefit:** Users can verify correct database before deployment
+
+### Protected Variables (Read-Only)
+
+These variables are **automatically computed** and cannot be overridden by users:
+
+| Variable | Computed From | Module | Purpose |
+|----------|---------------|--------|---------|
+| `ENVIRONMENT` (env var) | `var.environment` | backend service | Must match deployment environment |
+| `FIREBASE_DB` (env var) | `"cstudio-${environment}"` | backend service | Must match Firestore database name |
+| `firestore_database_name` | Auto-computed | data/firestore | Ensures consistency with FIREBASE_DB |
+| `CORS_ORIGINS` (env var) | Frontend URL | backend service | Computed from infrastructure |
+| `GENMEDIA_BUCKET` (env var) | Storage module | backend service | Computed from infrastructure |
+
+**How to verify protected variables after deployment:**
+```bash
+cd infra/environments/{your-environment}
+terraform output firestore_database_name
+terraform output infrastructure_ready
+```
+
+### User-Customizable Variables
+
+Only these variables should be modified per environment:
+
+| Variable | Location | Examples |
+|----------|----------|----------|
+| `be_env_vars` | environment main.tf | `LOG_LEVEL`, `IDENTITY_PLATFORM_ALLOWED_ORGS` |
+| `bootstrap_job_env_vars` | environment main.tf | Application-specific bootstrap settings |
+| `gcp_project_id` | environment main.tf | Your GCP project ID |
+| `gcp_region` | environment main.tf | `us-central1`, `us-west1`, etc. |
+| `environment` | environment main.tf | `development` or `production` |
+| `allow_destroy` | environment main.tf | `true` for dev, `false` for production |
+
+---
+
 ## Recommended Reading
 
 - **[README.md](./README.md)** - Quick start guide and setup

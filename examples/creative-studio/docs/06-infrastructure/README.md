@@ -24,18 +24,30 @@ Google Cloud Platform setup, Terraform configuration, and deployment guides.
 
 ---
 
-### [02_TERRAFORM_INFRASTRUCTURE.md](02_TERRAFORM_INFRASTRUCTURE.md)
-**Infrastructure as Code with Terraform**
+### [02_TERRAFORM_INFRASTRUCTURE_GUIDE.md](02_TERRAFORM_INFRASTRUCTURE_GUIDE.md)
+**Terraform Variable Configuration, Security & Edge Cases (v1.1)**
 
-- Terraform project structure
-- Module organization (platform, cloud-run-service, firebase, etc.)
-- Variable configuration and tfvars
-- State management and backend
-- Deploying with Terraform
-- Debugging Terraform issues
-- Production best practices
+- Variable naming convention and patterns
+- Destruction control configuration (`allow_destroy`)
+- Protected vs customizable variables
+- **Cloud Run Access Control (roles/run.invoker):**
+  - Configuring `backend_invoker_identities` for API access
+  - Public vs restricted access strategies
+  - User, group, and service account access control
+  - Two-layer security with Identity Platform
+  - Verification and monitoring commands
+- Infrastructure edge cases (RESOLVED in v1.1):
+  - Destruction control consolidation
+  - Variable naming consistency
+  - Firestore database name visibility
+  - Bootstrap environment variable protection
+- Configuration examples (development & production)
+- Verification checklist
+- Troubleshooting guide
 
-**For:** DevOps engineers, infrastructure automation
+**For:** DevOps engineers, infrastructure automation, security teams, anyone configuring environments
+
+**⭐ IMPORTANT:** Read this BEFORE configuring your environment to avoid `allow_destroy`, variable naming, or access control mistakes.
 
 ---
 

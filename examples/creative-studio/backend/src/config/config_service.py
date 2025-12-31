@@ -59,7 +59,10 @@ class ConfigService(BaseSettings):
     GEMINI_AUDIO_ANALYSIS_MODEL_ID: str = "gemini-2.5-pro"
 
     # --- Collections ---
-    FIREBASE_DB: str = "cstudio-development"
+    FIREBASE_DB: str = Field(
+        default="cstudio-development",
+        description="Firestore database name (default: cstudio-development, overridden by FIREBASE_DB env var from Terraform)"
+    )
 
     # --- Database Configuration ---
     INSTANCE_CONNECTION_NAME: str = ""
@@ -148,6 +151,7 @@ class ConfigService(BaseSettings):
     @property
     def IMAGE_BUCKET(self) -> str:
         return f"{self.GENMEDIA_BUCKET}/images"
+
 
 
 # Create a single, cached instance of the settings to be used throughout the app.

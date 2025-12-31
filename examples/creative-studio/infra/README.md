@@ -5,8 +5,9 @@ This repository contains the Terraform configuration for deploying the Creative 
 ## 🚀 Quick Links
 
 - **[QUICK_START.md](./QUICK_START.md)** ⭐ **START HERE** - Step-by-step setup guide (60-90 minutes)
-- **[ARCHITECTURE.md](./ARCHITECTURE.md)** - Infrastructure architecture overview
+- **[ARCHITECTURE.md](./ARCHITECTURE.md)** - Infrastructure architecture overview & variable naming guide
 - **[TERRAFORM_OUTPUTS_AND_CICD.md](./TERRAFORM_OUTPUTS_AND_CICD.md)** - CI/CD pipeline and Phase roadmap
+- **[Infrastructure Review & Fixes](#infrastructure-review--fixes-v11)** - Recent improvements and edge case resolutions
 
 ## 🚀 Overview
 
@@ -485,13 +486,64 @@ terraform apply     # Deploy infrastructure
 
 ---
 
+## Infrastructure Review & Fixes (v1.1)
+
+### Recent Quality Improvements
+
+This infrastructure has been reviewed for edge cases, variable duplication, and inconsistencies. The following issues were identified and fixed:
+
+**Issue #1 - RESOLVED: Destruction Control Variable Consolidation**
+- **Problem:** Three conflicting variables for bucket destruction: `storage_force_destroy`, `allow_destroy`, `force_destroy`
+- **Fix:** Consolidated to single `allow_destroy` source of truth at platform level
+- **Storage module variables renamed:** All now use `storage_` prefix (`storage_allow_destroy`, `storage_cors_allowed_origins`)
+- **Result:** Users set `allow_destroy = true/false` in environment once; applies consistently across all resources
+
+**Issue #3 - RESOLVED: Variable Naming Consistency**
+- **Problem:** Inconsistent variable prefixes across modules (some `cloud_sql_`, some just `deletion_protection_enabled`)
+- **Fix:** Storage module now follows `storage_` prefix convention
+- **Benefit:** Developers can easily identify which module a variable affects
+
+**Issue #4 - RESOLVED: Firestore Database Name Visibility**
+- **Problem:** Auto-computed database name `cstudio-{environment}` was not visible to users
+- **Fix:** Added `firestore_database_name` output to environment layer
+- **Usage:** Run `terraform output firestore_database_name` after plan/apply to verify
+- **Benefit:** Users can verify correct database before applying configuration
+
+**Issue #2 & #5 - Pending: Bootstrap Environment Variable Protection**
+- **Status:** Identified for refinement in upcoming release
+- **Description:** Bootstrap job lacks full protected variable mechanism (like backend service)
+- **Planned:** Will implement protected variables pattern for critical database configuration
+- **Tracking:** Enhancement planned for future release
+
+### Best Practices
+
+1. **Always verify outputs after planning:**
+   ```bash
+   terraform plan
+   terraform output firestore_database_name
+   ```
+
+2. **Never manually override auto-computed variables:**
+   - `ENVIRONMENT` and `FIREBASE_DB` are protected
+   - Attempting to set them in `be_env_vars` will be overridden (expected behavior)
+
+3. **Use single `allow_destroy` for dev/prod safety:**
+   - Development: `allow_destroy = true` (allows cleanup)
+   - Production: `allow_destroy = false` (prevents accidents)
+
+4. **Reference ARCHITECTURE.md for variable naming convention:**
+   - All variables follow strict naming patterns
+   - Use this guide to avoid configuration mistakes
+
+---
+
 ## 📚 Documentation Index
 
 For comprehensive guides on specific topics, refer to:
 
 | Document | Purpose | When to Use |
 |----------|---------|------------|
-| **[ARCHITECTURE.md](./ARCHITECTURE.md)** | Network design, VPC setup, data flow diagrams, security architecture | Understanding how the infrastructure is organized and connected |
+| **[ARCHITECTURE.md](./ARCHITECTURE.md)** | Network design, VPC setup, data flow diagrams, security architecture, variable naming convention | Understanding infrastructure organization and determining correct variable names |
 | **[TERRAFORM_OUTPUTS_AND_CICD.md](./TERRAFORM_OUTPUTS_AND_CICD.md)** | Accessing terraform outputs, CI/CD integration, bash script patterns, GitHub Actions examples | Using outputs in scripts, migrating to GitHub Actions, CI/CD automation |
 
 ### Quick CI/CD Reference

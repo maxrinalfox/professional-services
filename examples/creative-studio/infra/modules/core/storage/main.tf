@@ -18,10 +18,10 @@ resource "google_storage_bucket" "genmedia" {
   name                        = "creative-studio-${var.gcp_project_id}-assets"
   location                    = var.gcp_region
   uniform_bucket_level_access = true
-  force_destroy               = var.force_destroy
+  force_destroy               = var.storage_allow_destroy
 
   cors {
-    origin          = var.cors_allowed_origins
+    origin          = var.storage_cors_allowed_origins
     method          = ["GET", "PUT", "POST", "DELETE", "HEAD", "OPTIONS"]
     response_header = ["Content-Type", "Access-Control-Allow-Origin", "x-goog-resumable", "Authorization", "Origin"]
     max_age_seconds = 3600

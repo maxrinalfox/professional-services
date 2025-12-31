@@ -137,11 +137,6 @@ variable "allow_destroy" {
 }
 
 # Storage Configuration
-variable "storage_force_destroy" {
-  type        = bool
-  description = "Allow Terraform to delete the storage bucket even if it contains objects. Set to true for development environments only. DEPRECATED: Use allow_destroy instead."
-  default     = false
-}
 
 variable "storage_cors_allowed_origins" {
   type        = list(string)

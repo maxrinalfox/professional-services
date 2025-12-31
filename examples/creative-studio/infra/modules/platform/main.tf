@@ -213,12 +213,11 @@ module "firebase" {
 module "storage" {
   source = "../core/storage"
 
-  gcp_project_id           = var.gcp_project_id
-  gcp_region               = var.gcp_region
-  environment              = var.environment
-  allow_destroy            = var.allow_destroy
-  force_destroy            = var.storage_force_destroy
-  cors_allowed_origins     = var.storage_cors_allowed_origins
+  gcp_project_id              = var.gcp_project_id
+  gcp_region                  = var.gcp_region
+  environment                 = var.environment
+  storage_allow_destroy       = var.allow_destroy
+  storage_cors_allowed_origins = var.storage_cors_allowed_origins
 
   depends_on = [google_project_service.apis]
 }
@@ -468,6 +467,7 @@ module "bootstrap" {
       "PROJECT_ID"               = var.gcp_project_id
       "GENMEDIA_BUCKET"          = module.storage.bucket_name
       "ENVIRONMENT"              = var.environment
+      "FIREBASE_DB"              = local.firestore_database_name  # Computed from environment (e.g., "cstudio-development")
     }
   )
 
