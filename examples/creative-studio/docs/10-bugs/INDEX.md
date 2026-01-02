@@ -20,6 +20,7 @@
 | [BUG-008](./08_FIRESTORE_SECURITY_RULES.md) | Firestore Security Rules Gaps | 🔴 Open | Medium | Backend/Security | 2 weeks | Full |
 | [BUG-009](./09_ENVIRONMENT_CONFIGURATION.md) | Missing Environment Variable Documentation | 🟡 Medium | Medium | Config/Docs | 1 week | Full |
 | [BUG-010](./10_STRUCTURED_LOGGING.md) | Logging Not Fully Structured | 🟢 Low | Low | Backend/Ops | 2 weeks | Full |
+| [BUG-011](./11_IDENTITY_PLATFORM_UNUSED.md) | Identity Platform Infrastructure Unused | 🟡 Medium | Medium | Infra/Config | 1 day | Full |
 
 ---
 
@@ -173,8 +174,8 @@ Examples:
 ## Statistics
 
 ### Summary
-- **Total Bugs**: 10
-- **Open**: 10
+- **Total Bugs**: 11
+- **Open**: 11
 - **In Progress**: 0
 - **Fixed**: 0
 - **Closed**: 0
@@ -182,7 +183,7 @@ Examples:
 ### By Severity
 - Critical: 1 (BUG-002)
 - High: 1 (BUG-004)
-- Medium: 7 (BUG-001, 003, 005, 006, 007, 008, 009)
+- Medium: 8 (BUG-001, 003, 005, 006, 007, 008, 009, 011)
 - Low: 1 (BUG-010)
 
 ### By Component
@@ -191,9 +192,11 @@ Examples:
 - Frontend: 1
 - Auth: 1
 - Config/Docs: 1
+- Infrastructure: 1
 
 ### Total Effort Estimate
-- **Quick Fixes**: ~5 days (BUG-001, BUG-009, BUG-010 initial)
+- **Quick Fixes**: ~2 days (BUG-001, BUG-011 - Option A)
+- **Short Term**: ~1 week (BUG-009, BUG-010 initial)
 - **Medium Effort**: ~3-4 weeks (BUG-003 through BUG-008)
 - **Major Refactoring**: ~5 weeks (BUG-002)
 - **Total**: 8-10 weeks for all issues
