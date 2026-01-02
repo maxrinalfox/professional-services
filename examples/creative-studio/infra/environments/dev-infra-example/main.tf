@@ -54,10 +54,21 @@ locals {
   # Do NOT override service_name variables - they are computed, not configurable
 
   # === GITHUB CONFIGURATION ===
-  github_conn_name   = "github-connection-name"  # Cloud Build GitHub connection (created manually in GCP Console)
+  # ⚠️ REQUIRED: Cloud Build GitHub Connection (manual setup)
+  # Before running terraform apply, you MUST create a Cloud Build GitHub connection:
+  # 1. Go to: https://console.cloud.google.com/cloud-build/connections
+  # 2. Create connection, select "GitHub (Cloud Build GitHub App)"
+  # 3. Authenticate and authorize the app
+  # 4. Copy the connection name (e.g., "gh-myaccount-con")
+  # 5. Update github_conn_name below with your connection name
+  #
+  # Why manual? GCP doesn't expose a Terraform resource for v2 connections + GitHub OAuth requires user interaction
+  # See: infra/README.md (Section 5) and infra/QUICK_START.md (Step 5) for full details
+  #
+  github_conn_name   = "github-connection-name"  # ⚠️ Replace with your connection name
   github_repo_owner  = "your-github-username"    # GitHub org or username
-  github_repo_name   = "creative-studio"         # GitHub repository name
-  github_branch_name = "main"                    # Branch to trigger builds from
+  github_repo_name   = "creative-studio"         # Repository name
+  github_branch_name = "main"                    # Trigger on this branch
 
   # === FIREBASE WEB APP ID (for SDK auto-discovery) ===
   # Option 1: Leave as null to let Terraform create Firebase web app automatically
@@ -146,6 +157,14 @@ locals {
 # Call the platform module with the configuration above
 # ============================================================================
 
+# ============================================================================
+# PLATFORM MODULE - Main Orchestrator for All Infrastructure
+# ============================================================================
+# Deploys: Firebase, Cloud SQL, Firestore, Cloud Storage, VPC, Cloud Run,
+# Cloud Build Triggers, Secrets, IAM, and Cloud Run Jobs
+# See: infra/modules/platform/ and infra/ARCHITECTURE.md for details
+# ============================================================================
+
 module "creative_studio_platform" {
   source = "../../modules/platform"
 
@@ -154,47 +173,43 @@ module "creative_studio_platform" {
   gcp_region     = local.gcp_region
   environment    = local.environment
 
-  # GitHub
+  # GitHub (see locals above for github_conn_name requirement)
   github_conn_name   = local.github_conn_name
   github_repo_owner  = local.github_repo_owner
   github_repo_name   = local.github_repo_name
   github_branch_name = local.github_branch_name
 
-  # Firebase
-  firebase_web_app_id = local.firebase_web_app_id
-
-  # Custom Audiences
+  # Firebase & OAuth
+  firebase_web_app_id       = local.firebase_web_app_id
   backend_custom_audiences  = local.backend_custom_audiences
   frontend_custom_audiences = local.frontend_custom_audiences
 
-  # Backend Configuration
+  # Backend Service
   be_env_vars             = local.be_env_vars
   backend_runtime_secrets = local.backend_runtime_secrets
   be_build_substitutions = local.be_build_substitutions
   be_cpu                 = local.be_cpu
   be_memory              = local.be_memory
 
-  # Frontend Configuration
+  # Frontend Service
   fe_build_substitutions = local.fe_build_substitutions
 
   # Cloud Build
   enable_cloud_build = local.enable_cloud_build
 
-  # Cloud SQL
+  # Databases
   cloud_sql_public_ip_enabled = local.cloud_sql_public_ip_enabled
-
-  # Identity Platform
-  enable_identity_platform = local.enable_identity_platform
+  enable_identity_platform    = local.enable_identity_platform
 
   # Destruction Control
   allow_destroy = local.allow_destroy
 
-  # VPC
+  # Networking
   vpc_enable                = local.vpc_enable
   vpc_primary_subnet_cidr   = local.vpc_primary_subnet_cidr
   vpc_connector_subnet_cidr = local.vpc_connector_subnet_cidr
 
-  # Cloud Run Access Control
+  # Access Control
   backend_invoker_identities = local.backend_invoker_identities
 
   # Bootstrap Job
@@ -208,36 +223,33 @@ module "creative_studio_platform" {
   bootstrap_job_memory        = local.bootstrap_job_memory
   bootstrap_job_timeout       = local.bootstrap_job_timeout
 
-  # Storage
-  storage_cors_allowed_origins = local.storage_cors_allowed_origins
-
-  # Firestore
-  # Note: firestore_database_name is auto-computed by platform module, not configurable here
+  # Storage & Firestore
+  storage_cors_allowed_origins         = local.storage_cors_allowed_origins
   firestore_deletion_protection_enabled = local.firestore_deletion_protection_enabled
 }
 
 # ============================================================================
-# MODULE OUTPUTS - Forward all platform module outputs to environment outputs
+# OUTPUTS - Show deployment results and next steps
 # ============================================================================
 
-output "module_all" {
-  description = "All outputs from the platform module (complete infrastructure state)"
-  value       = module.creative_studio_platform
-}
-
 output "backend_service_url" {
-  description = "Backend Cloud Run service URL"
+  description = "Backend API service URL"
   value       = module.creative_studio_platform.backend_service_url
 }
 
 output "frontend_service_url" {
-  description = "Frontend Firebase Hosting URL"
+  description = "Frontend web application URL (Firebase Hosting)"
   value       = "https://${local.gcp_project_id}.web.app"
 }
 
 output "cloud_sql_connection_name" {
-  description = "Cloud SQL connection string for the database"
+  description = "Cloud SQL connection string for local development and deployment"
   value       = module.creative_studio_platform.cloud_sql_connection_name
+}
+
+output "firestore_database_name" {
+  description = "Firestore database name (auto-computed as cstudio-{environment})"
+  value       = module.creative_studio_platform.firestore_database_name
 }
 
 output "secret_population_commands" {
@@ -245,26 +257,19 @@ output "secret_population_commands" {
   value       = try(module.creative_studio_platform.app_secrets.secret_population_commands, null)
 }
 
-output "infrastructure_ready" {
-  description = "Infrastructure deployment summary with computed resource names"
-  value = {
-    project_id               = local.gcp_project_id
-    region                   = local.gcp_region
-    environment              = local.environment
-    firestore_database_name  = module.creative_studio_platform.firestore_database_name
-    backend_url              = module.creative_studio_platform.backend_service_url
-    frontend_url             = "https://${local.gcp_project_id}.web.app"
-    next_steps               = "1. Populate OAUTH_CLIENT_ID secret (see secret_population_commands output)\n2. Push code to GitHub to trigger Cloud Build\n3. Monitor builds in GCP Console > Cloud Build"
-  }
-  sensitive = false
-}
-
-output "firestore_database_name" {
-  description = "Computed Firestore database name (format: cstudio-{environment})"
-  value       = module.creative_studio_platform.firestore_database_name
-}
-
 output "post_apply_instructions" {
-  description = "Step-by-step instructions to complete infrastructure setup"
+  description = "Step-by-step instructions to complete infrastructure setup after terraform apply"
   value       = module.creative_studio_platform.post_apply_instructions
+}
+
+output "infrastructure_ready" {
+  description = "Infrastructure deployment summary"
+  value = {
+    project_id              = local.gcp_project_id
+    region                  = local.gcp_region
+    environment             = local.environment
+    firestore_database_name = module.creative_studio_platform.firestore_database_name
+    backend_url             = module.creative_studio_platform.backend_service_url
+    frontend_url            = "https://${local.gcp_project_id}.web.app"
+  }
 }
