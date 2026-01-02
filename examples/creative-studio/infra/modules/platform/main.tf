@@ -236,11 +236,10 @@ module "postgresql" {
   # Control whether the instance has a public IP
   public_ip_enabled = var.cloud_sql_public_ip_enabled
 
-  # Destruction control
-  allow_destroy = var.allow_destroy
-
-  # Deletion protection
-  deletion_protection_enabled = var.cloud_sql_deletion_protection_enabled
+  # Deletion protection is the inverse of allow_destroy
+  # Dev: allow_destroy=true → deletion_protection=false (allows terraform destroy)
+  # Prod: allow_destroy=false → deletion_protection=true (prevents accidental deletion)
+  deletion_protection_enabled = !var.allow_destroy
 
   # Private network configuration (always pass, will be null if vpc_enable=false)
   vpc_network_id = var.vpc_enable ? module.vpc_network[0].network_id : null

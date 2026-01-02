@@ -117,11 +117,6 @@ variable "cloud_sql_public_ip_enabled" {
   default     = true
 }
 
-variable "cloud_sql_deletion_protection_enabled" {
-  type        = bool
-  description = "Enable deletion protection for Cloud SQL instance (strongly recommended for production)"
-  default     = false
-}
 
 variable "enable_identity_platform" {
   type        = bool
