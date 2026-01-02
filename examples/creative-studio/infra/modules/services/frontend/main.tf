@@ -87,6 +87,12 @@ resource "google_cloudbuild_trigger" "this" {
   }
 
   included_files = var.included_files_glob
+
+  # When require_approval_for_deploy is true, the build will become pending
+  # and require explicit approval before running (best practice for production)
+  approval_config {
+    approval_required = var.require_approval_for_deploy
+  }
 }
 
 # 4. Give the trigger SA permission to deploy to Firebase Hosting

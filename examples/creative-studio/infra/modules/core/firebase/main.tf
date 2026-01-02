@@ -62,10 +62,8 @@ resource "google_identity_platform_config" "default" {
 }
 
 # --- Firebase Web App Creation ---
-# Creates a Firebase web app automatically (if enable_cloud_build = true and firebase_web_app_id not provided)
-# Phase 2: Automated Firebase Web App Creation
+# Automatically creates a Firebase web app for frontend hosting and SDK configuration
 resource "google_firebase_web_app" "default" {
-  count           = (var.enable_cloud_build && var.firebase_web_app_id == null) ? 1 : 0
   provider        = google-beta
   project         = var.gcp_project_id
   display_name    = "Creative Studio Frontend"
@@ -78,31 +76,14 @@ resource "google_firebase_web_app" "default" {
 # This data source retrieves the Firebase web app configuration automatically
 # instead of requiring manual population via bootstrap scripts.
 #
-# IMPORTANT: The Firebase web app must already exist in the Firebase project.
-# This typically happens when:
-# 1. Firebase project is created via GCP Console (or via google_firebase_project resource above)
-# 2. A web app is created in Firebase (manually or via google_firebase_web_app resource above)
-# 3. This data source reads the app's configuration
-#
-# The data source extracts all 7 Firebase SDK values needed by the frontend,
-# eliminating the need to manually enter them via bootstrap scripts or .tfvars.
-#
-# Note: This data source requires the google-beta provider as it's in beta
-# Phase 1 & 2 Compatible: Works with both manually created and auto-created web apps
-#
-# IMPORTANT: This is ALWAYS evaluated (not conditional on enable_cloud_build)
-# Firebase web app configuration is needed for:
-# - Frontend service deployment (Firebase Hosting)
-# - Identity Platform setup
-# The Cloud Build trigger is optional, but the web app itself is required infrastructure
+# The data source extracts all 7 Firebase SDK values needed by the frontend:
+# - FIREBASE_API_KEY, FIREBASE_AUTH_DOMAIN, FIREBASE_PROJECT_ID,
+# - FIREBASE_STORAGE_BUCKET, FIREBASE_MESSAGING_SENDER_ID, FIREBASE_MEASUREMENT_ID, FIREBASE_APP_ID
 data "google_firebase_web_app_config" "default" {
-  count    = (var.firebase_web_app_id != null || (var.enable_cloud_build && var.firebase_web_app_id == null)) ? 1 : 0
   provider = google-beta
 
-  # Determine which web app ID to use:
-  # - Phase 1 Manual: Use provided firebase_web_app_id
-  # - Phase 2 Automation: Use auto-created google_firebase_web_app.default app_id
-  web_app_id = var.firebase_web_app_id != null ? var.firebase_web_app_id : google_firebase_web_app.default[0].app_id
+  # Use the auto-created Firebase web app
+  web_app_id = google_firebase_web_app.default.app_id
 
   project = var.gcp_project_id
 }
@@ -110,14 +91,14 @@ data "google_firebase_web_app_config" "default" {
 # --- Exported Firebase Configuration ---
 # Compute Firebase SDK config for secret creation
 locals {
-  firebase_sdk_config = length(data.google_firebase_web_app_config.default) > 0 ? {
-    FIREBASE_API_KEY             = data.google_firebase_web_app_config.default[0].api_key
-    FIREBASE_AUTH_DOMAIN         = data.google_firebase_web_app_config.default[0].auth_domain
-    FIREBASE_PROJECT_ID          = data.google_firebase_web_app_config.default[0].project
-    FIREBASE_STORAGE_BUCKET      = data.google_firebase_web_app_config.default[0].storage_bucket
-    FIREBASE_MESSAGING_SENDER_ID = data.google_firebase_web_app_config.default[0].messaging_sender_id
-    FIREBASE_MEASUREMENT_ID      = data.google_firebase_web_app_config.default[0].measurement_id
-  } : {}
+  firebase_sdk_config = {
+    FIREBASE_API_KEY             = data.google_firebase_web_app_config.default.api_key
+    FIREBASE_AUTH_DOMAIN         = data.google_firebase_web_app_config.default.auth_domain
+    FIREBASE_PROJECT_ID          = data.google_firebase_web_app_config.default.project
+    FIREBASE_STORAGE_BUCKET      = data.google_firebase_web_app_config.default.storage_bucket
+    FIREBASE_MESSAGING_SENDER_ID = data.google_firebase_web_app_config.default.messaging_sender_id
+    FIREBASE_MEASUREMENT_ID      = data.google_firebase_web_app_config.default.measurement_id
+  }
 
   # Extract secret names from auto-computed Firebase config
   frontend_secrets_auto = keys(local.firebase_sdk_config)
@@ -130,8 +111,8 @@ output "firebase_project_id" {
 }
 
 output "firebase_web_app_id" {
-  value       = var.firebase_web_app_id != null ? var.firebase_web_app_id : (var.enable_cloud_build && length(google_firebase_web_app.default) > 0 ? google_firebase_web_app.default[0].app_id : null)
-  description = "Firebase Web App ID"
+  value       = google_firebase_web_app.default.app_id
+  description = "Auto-created Firebase Web App ID"
 }
 
 output "firebase_sdk_config" {

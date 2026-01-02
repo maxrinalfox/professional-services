@@ -34,7 +34,6 @@ resource "google_artifact_registry_repository" "repo" {
 resource "google_cloud_run_v2_service" "this" {
   name                = var.service_name
   location            = var.gcp_region
-  custom_audiences    = var.custom_audiences
   deletion_protection = false
 
   template {
@@ -189,6 +188,12 @@ resource "google_cloudbuild_trigger" "this" {
   }
 
   included_files = var.included_files_glob
+
+  # When require_approval_for_deploy is true, the build will become pending
+  # and require explicit approval before running (best practice for production)
+  approval_config {
+    approval_required = var.require_approval_for_deploy
+  }
 }
 
 # --- Cloud Build Trigger Service Account IAM Bindings ---

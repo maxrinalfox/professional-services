@@ -29,60 +29,15 @@ variable "firebase_db_name" {
   default = "cstudio"
 }
 
-variable "firebase_web_app_id" {
-  type        = string
-  nullable    = true
-  default     = null
-  description = <<-EOT
-    The Firebase web app ID to auto-discover SDK configuration.
-
-    Phase 2 Automation (NEW):
-    - Leave as null to enable automatic Firebase web app creation via Terraform
-    - Requires: enable_cloud_build = true
-    - Terraform will create the web app and auto-discover its configuration
-    - Reference: https://firebase.google.com/docs/projects/terraform/get-started
-
-    Phase 1 Manual Creation (Legacy):
-    - Provide the web app ID if using manually created Firebase web app
-    - Format: '1:PROJECT_NUMBER:web:HASH'
-    - Find via: gcloud firebase apps list --project=YOUR_PROJECT
-    - This is required when: enable_cloud_build = true AND firebase_web_app_id is provided
-  EOT
-}
-
 # Backend specific variables
-variable "backend_custom_audiences" {
-  type        = list(string)
-  default     = []
-  description = "Custom JWT audiences for Cloud Run (optional - backend uses environment variable GOOGLE_TOKEN_AUDIENCE for JWT validation)"
-}
 variable "be_env_vars" {
   type        = map(string)
   description = "Backend environment variables (flat map of key-value pairs). Each directory handles one environment, so no nesting needed."
 }
 
-variable "be_build_substitutions" {
-  type        = map(string)
-  description = "A map of substitution variables for the backend Cloud Build trigger."
-  default     = {}
-}
-
 variable "backend_runtime_secrets" {
   type        = map(string)
   description = "Maps environment variable names to Secret Manager secret names for the backend Cloud Run service at runtime."
-  default     = {}
-}
-
-# Frontend specific variables
-variable "frontend_custom_audiences" {
-  type        = list(string)
-  default     = []
-  description = "Custom JWT audiences for Cloud Run (optional)"
-}
-
-variable "fe_build_substitutions" {
-  type        = map(string)
-  description = "A map of substitution variables for the frontend Cloud Build trigger."
   default     = {}
 }
 
@@ -119,12 +74,18 @@ variable "enable_cloud_build" {
   default     = true
 }
 
+variable "require_approval_for_deploy" {
+  type        = bool
+  description = "Require manual approval before Cloud Build deployments. When true, Cloud Build triggers require explicit approval before deployment (recommended for production environments to prevent accidental deployments)."
+  default     = false
+}
+
 # Bootstrap Job Configuration
 variable "bootstrap_admin_user_email" {
   type        = string
   nullable    = true
   default     = null
-  description = "Email address for the initial admin user. Required for database bootstrap. Set to null if bootstrap is not being used."
+  description = "Email address for the initial admin user. REQUIRED for database bootstrap initialization. Set to null to disable bootstrap (dev-only)."
 }
 
 variable "cloud_sql_public_ip_enabled" {
@@ -143,7 +104,7 @@ variable "enable_identity_platform" {
 # Destruction Control
 variable "allow_destroy" {
   type        = bool
-  description = "Allow Terraform to destroy critical resources (storage bucket, Cloud SQL database). Set to true for development/test environments only. Production should always be false."
+  description = "Allow Terraform to destroy critical resources (storage bucket, Cloud SQL database). Set to true for development/test environments only. Production should always be false. Note: Firestore deletion protection is automatically enabled when allow_destroy = false."
   default     = false
 }
 
@@ -153,13 +114,6 @@ variable "storage_cors_allowed_origins" {
   type        = list(string)
   description = "List of allowed origins for CORS requests. Use [\"*\"] to allow all origins, or specify specific domains for production."
   default     = ["*"]
-}
-
-# Firestore Configuration
-variable "firestore_deletion_protection_enabled" {
-  type        = bool
-  description = "Enable deletion protection for Firestore database (strongly recommended for production)"
-  default     = false
 }
 
 # VPC Configuration

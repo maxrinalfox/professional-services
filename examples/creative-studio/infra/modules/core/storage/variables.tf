@@ -25,11 +25,6 @@ variable "gcp_region" {
 variable "environment" {
   type        = string
   description = "The deployment environment (development or production)."
-
-  validation {
-    condition     = contains(["development", "production"], var.environment)
-    error_message = "Environment must be one of: 'development' or 'production'."
-  }
 }
 
 variable "storage_allow_destroy" {

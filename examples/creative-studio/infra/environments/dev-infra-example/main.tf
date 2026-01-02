@@ -27,7 +27,7 @@ provider "google" {
 provider "google-beta" {
   project               = local.gcp_project_id
   region                = local.gcp_region
-  user_project_override = true  # Use resource's project for quota checks (fixes Identity Toolkit quota issues)
+  user_project_override = true # Use resource's project for quota checks (fixes Identity Toolkit quota issues)
 }
 
 provider "google-beta" {
@@ -70,12 +70,6 @@ locals {
   github_repo_name   = "creative-studio"         # Repository name
   github_branch_name = "main"                    # Trigger on this branch
 
-  # === FIREBASE WEB APP ID (for SDK auto-discovery) ===
-  # Option 1: Leave as null to let Terraform create Firebase web app automatically
-  # Option 2: Provide your manually created Firebase web app ID (format: 1:PROJECT_NUMBER:web:HASH)
-  # To find: gcloud firebase apps list --project=YOUR_PROJECT_ID
-  firebase_web_app_id = null  # null = auto-create, or provide "1:123456789:web:abc123xyz..."
-
   # === BACKEND ENVIRONMENT VARIABLES ===
   # NOTE: ENVIRONMENT and FIREBASE_DB are automatically set by the platform module.
   # Users should only customize application-level variables like LOG_LEVEL.
@@ -93,11 +87,6 @@ locals {
     "GOOGLE_TOKEN_AUDIENCE" = "OAUTH_CLIENT_ID"  # Map env var to unified OAuth secret
   }
 
-  # === CLOUD BUILD SUBSTITUTIONS (Optional) ===
-  # Additional build variables if needed beyond defaults
-  be_build_substitutions = {}  # Backend build substitutions (optional)
-  fe_build_substitutions = {}  # Frontend build substitutions (optional)
-
   # === CLOUD RUN RESOURCE SIZING ===
   be_cpu    = "2000m"   # Backend CPU (1 vCPU = 1000m)
   be_memory = "2048Mi"  # Backend memory
@@ -105,7 +94,8 @@ locals {
   fe_memory = "2048Mi"  # Frontend memory
 
   # === CLOUD BUILD TRIGGERS ===
-  enable_cloud_build = true  # Enable CI/CD triggers (recommended: true)
+  enable_cloud_build            = true  # Enable CI/CD triggers (recommended: true)
+  require_approval_for_deploy   = false # Dev: no approval required. Prod: true (best practice to prevent accidental deployments)
 
   # === CLOUD SQL DATABASE ===
   cloud_sql_public_ip_enabled = true  # Dev: true (public). Prod: false (VPC only)
@@ -128,14 +118,14 @@ locals {
 
   # === BOOTSTRAP JOB (Database Bootstrap) ===
   # The bootstrap job is always enabled to initialize the database
-  bootstrap_admin_user_email = null  # Email for initial admin user (required for database initialization)
+  bootstrap_admin_user_email = "admin@example.com"  # Email for initial admin user (REQUIRED - change for your deployment)
 
   # === STORAGE CONFIGURATION ===
   storage_cors_allowed_origins = ["*"]  # Dev: "*". Prod: specify exact domains
 
   # === FIRESTORE CONFIGURATION ===
   # Note: firestore_database_name is auto-computed by platform module as "cstudio-${environment}"
-  firestore_deletion_protection_enabled   = false                 # Dev: false (allow deletion). Prod: true
+  # Firestore deletion protection is automatically enabled when allow_destroy = false (production)
 }
 
 # ============================================================================
@@ -166,21 +156,15 @@ module "creative_studio_platform" {
   github_repo_name   = local.github_repo_name
   github_branch_name = local.github_branch_name
 
-  # Firebase
-  firebase_web_app_id = local.firebase_web_app_id
-
   # Backend Service
   be_env_vars             = local.be_env_vars
   backend_runtime_secrets = local.backend_runtime_secrets
-  be_build_substitutions = local.be_build_substitutions
-  be_cpu                 = local.be_cpu
-  be_memory              = local.be_memory
-
-  # Frontend Service
-  fe_build_substitutions = local.fe_build_substitutions
+  be_cpu                  = local.be_cpu
+  be_memory               = local.be_memory
 
   # Cloud Build
-  enable_cloud_build = local.enable_cloud_build
+  enable_cloud_build         = local.enable_cloud_build
+  require_approval_for_deploy = local.require_approval_for_deploy
 
   # Databases
   cloud_sql_public_ip_enabled = local.cloud_sql_public_ip_enabled
@@ -197,36 +181,32 @@ module "creative_studio_platform" {
   # Access Control
   backend_invoker_identities = local.backend_invoker_identities
 
-  # Bootstrap Job (always enabled)
+  # Bootstrap Job Configuration
   bootstrap_admin_user_email = local.bootstrap_admin_user_email
 
   # Storage & Firestore
-  storage_cors_allowed_origins         = local.storage_cors_allowed_origins
-  firestore_deletion_protection_enabled = local.firestore_deletion_protection_enabled
+  storage_cors_allowed_origins = local.storage_cors_allowed_origins
 }
 
 # ============================================================================
 # OUTPUTS - Show deployment results and next steps
 # ============================================================================
+# output "module_all" {
+#   description = "All outputs from the platform module (complete infrastructure state)"
+#   value       = module.creative_studio_platform
+# }
 
-output "backend_service_url" {
-  description = "Backend API service URL"
-  value       = module.creative_studio_platform.backend_service_url
-}
-
-output "frontend_service_url" {
-  description = "Frontend web application URL (Firebase Hosting)"
-  value       = "https://${local.gcp_project_id}.web.app"
-}
-
-output "cloud_sql_connection_name" {
-  description = "Cloud SQL connection string for local development and deployment"
-  value       = module.creative_studio_platform.cloud_sql_connection_name
-}
-
-output "firestore_database_name" {
-  description = "Firestore database name (auto-computed as cstudio-{environment})"
-  value       = module.creative_studio_platform.firestore_database_name
+output "infrastructure_ready" {
+  description = "Infrastructure deployment summary with all critical endpoints and configuration"
+  value = {
+    project_id              = local.gcp_project_id
+    region                  = local.gcp_region
+    environment             = local.environment
+    backend_url             = module.creative_studio_platform.backend_service_url
+    frontend_url            = "https://${local.gcp_project_id}.web.app"
+    firestore_database_name = module.creative_studio_platform.firestore_database_name
+    cloud_sql_connection    = module.creative_studio_platform.cloud_sql_connection_name
+  }
 }
 
 output "secret_population_commands" {
@@ -239,14 +219,3 @@ output "post_apply_instructions" {
   value       = module.creative_studio_platform.post_apply_instructions
 }
 
-output "infrastructure_ready" {
-  description = "Infrastructure deployment summary"
-  value = {
-    project_id              = local.gcp_project_id
-    region                  = local.gcp_region
-    environment             = local.environment
-    firestore_database_name = module.creative_studio_platform.firestore_database_name
-    backend_url             = module.creative_studio_platform.backend_service_url
-    frontend_url            = "https://${local.gcp_project_id}.web.app"
-  }
-}

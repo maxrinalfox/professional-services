@@ -25,11 +25,6 @@ variable "gcp_region" {
 variable "environment" {
   type        = string
   description = "The deployment environment (development or production)."
-
-  validation {
-    condition     = contains(["development", "production"], var.environment)
-    error_message = "Environment must be one of: 'development' or 'production'."
-  }
 }
 
 variable "service_name" {
@@ -84,12 +79,6 @@ variable "build_substitutions" {
   default     = {}
 }
 
-variable "custom_audiences" {
-  type        = list(string)
-  description = "List of custom audiences for the Cloud Run service."
-  default     = []
-}
-
 variable "scaling_min_instances" {
   type        = number
   description = "Minimum number of container instances. Set to 1+ to keep service warm and avoid cold start delays."
@@ -115,6 +104,12 @@ variable "enable_cloud_build_trigger" {
   default     = true
 }
 
+variable "require_approval_for_deploy" {
+  type        = bool
+  description = "Require manual approval before Cloud Build deployments (recommended for production environments to prevent accidental deployments)"
+  default     = false
+}
+
 variable "cpu" {
   type    = string
   default = "2000m"
@@ -131,9 +126,11 @@ variable "runtime_secrets" {
   default     = {}
 }
 
-# VPC and Networking
+# VPC and Networking - Auto-computed from networking module
+# VPC Connector ID is auto-generated and passed through the platform module
+# Do NOT customize this - it is derived from the VPC network configuration
 variable "vpc_connector_id" {
-  description = "VPC Connector ID (full resource path) for Cloud Run to access private Cloud SQL"
+  description = "VPC connector full resource path (auto-computed from networking module). Used to attach Cloud Run service to private Cloud SQL via VPC."
   type        = string
   nullable    = true
   default     = null

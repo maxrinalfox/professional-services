@@ -6,8 +6,7 @@ This repository contains the Terraform configuration for deploying the Creative 
 
 - **[QUICK_START.md](./QUICK_START.md)** ⭐ **START HERE** - Step-by-step setup guide (60-90 minutes)
 - **[ARCHITECTURE.md](./ARCHITECTURE.md)** - Infrastructure architecture overview & variable naming guide
-- **[TERRAFORM_OUTPUTS_AND_CICD.md](./TERRAFORM_OUTPUTS_AND_CICD.md)** - CI/CD pipeline and Phase roadmap
-- **[Infrastructure Review & Fixes](#infrastructure-review--fixes-v11)** - Recent improvements and edge case resolutions
+- **[Recent Changes (v1.2)](#infrastructure-review--fixes-v12)** - Latest simplifications and improvements
 
 ## 🚀 Overview
 
@@ -498,11 +497,41 @@ terraform apply     # Deploy infrastructure
 
 ---
 
-## Infrastructure Review & Fixes (v1.1)
+## Infrastructure Review & Fixes (v1.2)
 
-### Recent Quality Improvements
+### Summary of v1.2 - Over-Engineering Simplification ✅
 
-This infrastructure has been reviewed for edge cases, variable duplication, and inconsistencies. The following issues were identified and fixed:
+The infrastructure has been refactored to remove unnecessary complexity while maintaining full functionality. All changes have been **validated with `terraform validate`** and verified against the implementation plan.
+
+Based on comprehensive over-engineering analysis, the following optimizations were implemented to simplify configuration while maintaining full functionality:
+
+**Variables Removed (Low Risk - Unused/Redundant):**
+- `backend_custom_audiences` - Removed from platform and backend service modules (project ID is sufficient as audience)
+- `frontend_custom_audiences` - Removed from platform and frontend service modules
+- `bootstrap_job_name` - Removed from bootstrap module (now always auto-computed as `cstudio-bootstrap-${environment}`)
+- `bootstrap_job_env_vars` variable definition - Removed from bootstrap/variables.tf (but computed env vars are still passed via platform module)
+- Environment validation duplication - Removed from 5+ child modules (validation now at platform module only)
+- Firebase web app ID documentation - Simplified from Phase 1/2 dual-mode to single simplified description
+
+**Variables Added (Safety Feature):**
+- `require_approval_for_deploy` - New variable to enable manual approval gates for Cloud Build deployments (best practice for production to prevent accidental deployments)
+  - Added to: `platform/variables.tf`, `bootstrap/variables.tf`, `backend/variables.tf`, `frontend/variables.tf`
+  - Used in Cloud Build trigger `approval_config` blocks
+
+**Variables Kept (As-Is - Properly Designed):**
+- VPC Connector (`vpc_connector_name` and `vpc_connector_id`) - Both required and properly documented as auto-computed
+- Cloud Run resource sizing - Provides necessary flexibility, properly used
+- Cloud Build toggle - Kept for gradual migration to GitHub Actions
+
+**Documentation Improvements:**
+- VPC Connector variables now have clear comments indicating they are auto-computed from networking module
+- Bootstrap job env vars clarified with inline comments about required fields
+
+---
+
+### Earlier Quality Improvements (v1.1)
+
+This infrastructure has been reviewed for edge cases, variable duplication, and inconsistencies. Earlier improvements included:
 
 **Issue #1 - RESOLVED: Destruction Control Variable Consolidation**
 - **Problem:** Three conflicting variables for bucket destruction: `storage_force_destroy`, `allow_destroy`, `force_destroy`

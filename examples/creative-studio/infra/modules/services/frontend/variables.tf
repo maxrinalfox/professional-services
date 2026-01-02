@@ -19,11 +19,6 @@ variable "service_name" { type = string }
 variable "environment" {
   type        = string
   description = "The deployment environment (development or production)."
-
-  validation {
-    condition     = contains(["development", "production"], var.environment)
-    error_message = "Environment must be one of: 'development' or 'production'."
-  }
 }
 variable "resource_prefix" { type = string }
 variable "source_repository_id" {
@@ -41,3 +36,8 @@ variable "enable_cloud_build_trigger" {
   default = true
 }
 
+variable "require_approval_for_deploy" {
+  type        = bool
+  description = "Require manual approval before Cloud Build deployments (recommended for production environments to prevent accidental deployments)"
+  default     = false
+}

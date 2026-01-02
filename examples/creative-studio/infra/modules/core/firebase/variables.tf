@@ -29,12 +29,6 @@ variable "enable_identity_platform" {
   default     = true
 }
 
-variable "firebase_web_app_id" {
-  type        = string
-  description = "Existing Firebase Web App ID (leave null to auto-create)"
-  default     = null
-}
-
 variable "api_initialization" {
   type        = any
   description = "Reference to API initialization resource for proper dependency ordering"

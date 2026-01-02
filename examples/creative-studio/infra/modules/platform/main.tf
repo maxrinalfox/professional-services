@@ -151,27 +151,18 @@ locals {
   # This ensures FIREBASE_DB env var always matches the actual database name
   firestore_database_name = "cstudio-${var.environment}"
 
-  # Auto-computed Firebase SDK configuration
-  firebase_sdk_config = length(module.firebase.firebase_web_app_config) > 0 ? {
-    FIREBASE_API_KEY             = module.firebase.firebase_web_app_config[0].api_key
-    FIREBASE_AUTH_DOMAIN         = module.firebase.firebase_web_app_config[0].auth_domain
-    FIREBASE_PROJECT_ID          = module.firebase.firebase_web_app_config[0].project
-    FIREBASE_STORAGE_BUCKET      = module.firebase.firebase_web_app_config[0].storage_bucket
-    FIREBASE_MESSAGING_SENDER_ID = module.firebase.firebase_web_app_config[0].messaging_sender_id
-    FIREBASE_MEASUREMENT_ID      = module.firebase.firebase_web_app_config[0].measurement_id
-  } : {}
+  # Auto-computed Firebase SDK configuration (always available from auto-created web app)
+  firebase_sdk_config = {
+    FIREBASE_API_KEY             = module.firebase.firebase_web_app_config.api_key
+    FIREBASE_AUTH_DOMAIN         = module.firebase.firebase_web_app_config.auth_domain
+    FIREBASE_PROJECT_ID          = module.firebase.firebase_web_app_config.project
+    FIREBASE_STORAGE_BUCKET      = module.firebase.firebase_web_app_config.storage_bucket
+    FIREBASE_MESSAGING_SENDER_ID = module.firebase.firebase_web_app_config.messaging_sender_id
+    FIREBASE_MEASUREMENT_ID      = module.firebase.firebase_web_app_config.measurement_id
+  }
 
   frontend_secrets_auto = keys(local.firebase_sdk_config)
 
-  backend_custom_audiences_computed = compact(concat(
-    [var.gcp_project_id],
-    var.backend_custom_audiences
-  ))
-
-  frontend_custom_audiences_computed = compact(concat(
-    [var.gcp_project_id],
-    var.frontend_custom_audiences
-  ))
 
   # --- PROTECTED BACKEND ENV VARS (Module-controlled, user cannot override) ---
   # These are critical infrastructure variables that must be consistent
@@ -204,7 +195,6 @@ module "firebase" {
   gcp_project_id             = var.gcp_project_id
   enable_cloud_build         = var.enable_cloud_build
   enable_identity_platform   = var.enable_identity_platform
-  firebase_web_app_id        = var.firebase_web_app_id
   api_initialization         = time_sleep.api_initialization
 }
 
@@ -257,7 +247,7 @@ module "firestore" {
   gcp_region        = var.gcp_region
   database_name     = local.firestore_database_name  # Auto-computed from environment
   allow_destroy     = var.allow_destroy
-  deletion_protection_enabled = var.firestore_deletion_protection_enabled
+  deletion_protection_enabled = !var.allow_destroy  # Auto-enabled for production (allow_destroy = false)
 
   depends_on = [
     google_project_service.apis,
@@ -323,16 +313,15 @@ module "backend_service" {
       "DB_PASS"               = google_secret_manager_secret.db_password.secret_id
     }
   )
-  custom_audiences      = local.backend_custom_audiences_computed
   scaling_min_instances = 1
   source_repository_id  = local.source_repository_id
   cpu                   = var.be_cpu
   memory                = var.be_memory
 
-  build_substitutions = merge(var.be_build_substitutions, {
+  build_substitutions = {
     _REGION       = var.gcp_region
     _SERVICE_NAME = local.backend_service_name
-  })
+  }
 
   # VPC configuration
   vpc_connector_id = var.vpc_enable ? module.vpc_network[0].vpc_connector_id : null
@@ -350,7 +339,8 @@ module "backend_service" {
   invoker_identities = var.backend_invoker_identities
 
   # Cloud Build trigger
-  enable_cloud_build_trigger = var.enable_cloud_build
+  enable_cloud_build_trigger    = var.enable_cloud_build
+  require_approval_for_deploy   = var.require_approval_for_deploy
 
   depends_on = [
     google_project_service.apis
@@ -371,27 +361,25 @@ module "frontend_service" {
   cloudbuild_yaml_path = "examples/creative-studio/frontend/cloudbuild-deploy.yaml"
   included_files_glob  = ["**/creative-studio/frontend/**"]
 
-  build_substitutions = merge(
-    var.fe_build_substitutions,
-    {
-      _BACKEND_URL         = local.backend_url
-      _FE_SERVICE_NAME     = local.frontend_service_name
-      _BACKEND_SERVICE_ID  = local.backend_service_name
-      _FIREBASE_PROJECT_ID = var.gcp_project_id
-      _FIREBASE_APP_ID     = var.firebase_web_app_id != null ? var.firebase_web_app_id : (var.enable_cloud_build && length(module.firebase.firebase_web_app_id) > 0 ? module.firebase.firebase_web_app_id : "")
+  build_substitutions = {
+    _BACKEND_URL         = local.backend_url
+    _FE_SERVICE_NAME     = local.frontend_service_name
+    _BACKEND_SERVICE_ID  = local.backend_service_name
+    _FIREBASE_PROJECT_ID = var.gcp_project_id
+    _FIREBASE_APP_ID     = module.firebase.firebase_web_app_id
 
-      # Firebase SDK secrets passed directly as substitutions (auto-discovered from Firebase web app)
-      # No need to store these in Secret Manager - they're embedded in Cloud Build config
-      _FIREBASE_API_KEY             = try(local.firebase_sdk_config["FIREBASE_API_KEY"], "")
-      _FIREBASE_AUTH_DOMAIN         = try(local.firebase_sdk_config["FIREBASE_AUTH_DOMAIN"], "")
-      _FIREBASE_PROJECT_ID_SDK      = try(local.firebase_sdk_config["FIREBASE_PROJECT_ID"], "")
-      _FIREBASE_STORAGE_BUCKET      = try(local.firebase_sdk_config["FIREBASE_STORAGE_BUCKET"], "")
-      _FIREBASE_MESSAGING_SENDER_ID = try(local.firebase_sdk_config["FIREBASE_MESSAGING_SENDER_ID"], "")
-      _FIREBASE_MEASUREMENT_ID      = try(local.firebase_sdk_config["FIREBASE_MEASUREMENT_ID"], "")
-    }
-  )
+    # Firebase SDK secrets passed directly as substitutions (auto-discovered from Firebase web app)
+    # No need to store these in Secret Manager - they're embedded in Cloud Build config
+    _FIREBASE_API_KEY             = try(local.firebase_sdk_config["FIREBASE_API_KEY"], "")
+    _FIREBASE_AUTH_DOMAIN         = try(local.firebase_sdk_config["FIREBASE_AUTH_DOMAIN"], "")
+    _FIREBASE_PROJECT_ID_SDK      = try(local.firebase_sdk_config["FIREBASE_PROJECT_ID"], "")
+    _FIREBASE_STORAGE_BUCKET      = try(local.firebase_sdk_config["FIREBASE_STORAGE_BUCKET"], "")
+    _FIREBASE_MESSAGING_SENDER_ID = try(local.firebase_sdk_config["FIREBASE_MESSAGING_SENDER_ID"], "")
+    _FIREBASE_MEASUREMENT_ID      = try(local.firebase_sdk_config["FIREBASE_MEASUREMENT_ID"], "")
+  }
 
-  enable_cloud_build_trigger = var.enable_cloud_build
+  enable_cloud_build_trigger    = var.enable_cloud_build
+  require_approval_for_deploy   = var.require_approval_for_deploy
 
   depends_on = [
     google_project_service.apis,
@@ -438,11 +426,12 @@ module "app_secrets" {
 module "bootstrap" {
   source = "../bootstrap"
 
-  gcp_project_id   = var.gcp_project_id
-  gcp_region       = var.gcp_region
-  environment      = var.environment
-  enable_cloud_build = var.enable_cloud_build
-  enable_cloud_run_job = true  # Bootstrap job is always enabled
+  gcp_project_id                        = var.gcp_project_id
+  gcp_region              = var.gcp_region
+  environment             = var.environment
+  enable_cloud_build      = var.enable_cloud_build
+  enable_cloud_run_job    = true  # Bootstrap job is always enabled
+  require_approval_for_deploy = var.require_approval_for_deploy
 
   genmedia_bucket_name = module.storage.bucket_name
   bootstrap_job_secrets = {
@@ -454,29 +443,15 @@ module "bootstrap" {
   # Cloud Build trigger config
   source_repository_id = local.source_repository_id
   github_branch_name = var.github_branch_name
-  bootstrap_job_name = "cstudio-bootstrap-${var.environment}"  # Auto-generated from environment
   bootstrap_image_name = "cstudio-bootstrap"  # Standardized image name
   bootstrap_admin_user_email = var.bootstrap_admin_user_email
   vpc_connector_name = var.vpc_enable ? (length(module.vpc_network) > 0 ? module.vpc_network[0].vpc_connector_name : "") : ""
   vpc_connector_id = var.vpc_enable ? (length(module.vpc_network) > 0 ? module.vpc_network[0].vpc_connector_id : "") : ""
   cloud_sql_connection_name = module.postgresql.connection_name
+  firestore_database_name = local.firestore_database_name
   bootstrap_job_cpu = "2000m"  # Standard CPU allocation
   bootstrap_job_memory = "2048Mi"  # Standard memory allocation
   bootstrap_job_timeout = 600  # Standard timeout in seconds
-  bootstrap_job_env_vars = merge(
-    var.bootstrap_admin_user_email != null ? { "ADMIN_USER_EMAIL" = var.bootstrap_admin_user_email } : {},
-    {
-      "USE_CLOUD_SQL"            = "true"
-      "INSTANCE_CONNECTION_NAME" = module.postgresql.connection_name
-      "USE_CLOUD_SQL_PRIVATE_IP" = var.vpc_enable ? "true" : "false"
-      "DB_NAME"                  = module.postgresql.db_name
-      "DB_USER"                  = module.postgresql.db_user
-      "PROJECT_ID"               = var.gcp_project_id
-      "GENMEDIA_BUCKET"          = module.storage.bucket_name
-      "ENVIRONMENT"              = var.environment
-      "FIREBASE_DB"              = local.firestore_database_name  # Computed from environment (e.g., "cstudio-development")
-    }
-  )
 
   depends_on = [
     module.postgresql,

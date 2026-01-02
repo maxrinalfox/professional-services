@@ -749,19 +749,22 @@ Each service requires specific environment variables at build time and runtime. 
 ### Bootstrap Job Environment Variables
 **Location:** `../backend/BOOTSTRAP.md` (Lines 85-104)
 
-Required environment variables:
-- `USE_CLOUD_SQL` - Enable Cloud SQL connector
-- `INSTANCE_CONNECTION_NAME` - Cloud SQL connection string (PROJECT:REGION:INSTANCE)
-- `USE_CLOUD_SQL_PRIVATE_IP` - Use private IP for connection
-- `DB_NAME` - Database name (creative_studio)
-- `DB_USER` - Database username (studio_user)
-- `PROJECT_ID` - GCP project ID
-- `GENMEDIA_BUCKET` - Cloud Storage bucket name (auto-provided by Terraform)
-- `ENVIRONMENT` - Deployment environment (auto-provided by Terraform)
-- `LOG_LEVEL` - Application logging level (user-customizable)
-- `ADMIN_USER_EMAIL` - Admin user email (user-customizable)
+All environment variables are **computed and managed by the bootstrap module** - not user-configurable:
 
-**Single Source of Truth:** `infra/modules/platform/main.tf` lines 435-447 (`bootstrap_job_env_vars` merge)
+**Required environment variables (computed locally in bootstrap module):**
+- `ADMIN_USER_EMAIL` - Admin user email (from var.bootstrap_admin_user_email)
+- `USE_CLOUD_SQL` - Enable Cloud SQL connector (hardcoded: "true")
+- `INSTANCE_CONNECTION_NAME` - Cloud SQL connection string (from var.cloud_sql_connection_name)
+- `USE_CLOUD_SQL_PRIVATE_IP` - Use private IP for connection (computed from var.vpc_connector_id)
+- `DB_NAME` - Database name (hardcoded: "creative_studio")
+- `DB_USER` - Database username (hardcoded: "studio_user")
+- `PROJECT_ID` - GCP project ID (from var.gcp_project_id)
+- `GENMEDIA_BUCKET` - Cloud Storage bucket name (from var.genmedia_bucket_name)
+- `ENVIRONMENT` - Deployment environment (from var.environment)
+- `FIREBASE_DB` - Firestore database name (from var.firestore_database_name, auto-computed as `cstudio-${environment}`)
+
+**Single Source of Truth:** `infra/modules/bootstrap/cloud_build_trigger.tf` lines 16-28 (bootstrap_env_vars local map)
+**Data Flow:** Platform module → passes firestore_database_name to bootstrap → bootstrap computes env vars → passed via _BOOTSTRAP_ENV_VARS Cloud Build substitution
 
 ### Backend Service Environment Variables
 **Location:** `modules/services/backend/README.md` (Lines 225-236)
@@ -792,6 +795,114 @@ Build substitutions provided to Cloud Build:
 **Single Source of Truth:** All environment variables are computed in the **Platform Module** (`modules/platform/main.tf`), not in Cloud Build YAML files. This prevents duplication and conflicting configurations.
 
 ---
+
+---
+
+## Recent Changes (v1.2 - Over-Engineering Simplifications) ✅
+
+This release simplifies the infrastructure configuration by removing over-engineered variables while maintaining full functionality.
+
+### Key Improvements
+
+#### Variables Removed (Code Cleanup)
+
+**`backend_custom_audiences` & `frontend_custom_audiences`**
+- **Reason:** Rarely customized; GCP project ID is sufficient as JWT audience
+- **Impact:** Cloud Run JWT validation simplified to project ID only
+- **Files:** Removed from `platform/variables.tf`, `services/backend/variables.tf`, `services/frontend/variables.tf`
+- **Risk Level:** LOW - These variables provided minimal value
+
+**`bootstrap_job_name`**
+- **Reason:** Over-abstracted; always auto-computed from environment anyway
+- **Impact:** Bootstrap job always named `cstudio-bootstrap-${environment}` (no user override)
+- **Files:** Removed from `bootstrap/variables.tf`, simplified in `cloud_build_trigger.tf`
+- **Risk Level:** LOW - This was a nullable variable with default null
+
+**`bootstrap_job_env_vars` (variable definition)**
+- **Reason:** User-facing variable was unused; actual env vars computed internally
+- **Impact:** Environment variables now explicitly defined in `bootstrap/cloud_build_trigger.tf` with clear purposes
+- **New Pattern:** Computed `local.bootstrap_env_vars` map in cloud_build_trigger.tf containing:
+  ```hcl
+  locals {
+    bootstrap_env_vars = {
+      "ADMIN_USER_EMAIL"         = var.bootstrap_admin_user_email
+      "USE_CLOUD_SQL"            = "true"
+      "INSTANCE_CONNECTION_NAME" = var.cloud_sql_connection_name
+      "USE_CLOUD_SQL_PRIVATE_IP" = var.vpc_connector_id != "" ? "true" : "false"
+      "DB_NAME"                  = "creative_studio"      # Hardcoded standard
+      "DB_USER"                  = "studio_user"          # Hardcoded standard
+      "PROJECT_ID"               = var.gcp_project_id
+      "GENMEDIA_BUCKET"          = var.genmedia_bucket_name
+      "ENVIRONMENT"              = var.environment
+      "FIREBASE_DB"              = var.firestore_database_name
+    }
+  }
+  ```
+- **Benefit:** More explicit, easier to audit, no magic variable defaults
+- **Files:** Removed from `bootstrap/variables.tf`; implemented in `cloud_build_trigger.tf`
+- **Risk Level:** LOW - Only the unused input variable was removed, computed env vars still passed properly
+
+**Environment validation duplication**
+- **Reason:** Same validation rule (`environment in ["development", "production"]`) repeated in 5+ modules
+- **Impact:** Validation now happens once at platform module entry point only
+- **Files:** Removed from `bootstrap`, `services/backend`, `services/frontend` modules
+- **Risk Level:** LOW - Validation blocks don't cause errors, just code duplication
+
+**Firebase web app ID documentation simplification**
+- **Reason:** Phase 1/2 dual-mode documentation was confusing (20+ lines)
+- **Impact:** Variable removed; Firebase uses auto-creation exclusively
+- **Files:** Simplified in `platform/variables.tf`
+- **Risk Level:** LOW - Auto-discovery is more reliable than manual configuration
+
+**Build substitution variables**
+- **Reason:** `be_build_substitutions` and `fe_build_substitutions` were unused
+- **Impact:** Cloud Build uses module-computed substitutions only
+- **Files:** Removed from `platform/variables.tf` and environment configs
+- **Risk Level:** LOW - These provided no additional functionality
+
+#### Variables Added (Safety Feature)
+
+**`require_approval_for_deploy` (PRODUCTION SAFETY)**
+- **Type:** `bool`
+- **Default:** `false` (backward-compatible for dev environments)
+- **Purpose:** Enable manual approval gates for Cloud Build deployments (best practice for production)
+- **Usage:** Set to `true` in production to require explicit approval before deployment runs
+- **Implementation:** Used in `approval_config` blocks of all Cloud Build triggers
+- **Locations:**
+  - `platform/variables.tf` - Definition and default
+  - `bootstrap/variables.tf` - Passed through bootstrap module
+  - `services/backend/variables.tf` - Used in backend trigger
+  - `services/frontend/variables.tf` - Used in frontend trigger
+  - `environments/dev-infra-example/main.tf` - Set to `false` (dev default)
+  - Production environments - Should be set to `true`
+- **Benefit:** Prevents accidental production deployments; requires manual approval step in Cloud Build UI
+
+**`firestore_database_name` (Added to bootstrap)**
+- **Type:** `string`
+- **Purpose:** Clarify the Firestore database name being used by bootstrap job
+- **Value:** Auto-computed from environment as `"cstudio-${environment}"`
+- **Usage:** Passed from platform module to bootstrap module for FIREBASE_DB environment variable
+- **Benefit:** Ensures bootstrap job uses correct database name; passed via Cloud Build substitution
+
+#### Variables Kept As-Is (Working Properly)
+
+**VPC Connector variables (`vpc_connector_name` & `vpc_connector_id`)**
+- **Status:** KEPT - Both are necessary and properly designed
+- **Reason:** `vpc_connector_name` used for Cloud Build substitutions; `vpc_connector_id` for Cloud Run VPC config
+- **Auto-Computed:** Both are auto-generated from networking module, not user-configurable
+- **Documentation:** Improved with comments explaining auto-computed nature
+- **Risk Level:** N/A - Proper as-is
+
+**Cloud Build toggle (`enable_cloud_build`)**
+- **Status:** KEPT - Provides transition path to GitHub Actions
+- **Reason:** Allows gradual migration from Cloud Build to GitHub Actions in future
+- **Design:** When `false`, infrastructure exists but no automatic deployments
+- **Risk Level:** N/A - Proper as-is
+
+**Cloud Run resource sizing (`cpu` & `memory`)**
+- **Status:** KEPT - Provides necessary flexibility
+- **Reason:** Allows users to customize service sizing per environment
+- **Risk Level:** N/A - Proper as-is
 
 ---
 

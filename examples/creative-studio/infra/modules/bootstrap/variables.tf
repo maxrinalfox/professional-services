@@ -25,11 +25,6 @@ variable "gcp_region" {
 variable "environment" {
   type        = string
   description = "The deployment environment (development or production)."
-
-  validation {
-    condition     = contains(["development", "production"], var.environment)
-    error_message = "Environment must be one of: 'development' or 'production'."
-  }
 }
 
 variable "enable_cloud_build" {
@@ -70,27 +65,23 @@ variable "github_branch_name" {
   description = "GitHub branch name for Cloud Build trigger"
 }
 
-variable "bootstrap_job_name" {
-  type        = string
-  description = "Name for the bootstrap Cloud Run Job"
-  nullable    = true
-  default     = null
-}
-
 variable "bootstrap_image_name" {
   type        = string
   description = "Name of the bootstrap Docker image"
 }
 
+# VPC Connector Configuration - Auto-computed from networking module
+# Both of these values are auto-generated and passed through the platform module
+# Do NOT customize these - they are derived from the VPC network configuration
 variable "vpc_connector_name" {
   type        = string
-  description = "VPC connector name for private Cloud SQL access"
+  description = "VPC connector name (auto-computed from networking module). Used in Cloud Build substitutions for bootstrap job deployment."
   default     = ""
 }
 
 variable "vpc_connector_id" {
   type        = string
-  description = "VPC connector ID (full resource path) for private Cloud SQL access"
+  description = "VPC connector full resource path (auto-computed from networking module). Used for Cloud Run VPC access configuration."
   default     = ""
 }
 
@@ -119,13 +110,17 @@ variable "bootstrap_job_timeout" {
 
 variable "bootstrap_admin_user_email" {
   type        = string
-  nullable    = true
-  default     = null
-  description = "Email address for the initial admin user to create during bootstrap."
+  nullable    = false
+  description = "Email address for the initial admin user to create during bootstrap. REQUIRED when bootstrap job is enabled."
 }
 
-variable "bootstrap_job_env_vars" {
-  type        = map(string)
-  description = "Plain text environment variables for bootstrap job (excludes ADMIN_USER_EMAIL which has its own variable)"
-  default     = {}
+variable "firestore_database_name" {
+  type        = string
+  description = "Firestore database name (auto-computed from environment, e.g., 'cstudio-development')"
+}
+
+variable "require_approval_for_deploy" {
+  type        = bool
+  description = "Require manual approval before Cloud Build deployments (recommended for production environments to prevent accidental deployments)"
+  default     = false
 }
