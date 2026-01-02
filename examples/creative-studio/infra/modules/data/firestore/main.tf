@@ -15,9 +15,11 @@
 # --- Firestore Database ---
 
 resource "google_firestore_database" "default" {
-  provider      = google-beta
-  project       = var.project_id
-  name          = var.database_name
-  location_id   = var.gcp_region
-  type          = "FIRESTORE_NATIVE"
+  provider                = google-beta
+  project                 = var.project_id
+  name                    = var.database_name
+  location_id             = var.gcp_region
+  type                    = "FIRESTORE_NATIVE"
+  deletion_policy         = var.allow_destroy ? "DELETE" : "ABANDON"
+  delete_protection_state = var.deletion_protection_enabled ? "DELETE_PROTECTION_ENABLED" : "DELETE_PROTECTION_DISABLED"
 }
