@@ -43,7 +43,6 @@ All Terraform variables follow a strict naming convention to prevent configurati
   - `storage_allow_destroy` (Cloud Storage)
   - `storage_cors_allowed_origins` (Cloud Storage)
   - `cloud_sql_public_ip_enabled` (Cloud SQL)
-  - `cloud_sql_deletion_protection_enabled` (Cloud SQL)
   - `firestore_deletion_protection_enabled` (Firestore)
 
 **3. Destruction Control Variables**
@@ -110,26 +109,31 @@ allow_destroy = false
 
 ### Deletion Protection vs Allow Destroy
 
-**Important:** These are separate mechanisms:
+**Important:** `allow_destroy` controls both Terraform destruction AND Cloud SQL deletion protection:
 
 | Variable | Purpose | Behavior |
 |----------|---------|----------|
-| `allow_destroy` | Terraform can destroy resource | Controls `terraform destroy` execution |
-| `<service>_deletion_protection_enabled` | GCP prevents deletion | Prevents deletion even in GCP Console |
+| `allow_destroy` | Controls resource destruction & Cloud SQL protection | `true` = destroyable + no GCP protection; `false` = protected |
+| `firestore_deletion_protection_enabled` | Firestore GCP protection | Independent setting for Firestore |
+
+**How Cloud SQL Works:**
+- Cloud SQL `deletion_protection` is automatically set to `!allow_destroy`
+- Dev: `allow_destroy=true` → `deletion_protection=false` (allows terraform destroy)
+- Prod: `allow_destroy=false` → `deletion_protection=true` (prevents GCP deletion)
 
 **Recommended Setup:**
 
 Development:
 ```hcl
 allow_destroy = true
-cloud_sql_deletion_protection_enabled = false
+# Cloud SQL deletion_protection automatically = false
 firestore_deletion_protection_enabled = false
 ```
 
 Production:
 ```hcl
 allow_destroy = false
-cloud_sql_deletion_protection_enabled = true
+# Cloud SQL deletion_protection automatically = true
 firestore_deletion_protection_enabled = true
 ```
 
@@ -265,9 +269,9 @@ locals {
 
   # === DESTRUCTION CONTROL ===
   allow_destroy = true  # Dev: allow cleanup
+  # Cloud SQL deletion_protection automatically = false
 
   # === DATABASE PROTECTION ===
-  cloud_sql_deletion_protection_enabled    = false
   firestore_deletion_protection_enabled    = false
 
   # === VPC (Optional for Dev) ===
@@ -299,9 +303,9 @@ locals {
 
   # === DESTRUCTION CONTROL ===
   allow_destroy = false  # Prod: NEVER allow destruction
+  # Cloud SQL deletion_protection automatically = true
 
   # === DATABASE PROTECTION ===
-  cloud_sql_deletion_protection_enabled    = true
   firestore_deletion_protection_enabled    = true
 
   # === VPC (Recommended for Prod) ===
@@ -641,9 +645,12 @@ LOG_LEVEL = "DEBUG"            # ✅ User value (not protected)
 - [ ] Database name follows pattern: `cstudio-{environment}`
 
 ### 3. Protection Settings
-- [ ] Dev: `cloud_sql_deletion_protection_enabled = false`
-- [ ] Prod: `cloud_sql_deletion_protection_enabled = true`
-- [ ] Same for Firestore deletion protection
+- [ ] Cloud SQL deletion protection is automatically controlled by `allow_destroy`
+  - Dev: `allow_destroy = true` → `deletion_protection = false`
+  - Prod: `allow_destroy = false` → `deletion_protection = true`
+- [ ] Firestore deletion protection must be set separately:
+  - Dev: `firestore_deletion_protection_enabled = false`
+  - Prod: `firestore_deletion_protection_enabled = true`
 
 ### 4. Network Settings
 - [ ] Dev: Can use `vpc_enable = false` with `cloud_sql_public_ip_enabled = true`
@@ -720,19 +727,20 @@ terraform output firestore_database_name
 # 2. Did you set firebase_db_name manually? (don't)
 ```
 
-### Issue: Storage Bucket Won't Delete
+### Issue: Storage Bucket or Cloud SQL Won't Delete
 
-**Cause:** `allow_destroy = false` or `cloud_sql_deletion_protection_enabled = true`
+**Cause:** `allow_destroy = false`
 
 **Solution:**
 ```hcl
 # Only if you're sure (dev environment ONLY):
 allow_destroy = true
-cloud_sql_deletion_protection_enabled = false
 
 terraform apply
 terraform destroy
 ```
+
+**Note:** Cloud SQL `deletion_protection` is automatically set to `!allow_destroy`, so changing `allow_destroy = true` will also disable deletion protection.
 
 ---
 

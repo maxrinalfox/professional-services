@@ -108,9 +108,8 @@ locals {
 
   # === DESTRUCTION CONTROL ===
   allow_destroy = true  # Dev: true (allow easy cleanup). Prod: false (prevent accidents)
-
-  # === STORAGE & DATABASE PROTECTION ===
-  cloud_sql_deletion_protection_enabled    = false  # Dev: false (allow deletion). Prod: true
+  # NOTE: Cloud SQL deletion_protection is automatically set to !allow_destroy
+  # (Dev: allow_destroy=true → deletion_protection=false; Prod: allow_destroy=false → deletion_protection=true)
 
   # === VPC NETWORKING (for private Cloud SQL) ===
   vpc_enable                = false            # Dev: false. Prod: true for private database
@@ -182,8 +181,7 @@ module "creative_studio_platform" {
   enable_cloud_build = local.enable_cloud_build
 
   # Cloud SQL
-  cloud_sql_public_ip_enabled              = local.cloud_sql_public_ip_enabled
-  cloud_sql_deletion_protection_enabled    = local.cloud_sql_deletion_protection_enabled
+  cloud_sql_public_ip_enabled = local.cloud_sql_public_ip_enabled
 
   # Identity Platform
   enable_identity_platform = local.enable_identity_platform
