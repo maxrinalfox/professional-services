@@ -263,3 +263,8 @@ output "firestore_database_name" {
   description = "Computed Firestore database name (format: cstudio-{environment})"
   value       = module.creative_studio_platform.firestore_database_name
 }
+
+output "post_apply_instructions" {
+  description = "Step-by-step instructions to complete infrastructure setup"
+  value       = module.creative_studio_platform.post_apply_instructions
+}
