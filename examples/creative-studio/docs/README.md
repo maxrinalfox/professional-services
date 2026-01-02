@@ -6,21 +6,21 @@ Complete documentation for the **Creative Studio** - A comprehensive Generative 
 
 ---
 
-## 🚨 **IMPORTANT: Known Issues & Roadmap**
+## 🚨 **IMPORTANT: Known Issues & Bug Reports**
 
 **Before reading other docs, review these critical documents:**
 
-1. **[00-KNOWN_ISSUES.md](00-KNOWN_ISSUES.md)** ⭐ **START HERE** - List of current blockers and issues
-   - Authentication system is hybrid/broken (Phase 1 required)
-   - Data consistency across user storage
-   - API and performance issues
+1. **[10-bugs/INDEX.md](10-bugs/INDEX.md)** ⭐ **START HERE** - Complete bug tracking system with 11 reported issues
+   - 1 Critical: Hybrid authentication system (BUG-002)
+   - 1 High: Data consistency across user storage (BUG-004)
+   - 8 Medium: Including API errors, performance, security, and config issues
+   - 1 Low: Structured logging improvements
 
-2. **[roadmap/IMPLEMENTATION_STRATEGY_MASTER_INDEX.md](roadmap/IMPLEMENTATION_STRATEGY_MASTER_INDEX.md)** - 3-Phase plan to fix issues
-   - Phase 1: Choose authentication architecture (Firebase OR Pure OIDC)
-   - Phase 2: Add OIDC + groups support
-   - Phase 3: Enterprise auto-provisioning
-
-3. **[roadmap/okta_auth/06_PHASE1_TWO_ALTERNATIVES.md](roadmap/okta_auth/06_PHASE1_TWO_ALTERNATIVES.md)** - Detailed alternatives for Phase 1
+**Related Issues by Component:**
+- **Authentication**: BUG-002 (Critical), BUG-011 (Identity Platform unused)
+- **Data Consistency**: BUG-004 (High severity)
+- **API & Performance**: BUG-003, BUG-005, BUG-006, BUG-007
+- **Security & Config**: BUG-008, BUG-009, BUG-010
 
 ---
 
@@ -83,34 +83,20 @@ Complete documentation for the **Creative Studio** - A comprehensive Generative 
   - `02_WORKSPACE_MANAGEMENT_GUIDE.md` - Workspace collaboration
   - `03_VIDEO_PROCESSING_WORKFLOW.md` - Video generation with Veo
 
-### 🛣️ Roadmap & Future Work
-- **[roadmap/](roadmap/)** - Future enhancements, research, and planned work
-- **📌 [IMPLEMENTATION_STRATEGY_MASTER_INDEX.md](roadmap/IMPLEMENTATION_STRATEGY_MASTER_INDEX.md)** ← **MASTER INDEX - START HERE**
+### 🐛 Known Issues & Bug Reports
 
-#### 🔐 3-Phase Authentication Evolution
+See **[10-bugs/INDEX.md](10-bugs/INDEX.md)** for the complete bug tracking system with:
+- **11 reported issues** with detailed analysis
+- **3 priority levels**: Critical (1), High (1), Medium (8), Low (1)
+- **Solution options** and effort estimates for each issue
+- **Cross-references** to relevant documentation sections
 
-**Status**: Phase 1 is BLOCKING (must complete first). Phases 2 & 3 are dependent.
-
-**Phase 1: Fix Authentication Architecture** (1-2 weeks) - REQUIRED
-- **[roadmap/okta_auth/](roadmap/okta_auth/)** - Architecture refactoring (blocks all other auth work)
-  - ⭐ **[06_PHASE1_TWO_ALTERNATIVES.md](roadmap/okta_auth/06_PHASE1_TWO_ALTERNATIVES.md)** - **DECIDE**: Firebase vs Pure OIDC
-  - ⭐ **[03_CURRENT_AUTHENTICATION_ISSUES.md](roadmap/okta_auth/03_CURRENT_AUTHENTICATION_ISSUES.md)** - Technical problem analysis
-  - **[07_IAP_AUTHORIZATION_LAYER.md](roadmap/okta_auth/07_IAP_AUTHORIZATION_LAYER.md)** - Infrastructure-layer access control (optional complement)
-  - **[04_DEMO_APP_COMPARISON.md](roadmap/okta_auth/04_DEMO_APP_COMPARISON.md)** - Proven solution pattern
-  - **[README.md](roadmap/okta_auth/README.md)** - Phase 1 overview
-
-**Phase 2: Add OIDC + Groups Support** (1-2 weeks) - After Phase 1
-- **[roadmap/authentication_options/](roadmap/authentication_options/)** - OIDC provider integration
-  - **[README.md](roadmap/authentication_options/README.md)** - Phase 2 overview
-  - **[01_AUTHENTICATION_COMPARISON.md](roadmap/authentication_options/01_AUTHENTICATION_COMPARISON.md)** - 3 approaches compared
-  - **[02_FIREBASE_OIDC_IMPLEMENTATION_GUIDE.md](roadmap/authentication_options/02_FIREBASE_OIDC_IMPLEMENTATION_GUIDE.md)** - Implementation guide
-
-**Phase 3: Enterprise Auto-Provisioning** (1-3 weeks) - After Phases 1 & 2 (Optional)
-- **[roadmap/auto_provisioning/](roadmap/auto_provisioning/)** - Automatic user/workspace provisioning
-  - **[README.md](roadmap/auto_provisioning/README.md)** - Phase 3 overview
-  - **[02_QUICK_REFERENCE_DECISION_GUIDE.md](roadmap/auto_provisioning/02_QUICK_REFERENCE_DECISION_GUIDE.md)** - 10-min decision guide
-  - **[04_IMPLEMENTATION_OPTIONS.md](roadmap/auto_provisioning/04_IMPLEMENTATION_OPTIONS.md)** - 4 implementation options
-  - **[03_SECURITY_AND_COST_ANALYSIS.md](roadmap/auto_provisioning/03_SECURITY_AND_COST_ANALYSIS.md)** - Cost analysis ($50k+ risk)
+**Quick Issue Summary:**
+1. **BUG-002** (Critical) - Hybrid authentication system needs Phase 1 redesign
+2. **BUG-004** (High) - Data consistency across PostgreSQL, Firestore, Firebase
+3. **BUG-001** (Medium) - Missing media template thumbnails (quick fix: 1-2 hours)
+4. **BUG-003, 005-008, 011** (Medium) - API errors, performance, security, infrastructure cleanup
+5. **BUG-009, 010** (Medium/Low) - Environment config documentation, structured logging
 
 ---
 
@@ -159,7 +145,7 @@ Complete documentation for the **Creative Studio** - A comprehensive Generative 
 - Angular 18 + TypeScript
 - Material Design + Tailwind CSS
 - Google Sign-In only (via deprecated `google.accounts.id` API in production)
-  - ⚠️ **Status**: Hardcoded to Google, no multi-provider support (see roadmap)
+  - ⚠️ **Status**: Hardcoded to Google, no multi-provider support (see BUG-002)
 - RxJS for state management
 
 **Backend:**
@@ -248,19 +234,19 @@ Complete documentation for the **Creative Studio** - A comprehensive Generative 
 - [x] Clear separation by role/topic
 - [x] Navigation README files
 - [x] Consolidated overlapping content
-- [x] Future work separated to roadmap folder
-- [x] **Known Issues at top level**
-- [x] **Roadmap clearly organized with Phase 1 decision point**
+- [x] **Bug reports properly organized in 10-bugs/ with INDEX**
+- [x] **No orphaned documents - all files cross-referenced**
+- [x] **Roadmap references removed (no longer planned/maintained)**
 
-### ❌ KNOWN ISSUES (Require Phase 1 Implementation)
-- [ ] Authentication system (hybrid, deprecated API) → Phase 1 required
-- [ ] Data consistency across user storage → Phase 1/Phase 2
-- [ ] API error handling inconsistent → Medium priority
-- [ ] Component performance optimization → Medium priority
-- [ ] Query performance tuning → Medium priority
-- [ ] Video processing error handling → Medium priority
+### ❌ KNOWN ISSUES
 
-See [00-KNOWN_ISSUES.md](00-KNOWN_ISSUES.md) for complete details
+All known issues are tracked in the bug reporting system. See **[10-bugs/INDEX.md](10-bugs/INDEX.md)** for complete details:
+
+- **BUG-002** (Critical) - Authentication system (hybrid, deprecated API)
+- **BUG-004** (High) - Data consistency across PostgreSQL, Firestore, Firebase
+- **BUG-001, 003, 005, 006, 007, 008, 009, 010, 011** (Medium/Low) - Various API, performance, security, and configuration issues
+
+Total estimated effort: 8-10 weeks for all issues. BUG-002 is the highest priority blocker.
 
 ---
 
@@ -336,6 +322,6 @@ Apache License 2.0
 
 ---
 
-**Last Updated:** December 15, 2025
-**Documentation Version:** 2.0
-**Application Status:** ✅ Production Ready
+**Last Updated:** January 2, 2026
+**Documentation Version:** 2.1
+**Application Status:** ✅ Production Ready (with known issues tracked)

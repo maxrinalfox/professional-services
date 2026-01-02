@@ -18,7 +18,7 @@ Creative Studio currently has a **hybrid authentication setup** that is not opti
 - ❌ Deprecated API in production
 - ❌ Can't add Okta/SAML without major refactoring
 
-**See Roadmap**: `docs/roadmap/` for Phase 1 alternatives to fix this
+**See Bug Report**: [BUG-002: Hybrid Broken Authentication System](../10-bugs/02_HYBRID_AUTHENTICATION_SYSTEM.md) for detailed analysis and Phase 1 alternatives to fix this
 
 ---
 

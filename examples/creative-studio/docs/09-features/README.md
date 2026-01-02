@@ -99,7 +99,7 @@ Feature-specific documentation and implementation guides.
 | Brand Guidelines | ✅ Production | [01_SERVICES_ARCHITECTURE.md](../03-backend/01_SERVICES_ARCHITECTURE.md) |
 | Virtual Try-On | ✅ Production | [01_SERVICES_ARCHITECTURE.md](../03-backend/01_SERVICES_ARCHITECTURE.md) |
 | Templates | ✅ Production | [01_SERVICES_ARCHITECTURE.md](../03-backend/01_SERVICES_ARCHITECTURE.md) |
-| Okta Integration | 🛣️ Roadmap | [roadmap/okta_auth/](../roadmap/okta_auth/) |
+| Okta/OIDC Integration | 🐛 Blocked | [BUG-002 (Critical)](../10-bugs/02_HYBRID_AUTHENTICATION_SYSTEM.md) |
 
 ---
 
