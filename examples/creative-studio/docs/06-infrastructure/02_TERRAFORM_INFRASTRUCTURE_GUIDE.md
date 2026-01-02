@@ -2,25 +2,78 @@
 
 This guide covers Terraform configuration, variable naming conventions, edge cases, and best practices for deploying Creative Studio infrastructure.
 
+---
+
+## ⚠️ Prerequisites (MUST DO BEFORE terraform apply)
+
+**Before you can deploy with Terraform, you MUST complete these manual setup steps:**
+
+### 1. ⭐ Create Cloud Build GitHub Connection (CRITICAL)
+
+This is the **most important prerequisite** - without it, Cloud Build triggers won't work.
+
+**Why Manual?** GCP doesn't provide a Terraform resource for v2 connections + GitHub OAuth requires user interaction.
+
+**Steps:**
+1. Go to: [GCP Cloud Build Connections](https://console.cloud.google.com/cloud-build/connections)
+2. Click "Create connection"
+3. Select **"GitHub (Cloud Build GitHub App)"** as the source
+4. Click "Authenticate" and authorize the Google Cloud Build app on GitHub
+5. Select your GitHub repository
+6. Click "Create" and **copy the connection name** (e.g., `gh-myaccount-con`)
+7. Update `github_conn_name` in your environment's `main.tf` with this connection name
+
+**Reference:** See `infra/environments/dev-infra-example/main.tf` (lines 56-71) for configuration details.
+
+### 2. Create GCP Project (if not already done)
+
+- Go to [GCP Console](https://console.cloud.google.com/)
+- Create a new project
+- Enable billing on the project (required for cloud resources)
+
+### 3. Accept Firebase Terms of Service
+
+- Go to [Firebase Console](https://console.firebase.google.com/)
+- Sign in and accept the Firebase Terms of Service
+- This is required per Google account, one-time only
+
+### 4. Authenticate gcloud CLI
+
+```bash
+gcloud auth login
+gcloud config set project YOUR_PROJECT_ID
+```
+
+### 5. Install Terraform
+
+```bash
+# Download and install Terraform v1.13+
+terraform version  # Verify installation
+```
+
+---
+
 ## 📋 Quick Reference
 
 - **Infrastructure Code Location:** `/infra/`
 - **Configuration Per Environment:** `/infra/environments/{environment}/main.tf`
 - **Modules:** `/infra/modules/`
 - **Architecture & Variable Naming:** See [`/infra/ARCHITECTURE.md`](/infra/ARCHITECTURE.md)
+- **Quick Start Guide:** See [`/infra/QUICK_START.md`](/infra/QUICK_START.md)
 
 ## 📚 Table of Contents
 
-1. [Variable Naming Convention](#variable-naming-convention)
-2. [Destruction Control](#destruction-control-critical-configuration)
-3. [Edge Cases & Inconsistencies (Resolved)](#edge-cases--inconsistencies-resolved)
-4. [Cloud Run Access Control](#cloud-run-access-control-rolesruninvoker)
-5. [Configuration Examples](#configuration-examples)
-6. [Protected Variables Reference](#protected-variables-reference)
-7. [Verification Checklist](#verification-checklist-before-terraform-apply)
-8. [Deployment Commands](#deployment-commands)
-9. [Troubleshooting](#troubleshooting)
-10. [Best Practices](#best-practices)
+1. [Prerequisites](#-prerequisites-must-do-before-terraform-apply) ⭐ **START HERE**
+2. [Variable Naming Convention](#variable-naming-convention)
+3. [Destruction Control](#destruction-control-critical-configuration)
+4. [Edge Cases & Inconsistencies (Resolved)](#edge-cases--inconsistencies-resolved)
+5. [Cloud Run Access Control](#cloud-run-access-control-rolesruninvoker)
+6. [Configuration Examples](#configuration-examples)
+7. [Protected Variables Reference](#protected-variables-reference)
+8. [Verification Checklist](#verification-checklist-before-terraform-apply)
+9. [Deployment Commands](#deployment-commands)
+10. [Troubleshooting](#troubleshooting)
+11. [Best Practices](#best-practices)
 
 ---
 

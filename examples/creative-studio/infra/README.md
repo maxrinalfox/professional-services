@@ -185,7 +185,31 @@ gcloud auth list
 gcloud config set project <your project id>
 ```
 
-### 5. Create Firebase Project & Web App ⭐ CRITICAL
+### 5. Create Cloud Build GitHub Connection ⭐ CRITICAL (MUST DO BEFORE terraform apply!)
+
+You must authorize Google Cloud Build to access your GitHub repository. **This MUST be done before running terraform apply** because Terraform will create Cloud Build triggers that reference this connection.
+
+**Why it's mandatory before terraform apply:**
+- Terraform will fail if the connection doesn't exist
+- Cloud Build triggers won't work without the connection
+- The connection must be created in GCP Console (cannot be automated)
+
+**Steps:**
+
+1.  Go to the Google Cloud Console: **[Cloud Build > Manage connections](https://console.cloud.google.com/cloud-build/connections)**
+2.  Click **Create connection**.
+3.  Choose **GitHub (Cloud Build GitHub App)** as the source.
+4.  Click "Authenticate" and follow the prompts to authorize the Google Cloud Build app on your GitHub account.
+5.  Select your GitHub repository where Creative Studio code is located.
+6.  Click **Create** to create the connection.
+7.  **COPY THE CONNECTION NAME** (e.g., `gh-myaccount-con`) - you'll need this in the next step.
+8.  Update `github_conn_name` in your environment's `main.tf` locals block with this connection name.
+
+**Reference:** See `infra/environments/dev-infra-example/main.tf` (lines 56-71) for where to configure this value.
+
+---
+
+### 6. Create Firebase Project & Web App ⭐ CRITICAL
 
 **⚠️ IMPORTANT: These can now be fully automated with Terraform (Phase 2)!**
 
@@ -200,14 +224,14 @@ gcloud config set project <your project id>
 **Option B: Create Manually in Firebase Console (Current Phase 1 - if Phase 2 not yet implemented)**
 This approach requires manual creation in the Firebase Console:
 
-**5a. Create Firebase Project (Manual)**
+**6a. Create Firebase Project (Manual)**
 1. Go to [Firebase Console](https://console.firebase.google.com/)
 2. Click **Add project**
 3. Select your GCP project (the one with billing enabled)
 4. Enable Google Analytics (optional)
 5. Wait for creation to complete (2-3 minutes)
 
-**5b. Create Firebase Web App (Manual)**
+**6b. Create Firebase Web App (Manual)**
 1. In Firebase Console, go to **Project Settings** → **Your apps**
 2. Click **Add app** → Choose **Web** (</> icon)
 3. Register app with name: `cstudio-fe` (or your choice)
@@ -222,7 +246,7 @@ This approach requires manual creation in the Firebase Console:
 
 📖 **Reference:** Based on [Firebase Terraform Getting Started Guide](https://firebase.google.com/docs/projects/terraform/get-started)
 
-### 6. Create a GCS Bucket for Terraform State (Optional)
+### 7. Create a GCS Bucket for Terraform State (Optional)
 Terraform can store state locally or in a GCS bucket. The default is local state, which is fine for initial development.
 
 **For remote state (recommended for production):**
@@ -236,18 +260,6 @@ Terraform can store state locally or in a GCS bucket. The default is local state
 4. Run `terraform init` to migrate state to the bucket
 
 **For initial development:** Skip this step and use local state. You can add remote state later by editing `backend.tf`.
-
-### 7. Connect GitHub to Cloud Build (Manual - Phase 2 Still Needed)
-You must authorize Google Cloud Build to access your GitHub repository. This cannot be automated and must be done manually.
-
-1.  Go to the Google Cloud Console: **Cloud Build > Manage connections**.
-2.  Click **Create connection**.
-3.  Choose **GitHub (Cloud Build GitHub App)** as the source.
-4.  Follow the prompts to authenticate and install the GitHub App on your account.
-5.  Grant access to your GitHub repository.
-6.  Note the **Connection Name** (e.g., `github-conn`) as you will need it for the `github_conn_name` in your environment's `main.tf` locals block.
-
-**Why it's manual:** GCP doesn't provide a Terraform resource to create Cloud Build connections (this is a GCP limitation, not a Terraform limitation). You must create the connection in the GCP Console, then reference it in Terraform.
 
 ### 8. Setup OAuth Client ID (if using authentication)
 This step creates the OAuth Client ID that will be used for authentication. Currently, this must be done manually.
@@ -333,7 +345,7 @@ Both frontend and backend Cloud Build pipelines validate that secrets are proper
 - Clear feedback: Users know exactly what to fix
 - No wasted resources: Prevents failed Cloud Run deployments
 
-### 9. Configure Terraform & Deploy Infra
+### 9. Configure Terraform & Deploy Infrastructure
 #### 🛠️ Managing Environments
 
 All commands should be run from within a specific environment's directory.
