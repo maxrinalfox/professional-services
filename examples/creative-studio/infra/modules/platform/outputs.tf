@@ -87,3 +87,89 @@ output "bootstrap_artifact_repository" {
 #   description = "Name of the Cloud Build trigger for bootstrap job"
 #   value       = (var.enable_cloud_build && var.enable_cloud_run_job) ? google_cloudbuild_trigger.bootstrap[0].name : null
 # }
+
+# --- POST-APPLY INSTRUCTIONS ---
+output "post_apply_instructions" {
+  description = "Step-by-step instructions to complete infrastructure setup after terraform apply"
+  value = var.enable_cloud_build ? format(<<-EOT
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                    POST-APPLY SETUP INSTRUCTIONS                            ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+STEP 1: CREATE OAUTH 2.0 CLIENT ID
+─────────────────────────────────
+1. Go to Google Cloud Console > APIs & Services > Credentials
+   URL: https://console.cloud.google.com/apis/credentials?project=%s
+
+2. Click "Create Credentials" > "OAuth client ID"
+
+3. Select "Web application"
+
+4. Add Authorized Redirect URIs:
+   - %s
+   - %s (Firebase Hosting)
+   - http://localhost:3000 (for local development)
+   - http://localhost:8080 (for local development)
+
+5. Add Authorized JavaScript Origins:
+   - %s
+   - https://localhost:3000 (for local development)
+
+6. Copy the Client ID (you'll need it in Step 2)
+
+STEP 2: UPDATE OAUTH_CLIENT_ID SECRET
+──────────────────────────────────────
+Run this command to update the secret with your OAuth Client ID:
+
+gcloud secrets update OAUTH_CLIENT_ID \
+  --data-file=<(echo -n "YOUR_OAUTH_CLIENT_ID") \
+  --project=%s
+
+Or using a heredoc:
+gcloud secrets update OAUTH_CLIENT_ID \
+  --data-file=<(cat <<'EOF'
+YOUR_OAUTH_CLIENT_ID
+EOF
+) \
+  --project=%s
+
+STEP 3: TRIGGER CLOUD BUILD PIPELINES
+──────────────────────────────────────
+Run these commands to trigger the Cloud Build pipelines:
+
+# Bootstrap database and assets:
+gcloud builds triggers run "cstudio-%s-bootstrap-trigger" \
+  --region="us-central1" \
+  --project="%s" \
+  --branch="%s"
+
+# Deploy backend service:
+gcloud builds triggers run "cstudio-%s-backend-trigger" \
+  --region="us-central1" \
+  --project="%s" \
+  --branch="%s"
+
+# Deploy frontend application:
+gcloud builds triggers run "cstudio-%s-frontend-trigger" \
+  --region="us-central1" \
+  --project="%s" \
+  --branch="%s"
+
+STEP 4: VERIFY DEPLOYMENT
+──────────────────────────
+Monitor the Cloud Build status:
+https://console.cloud.google.com/cloud-build/builds?project=%s
+
+Access your services:
+- Frontend: %s
+- Backend: %s
+- Firebase Database: %s
+
+TROUBLESHOOTING
+───────────────
+- Check Cloud Build logs: gcloud builds log <BUILD_ID> --project=%s
+- Check Cloud Run logs: gcloud run services describe <SERVICE_NAME> --region=us-central1 --project=%s
+- Check database migrations: gcloud sql operations list --instance=<INSTANCE_NAME> --project=%s
+  EOT
+, var.gcp_project_id, local.frontend_url, "${var.gcp_project_id}.web.app", local.frontend_url, var.gcp_project_id, var.gcp_project_id, var.environment, var.gcp_project_id, var.github_branch_name, var.environment, var.gcp_project_id, var.github_branch_name, var.environment, var.gcp_project_id, var.github_branch_name, var.gcp_project_id, local.frontend_url, local.backend_url, local.firestore_database_name, var.gcp_project_id, var.gcp_project_id, var.gcp_project_id) : "Cloud Build is disabled. Enable it to get post-apply instructions."
+}
