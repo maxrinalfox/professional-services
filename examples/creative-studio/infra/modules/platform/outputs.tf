@@ -74,13 +74,13 @@ output "identity_platform_auth_domain" {
 # Note: Cloud Run Job is created by Cloud Build trigger, not by Terraform
 
 output "bootstrap_service_account_email" {
-  description = "Email of the service account used by the bootstrap job"
-  value       = var.enable_cloud_run_job ? module.bootstrap.bootstrap_sa_email : null
+  description = "Email of the service account used by the bootstrap job (only if enable_cloud_run_job=true)"
+  value       = try(module.bootstrap.bootstrap_sa_email, null)
 }
 
 output "bootstrap_artifact_repository" {
-  description = "Name of the Artifact Registry repository for bootstrap images"
-  value       = var.enable_cloud_run_job ? module.bootstrap.bootstrap_repo_name : null
+  description = "Name of the Artifact Registry repository for bootstrap images (only if enable_cloud_run_job=true)"
+  value       = try(module.bootstrap.bootstrap_repo_name, null)
 }
 
 # output "bootstrap_trigger_name" {
@@ -117,16 +117,17 @@ STEP 1: CREATE OAUTH 2.0 CLIENT ID
 
 6. Copy the Client ID (you'll need it in Step 2)
 
-STEP 2: UPDATE OAUTH_CLIENT_ID SECRET
-──────────────────────────────────────
-Run this command to update the secret with your OAuth Client ID:
+STEP 2: ADD OAUTH_CLIENT_ID SECRET VERSION
+────────────────────────────────────────────
+Add a new version of the OAUTH_CLIENT_ID secret with your OAuth Client ID:
 
-gcloud secrets update OAUTH_CLIENT_ID \
-  --data-file=<(echo -n "YOUR_OAUTH_CLIENT_ID") \
+# Using echo:
+printf "YOUR_OAUTH_CLIENT_ID" | gcloud secrets versions add OAUTH_CLIENT_ID \
+  --data-file=- \
   --project=%s
 
-Or using a heredoc:
-gcloud secrets update OAUTH_CLIENT_ID \
+# Or using a heredoc:
+gcloud secrets versions add OAUTH_CLIENT_ID \
   --data-file=<(cat <<'EOF'
 YOUR_OAUTH_CLIENT_ID
 EOF
