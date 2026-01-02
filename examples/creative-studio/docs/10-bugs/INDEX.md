@@ -252,17 +252,26 @@ Examples:
 
 ---
 
-## Historical Reference
+## Known Issues Not Yet Migrated
 
-### Migration from Old System
-The previous `00-KNOWN_ISSUES.md` file has been archived to `KNOWN_ISSUES_ARCHIVE.md` for reference. The new system provides:
+The following issues from the previous system need to be evaluated and either:
+- Created as new BUG tickets (if still relevant)
+- Marked as resolved (if fixed)
+- Deprioritized (if no longer applicable)
 
-- ✅ Detailed per-bug reports
-- ✅ Better organization and navigation
-- ✅ Clearer reproduction steps
-- ✅ Multiple solution options per bug
-- ✅ Consistent format across reports
-- ✅ Single index (no duplication)
+**TODO**: Create tickets for these items
+1. Hybrid Broken Authentication System (Critical)
+2. API Endpoint Error Responses (Medium)
+3. Data Consistency Across User Storage (Medium)
+4. Frontend Component Performance (Medium)
+5. Backend Database Query Performance (Medium)
+6. Error Handling in Video Processing (Medium)
+7. Firestore Security Rules Gaps (Medium)
+8. Missing Environment Variable Documentation (Medium)
+9. Documentation Inconsistencies (Low)
+10. Logging Could Be More Structured (Low)
+
+Until migrated, refer to the [GitHub repository](https://github.com/GoogleCloudPlatform/video-generator-poc) for historical context.
 
 ---
 
