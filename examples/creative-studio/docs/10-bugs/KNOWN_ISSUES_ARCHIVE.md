@@ -367,6 +367,12 @@ User Data Stored In:
 
 ## 🔗 Related Documentation
 
+### Detailed Bug Reports
+For in-depth technical details, reproduction steps, and solution options, see the **[Bug Reports Directory](./10-bugs/)**.
+
+**Active Bugs**:
+- [BUG-001: Missing Media Template Thumbnails](./10-bugs/01_MISSING_MEDIA_TEMPLATE_THUMBNAILS.md) - 6 templates missing thumbnails in admin UI
+
 ### For Critical Issues (Authentication)
 - **See**: `docs/roadmap/okta_auth/06_PHASE1_TWO_ALTERNATIVES.md`
 - **See**: `docs/roadmap/okta_auth/03_CURRENT_AUTHENTICATION_ISSUES.md`
