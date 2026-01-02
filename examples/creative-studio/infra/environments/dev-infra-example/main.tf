@@ -126,18 +126,9 @@ locals {
   # === CLOUD RUN ACCESS CONTROL ===
   backend_invoker_identities = []  # Empty = public access. Add "user:email@example.com" to restrict
 
-  # === CLOUD RUN JOB (Database Bootstrap) ===
-  enable_cloud_run_job       = false               # Enable database bootstrap job
-  bootstrap_job_name         = null                # auto-generated if null
-  bootstrap_image_name       = "cstudio-bootstrap" # Docker image name in Artifact Registry
-  bootstrap_admin_user_email = null                # Email for initial admin user. REQUIRED if enable_cloud_run_job = true. Must be a valid email address.
-  bootstrap_job_env_vars = {
-    # Optional additional environment variables (exclude ADMIN_USER_EMAIL, which has its own dedicated variable)
-  }
-  bootstrap_job_secrets  = {}                  # Bootstrap secrets from Secret Manager
-  bootstrap_job_cpu      = "2000m"
-  bootstrap_job_memory   = "2048Mi"
-  bootstrap_job_timeout  = 600  # seconds
+  # === BOOTSTRAP JOB (Database Bootstrap) ===
+  # The bootstrap job is always enabled to initialize the database
+  bootstrap_admin_user_email = null  # Email for initial admin user (required for database initialization)
 
   # === STORAGE CONFIGURATION ===
   storage_cors_allowed_origins = ["*"]  # Dev: "*". Prod: specify exact domains
@@ -206,16 +197,8 @@ module "creative_studio_platform" {
   # Access Control
   backend_invoker_identities = local.backend_invoker_identities
 
-  # Bootstrap Job
-  enable_cloud_run_job        = local.enable_cloud_run_job
-  bootstrap_job_name          = local.bootstrap_job_name
-  bootstrap_image_name        = local.bootstrap_image_name
-  bootstrap_admin_user_email  = local.bootstrap_admin_user_email
-  bootstrap_job_env_vars      = local.bootstrap_job_env_vars
-  bootstrap_job_secrets       = local.bootstrap_job_secrets
-  bootstrap_job_cpu           = local.bootstrap_job_cpu
-  bootstrap_job_memory        = local.bootstrap_job_memory
-  bootstrap_job_timeout       = local.bootstrap_job_timeout
+  # Bootstrap Job (always enabled)
+  bootstrap_admin_user_email = local.bootstrap_admin_user_email
 
   # Storage & Firestore
   storage_cors_allowed_origins         = local.storage_cors_allowed_origins

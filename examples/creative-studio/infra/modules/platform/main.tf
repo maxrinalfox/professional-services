@@ -42,10 +42,8 @@ locals {
   backend_service_name  = "cstudio-backend-${var.environment}"
   frontend_service_name = "cstudio-frontend-${var.environment}"
 
-  # Compute whether bootstrap job should be enabled
-  # If enable_cloud_build is true, we likely want bootstrap job for DB initialization
-  # The job is always useful: handles migrations, seeding, asset uploads
-  enable_cloud_run_job_computed = var.enable_cloud_build
+  # Bootstrap job is always enabled - it handles database initialization
+  # (migrations, seeding, asset uploads)
 
   required_apis = [
     # ========== FIREBASE CORE APIs ==========
@@ -444,32 +442,28 @@ module "bootstrap" {
   gcp_region       = var.gcp_region
   environment      = var.environment
   enable_cloud_build = var.enable_cloud_build
-  enable_cloud_run_job = local.enable_cloud_run_job_computed
+  enable_cloud_run_job = true  # Bootstrap job is always enabled
 
   genmedia_bucket_name = module.storage.bucket_name
-  bootstrap_job_secrets = merge(
-    var.bootstrap_job_secrets,
-    {
-      "DB_PASS" = {
-        secret_id = google_secret_manager_secret.db_password.secret_id
-      }
+  bootstrap_job_secrets = {
+    "DB_PASS" = {
+      secret_id = google_secret_manager_secret.db_password.secret_id
     }
-  )
+  }
 
   # Cloud Build trigger config
   source_repository_id = local.source_repository_id
   github_branch_name = var.github_branch_name
-  bootstrap_job_name = var.bootstrap_job_name
-  bootstrap_image_name = var.bootstrap_image_name
+  bootstrap_job_name = "cstudio-bootstrap-${var.environment}"  # Auto-generated from environment
+  bootstrap_image_name = "cstudio-bootstrap"  # Standardized image name
   bootstrap_admin_user_email = var.bootstrap_admin_user_email
   vpc_connector_name = var.vpc_enable ? (length(module.vpc_network) > 0 ? module.vpc_network[0].vpc_connector_name : "") : ""
   vpc_connector_id = var.vpc_enable ? (length(module.vpc_network) > 0 ? module.vpc_network[0].vpc_connector_id : "") : ""
   cloud_sql_connection_name = module.postgresql.connection_name
-  bootstrap_job_cpu = var.bootstrap_job_cpu
-  bootstrap_job_memory = var.bootstrap_job_memory
-  bootstrap_job_timeout = var.bootstrap_job_timeout
+  bootstrap_job_cpu = "2000m"  # Standard CPU allocation
+  bootstrap_job_memory = "2048Mi"  # Standard memory allocation
+  bootstrap_job_timeout = 600  # Standard timeout in seconds
   bootstrap_job_env_vars = merge(
-    var.bootstrap_job_env_vars,
     var.bootstrap_admin_user_email != null ? { "ADMIN_USER_EMAIL" = var.bootstrap_admin_user_email } : {},
     {
       "USE_CLOUD_SQL"            = "true"

@@ -119,6 +119,14 @@ variable "enable_cloud_build" {
   default     = true
 }
 
+# Bootstrap Job Configuration
+variable "bootstrap_admin_user_email" {
+  type        = string
+  nullable    = true
+  default     = null
+  description = "Email address for the initial admin user. Required for database bootstrap. Set to null if bootstrap is not being used."
+}
+
 variable "cloud_sql_public_ip_enabled" {
   type        = bool
   description = "Whether the Cloud SQL instance should have a public IP address"
@@ -207,64 +215,3 @@ variable "backend_invoker_identities" {
 # Connects to private Cloud SQL via VPC Connector
 # Triggered via Cloud Build on code push to bootstrap files
 
-variable "enable_cloud_run_job" {
-  type        = bool
-  description = "Whether to create and execute Cloud Run Job for database bootstrap"
-  default     = false
-}
-
-variable "bootstrap_job_name" {
-  type        = string
-  description = "Name of the Cloud Run Job for database bootstrap"
-  nullable    = true
-  default     = null
-}
-
-variable "bootstrap_image_name" {
-  type        = string
-  description = "Name of the bootstrap container image in Artifact Registry (without tag or project)"
-  default     = "cstudio-bootstrap"
-}
-
-variable "bootstrap_admin_user_email" {
-  type        = string
-  nullable    = false
-  description = "Email address for the initial admin user to create during bootstrap. Required and must be a valid email if enable_cloud_run_job is true."
-
-  validation {
-    condition     = var.bootstrap_admin_user_email == null || can(regex("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$", var.bootstrap_admin_user_email))
-    error_message = "bootstrap_admin_user_email must be a valid email address (e.g., admin@example.com) or null."
-  }
-}
-
-variable "bootstrap_job_env_vars" {
-  type        = map(string)
-  description = "Plain text environment variables for the Cloud Run Job bootstrap container (excludes ADMIN_USER_EMAIL which has its own variable)"
-  default     = {}
-}
-
-variable "bootstrap_job_secrets" {
-  type = map(object({
-    secret_id = string
-  }))
-  description = "Secrets from Secret Manager to inject into Cloud Run Job as environment variables"
-  default     = {}
-}
-
-variable "bootstrap_job_cpu" {
-  type        = string
-  description = "CPU allocation for bootstrap Cloud Run Job"
-  default     = "2000m"
-}
-
-variable "bootstrap_job_memory" {
-  type        = string
-  description = "Memory allocation for bootstrap Cloud Run Job"
-  default     = "2048Mi"
-}
-
-variable "bootstrap_job_timeout" {
-  type        = number
-  description = "Timeout in seconds for bootstrap Cloud Run Job"
-  default     = 600
-}
