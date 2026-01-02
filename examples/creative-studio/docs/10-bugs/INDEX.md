@@ -8,9 +8,18 @@
 
 ## 📋 Quick Index
 
-| ID | Title | Status | Severity | Component | Fix Effort |
-|---|---|---|---|---|---|
-| [BUG-001](#bug-001-missing-media-template-thumbnails) | Missing Media Template Thumbnails | 🔴 Open | Medium | Bootstrap/Frontend | 1-2 hours |
+| ID | Title | Status | Severity | Component | Fix Effort | Report |
+|---|---|---|---|---|---|---|
+| [BUG-001](./01_MISSING_MEDIA_TEMPLATE_THUMBNAILS.md) | Missing Media Template Thumbnails | 🔴 Open | Medium | Bootstrap/Frontend | 1-2 hours | Full |
+| [BUG-002](./02_HYBRID_AUTHENTICATION_SYSTEM.md) | Hybrid Broken Authentication System | 🔴 Open | Critical | Backend/Frontend/Auth | 3-5 weeks | Full |
+| [BUG-003](./03_API_ERROR_RESPONSE_INCONSISTENCY.md) | API Error Response Inconsistency | 🔴 Open | Medium | Backend/API | 2 weeks | Full |
+| [BUG-004](./04_USER_DATA_CONSISTENCY.md) | Data Consistency Across User Storage | 🔴 Open | High | Backend/Database | 2 weeks | Full |
+| [BUG-005](./05_FRONTEND_COMPONENT_PERFORMANCE.md) | Frontend Component Performance & Memory Leaks | 🔴 Open | Medium | Frontend/Performance | 2-3 weeks | Full |
+| [BUG-006](./06_BACKEND_QUERY_PERFORMANCE.md) | Backend Database Query Performance | 🔴 Open | Medium | Backend/Database | 2-3 weeks | Full |
+| [BUG-007](./07_VIDEO_PROCESSING_ERROR_HANDLING.md) | Video Processing Error Handling | 🔴 Open | Medium | Backend/Video | 2-3 weeks | Full |
+| [BUG-008](./08_FIRESTORE_SECURITY_RULES.md) | Firestore Security Rules Gaps | 🔴 Open | Medium | Backend/Security | 2 weeks | Full |
+| [BUG-009](./09_ENVIRONMENT_CONFIGURATION.md) | Missing Environment Variable Documentation | 🟡 Medium | Medium | Config/Docs | 1 week | Full |
+| [BUG-010](./10_STRUCTURED_LOGGING.md) | Logging Not Fully Structured | 🟢 Low | Low | Backend/Ops | 2 weeks | Full |
 
 ---
 
@@ -164,23 +173,30 @@ Examples:
 ## Statistics
 
 ### Summary
-- **Total Bugs**: 1
-- **Open**: 1
+- **Total Bugs**: 10
+- **Open**: 10
 - **In Progress**: 0
 - **Fixed**: 0
 - **Closed**: 0
 
 ### By Severity
-- Critical: 0
-- High: 0
-- Medium: 1
-- Low: 0
+- Critical: 1 (BUG-002)
+- High: 1 (BUG-004)
+- Medium: 7 (BUG-001, 003, 005, 006, 007, 008, 009)
+- Low: 1 (BUG-010)
 
 ### By Component
 - Bootstrap: 1
-- Backend: 0
-- Frontend: 0
-- Infrastructure: 0
+- Backend: 7
+- Frontend: 1
+- Auth: 1
+- Config/Docs: 1
+
+### Total Effort Estimate
+- **Quick Fixes**: ~5 days (BUG-001, BUG-009, BUG-010 initial)
+- **Medium Effort**: ~3-4 weeks (BUG-003 through BUG-008)
+- **Major Refactoring**: ~5 weeks (BUG-002)
+- **Total**: 8-10 weeks for all issues
 
 ---
 
@@ -252,26 +268,27 @@ Examples:
 
 ---
 
-## Known Issues Not Yet Migrated
+## Migration Status
 
-The following issues from the previous system need to be evaluated and either:
-- Created as new BUG tickets (if still relevant)
-- Marked as resolved (if fixed)
-- Deprioritized (if no longer applicable)
+✅ **All 10 issues from previous system have been migrated to new BUG format**
 
-**TODO**: Create tickets for these items
-1. Hybrid Broken Authentication System (Critical)
-2. API Endpoint Error Responses (Medium)
-3. Data Consistency Across User Storage (Medium)
-4. Frontend Component Performance (Medium)
-5. Backend Database Query Performance (Medium)
-6. Error Handling in Video Processing (Medium)
-7. Firestore Security Rules Gaps (Medium)
-8. Missing Environment Variable Documentation (Medium)
-9. Documentation Inconsistencies (Low)
-10. Logging Could Be More Structured (Low)
+| Old Issue | New BUG | Status |
+|-----------|---------|--------|
+| Hybrid Broken Authentication | BUG-002 | ✅ Migrated |
+| API Endpoint Error Responses | BUG-003 | ✅ Migrated |
+| Data Consistency Across User Storage | BUG-004 | ✅ Migrated |
+| Frontend Component Performance | BUG-005 | ✅ Migrated |
+| Backend Database Query Performance | BUG-006 | ✅ Migrated |
+| Error Handling in Video Processing | BUG-007 | ✅ Migrated |
+| Firestore Security Rules Gaps | BUG-008 | ✅ Migrated |
+| Missing Environment Variable Documentation | BUG-009 | ✅ Migrated |
+| Documentation Inconsistencies | (Ongoing - No specific BUG) | ⏳ Review |
+| Logging Could Be More Structured | BUG-010 | ✅ Migrated |
 
-Until migrated, refer to the [GitHub repository](https://github.com/GoogleCloudPlatform/video-generator-poc) for historical context.
+**Note on Documentation Inconsistencies**:
+- This is being addressed through ongoing documentation updates
+- Not a discrete bug requiring a specific BUG ticket
+- Covered in general docs maintenance process
 
 ---
 
