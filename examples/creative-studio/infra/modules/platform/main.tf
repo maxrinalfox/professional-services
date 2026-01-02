@@ -280,6 +280,20 @@ module "vpc_network" {
   depends_on = [google_project_service.apis]
 }
 
+# --- DESTROY ORDER MANAGEMENT ---
+# When using VPC, we need to ensure Cloud SQL is destroyed before the service
+# networking connection is deleted. This null_resource acts as an ordering gate.
+resource "null_resource" "postgresql_destroyed_first" {
+  count = var.vpc_enable ? 1 : 0
+
+  triggers = {
+    # Reference the vpc connection to create implicit dependency
+    vpc_connection = module.vpc_network[0].private_service_connection
+  }
+
+  depends_on = [module.postgresql]
+}
+
 # --- APPLICATION SERVICES ---
 
 module "backend_service" {

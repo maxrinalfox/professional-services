@@ -35,3 +35,10 @@ resource "google_service_networking_connection" "private_vpc_connection" {
   reserved_peering_ranges = [google_compute_global_address.private_ip_address_range.name]
   update_on_creation_fail = true
 }
+
+# Wait before destroying the service connection to allow GCP to fully clean up
+# This prevents "Producer services are still using this connection" errors
+resource "time_sleep" "service_connection_cleanup" {
+  destroy_duration = "30s"
+  depends_on       = [google_service_networking_connection.private_vpc_connection]
+}
