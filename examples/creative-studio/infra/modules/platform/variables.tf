@@ -51,7 +51,11 @@ variable "firebase_web_app_id" {
 }
 
 # Backend specific variables
-variable "backend_custom_audiences" { type = list(string) }
+variable "backend_custom_audiences" {
+  type        = list(string)
+  default     = []
+  description = "Custom JWT audiences for Cloud Run (optional - backend uses environment variable GOOGLE_TOKEN_AUDIENCE for JWT validation)"
+}
 variable "be_env_vars" {
   type        = map(string)
   description = "Backend environment variables (flat map of key-value pairs). Each directory handles one environment, so no nesting needed."
@@ -70,7 +74,11 @@ variable "backend_runtime_secrets" {
 }
 
 # Frontend specific variables
-variable "frontend_custom_audiences" { type = list(string) }
+variable "frontend_custom_audiences" {
+  type        = list(string)
+  default     = []
+  description = "Custom JWT audiences for Cloud Run (optional)"
+}
 
 variable "fe_build_substitutions" {
   type        = map(string)

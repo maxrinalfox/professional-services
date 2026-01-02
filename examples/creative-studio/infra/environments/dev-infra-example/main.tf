@@ -76,10 +76,6 @@ locals {
   # To find: gcloud firebase apps list --project=YOUR_PROJECT_ID
   firebase_web_app_id = null  # null = auto-create, or provide "1:123456789:web:abc123xyz..."
 
-  # === CUSTOM AUDIENCES (for OAuth validation) ===
-  backend_custom_audiences  = []  # Empty = auto-populated with GCP project ID
-  frontend_custom_audiences = []  # Empty = auto-populated with GCP project ID
-
   # === BACKEND ENVIRONMENT VARIABLES ===
   # NOTE: ENVIRONMENT and FIREBASE_DB are automatically set by the platform module.
   # Users should only customize application-level variables like LOG_LEVEL.
@@ -179,10 +175,8 @@ module "creative_studio_platform" {
   github_repo_name   = local.github_repo_name
   github_branch_name = local.github_branch_name
 
-  # Firebase & OAuth
-  firebase_web_app_id       = local.firebase_web_app_id
-  backend_custom_audiences  = local.backend_custom_audiences
-  frontend_custom_audiences = local.frontend_custom_audiences
+  # Firebase
+  firebase_web_app_id = local.firebase_web_app_id
 
   # Backend Service
   be_env_vars             = local.be_env_vars
