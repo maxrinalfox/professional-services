@@ -150,14 +150,15 @@ variable "vpc_connector_subnet_cidr" {
 variable "backend_invoker_identities" {
   type        = list(string)
   description = <<-EOT
-    List of user, group, or service account identities that have Cloud Run invoker (roles/run.invoker) access to the backend service.
+    List of identities that are granted Cloud Run invoker (roles/run.invoker) permission to invoke the backend service.
+    Only explicitly listed identities can call this service - allUsers access is never granted.
 
     Format examples:
     - "user:john@example.com"
     - "group:developers@example.com"
     - "serviceAccount:my-sa@project.iam.gserviceaccount.com"
 
-    Leave empty to grant invoker access to allUsers (public access).
+    Leave empty [] to keep the backend service private (no invoker permissions granted).
 
     Note: Identity Platform authentication is controlled separately via identity_platform_* variables.
   EOT

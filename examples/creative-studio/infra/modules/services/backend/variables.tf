@@ -160,14 +160,15 @@ variable "admin_user_email" {
 variable "invoker_identities" {
   type        = list(string)
   description = <<-EOT
-    List of user, group, or service account identities that have Cloud Run invoker (roles/run.invoker) access.
+    List of identities that are granted Cloud Run invoker (roles/run.invoker) permission to invoke this service.
+    Only explicitly listed identities can call this backend service - allUsers access is never granted.
 
     Format examples:
     - "user:john@example.com"
     - "group:developers@example.com"
     - "serviceAccount:my-sa@project.iam.gserviceaccount.com"
 
-    Leave empty to grant invoker access to allUsers (public access).
+    Leave empty [] to keep the service private (no invoker permissions granted).
   EOT
   default     = []
 }

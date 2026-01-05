@@ -277,9 +277,9 @@ resource "google_secret_manager_secret_iam_member" "run_sa_db_password_access" {
 # This controls who can invoke/call the Cloud Run service
 # Format: "user:email@domain.com", "group:group@domain.com", "serviceAccount:sa@project.iam.gserviceaccount.com"
 #
-# If invoker_identities is empty, grants public access to allUsers
+# Only creates bindings for explicitly listed identities (no default public access)
 resource "google_cloud_run_v2_service_iam_member" "invoker" {
-  for_each = length(var.invoker_identities) > 0 ? toset(var.invoker_identities) : toset(["allUsers"])
+  for_each = toset(var.invoker_identities)
 
   name     = google_cloud_run_v2_service.this.name
   location = google_cloud_run_v2_service.this.location
