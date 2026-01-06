@@ -165,6 +165,7 @@ variable "backend_invoker_identities" {
   default     = []
 }
 
+
 # --- Cloud Run Job Configuration (Database Bootstrap) ---
 # Cloud Run Job handles database initialization (migrations, seeding, asset creation)
 # Connects to private Cloud SQL via VPC Connector

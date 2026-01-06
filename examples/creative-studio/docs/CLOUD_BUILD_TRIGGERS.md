@@ -643,7 +643,7 @@ See `infra/TERRAFORM_REVIEW.md:22-108` for complete fix.
 
 **Your Current Frontend Error:**
 ```
-ERROR: failed to access secret version for secret projects/foxsports-prod-ops-sandbox/secrets/FIREBASE_APP_ID
+ERROR: failed to access secret version for secret projects/YOUR_PROJECT_ID/secrets/FIREBASE_APP_ID
 ```
 
 **Why It Happens:**
@@ -656,8 +656,8 @@ ERROR: failed to access secret version for secret projects/foxsports-prod-ops-sa
   ```
 
 **Your Scenario:**
-- Deployed to `foxsports-prod-ops-sandbox` project
-- Actual bootstrap service account: `cs-bootstrap-sandbox@foxsports-prod-ops-sandbox.iam.gserviceaccount.com`
+- Deployed to `YOUR_PROJECT_ID` project
+- Actual bootstrap service account: `cs-bootstrap-sandbox@YOUR_PROJECT_ID.iam.gserviceaccount.com`
 - But it doesn't have permissions because Terraform wasn't configured correctly
 
 **Fix Required:** Pass all 12 substitution variables from Terraform:
