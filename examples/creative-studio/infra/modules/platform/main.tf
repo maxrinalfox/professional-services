@@ -336,7 +336,8 @@ module "backend_service" {
   admin_user_email = var.bootstrap_admin_user_email
 
   # Cloud Run access control
-  invoker_identities = var.backend_invoker_identities
+  invoker_identities  = var.backend_invoker_identities
+  custom_audiences    = var.backend_custom_audiences
 
   # Cloud Build trigger
   enable_cloud_build_trigger    = var.enable_cloud_build
@@ -362,7 +363,7 @@ module "frontend_service" {
   included_files_glob  = ["**/creative-studio/frontend/**"]
 
   build_substitutions = {
-    _BACKEND_URL         = local.backend_url
+    _BACKEND_URL         = local.frontend_url
     _FE_SERVICE_NAME     = local.frontend_service_name
     _BACKEND_SERVICE_ID  = local.backend_service_name
     _FIREBASE_PROJECT_ID = var.gcp_project_id
