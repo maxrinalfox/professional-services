@@ -337,7 +337,6 @@ module "backend_service" {
 
   # Cloud Run access control
   invoker_identities  = var.backend_invoker_identities
-  custom_audiences    = var.backend_custom_audiences
 
   # Cloud Build trigger
   enable_cloud_build_trigger    = var.enable_cloud_build
