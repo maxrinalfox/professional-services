@@ -28,7 +28,7 @@ When viewing the "Manage Media Templates" admin page, 6 specific templates displ
 5. Pose Variation Sheet
 6. Product Flat Lay 1
 
-The frontend attempts to load from: `https://foxsports-prod-ops-sandbox.web.app/assets/images/default-avatar.png`
+The frontend attempts to load from: `https://${your-project-id}.web.app/assets/images/default-avatar.png`
 
 **Result**: 404 Not Found + broken image icon in UI
 

@@ -24,11 +24,6 @@ variable "environment" {
   }
 }
 
-variable "firebase_db_name" {
-  type    = string
-  default = "cstudio"
-}
-
 # Backend specific variables
 variable "be_env_vars" {
   type        = map(string)

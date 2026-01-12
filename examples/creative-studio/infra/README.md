@@ -29,14 +29,11 @@ infrastructure/
 │   ├── platform/           # Main module: Defines the ENTIRE application platform
 │   ├── core/               # Core resources (storage, secrets, VPC)
 │   ├── data/               # Data layer (Cloud SQL, Firestore)
+│   ├── networking/         # Networking resources (VPC, subnets)
 │   └── services/           # Service modules (backend, frontend, bootstrap)
 │
 └── environments/
     ├── dev-infra-example/  # Development environment configuration
-    │   ├── main.tf         # Inline locals + platform module call (all config in one file)
-    │   └── backend.tf      # Optional: Remote state configuration (commented out by default)
-    │
-    └── prod_ops_sandbox/   # Production sandbox environment configuration
         ├── main.tf         # Inline locals + platform module call (all config in one file)
         └── backend.tf      # Optional: Remote state configuration (commented out by default)
 ```
@@ -63,8 +60,10 @@ The deployment process has multiple phases:
 | 3. Create Firebase Web App | Firebase Console | `google_firebase_web_app` | Manual |
 | 4. Get Firebase App ID | `gcloud firebase apps list` | Auto-output | Manual |
 | 5. Create Cloud Build Connection | GCP Console | Still manual (GCP limitation) | Manual |
-| 6. Setup Identity Platform | ✅ **NOW IN TERRAFORM** | `google_identity_platform_config` | **✅ Implemented** |
-| 7. Setup OAuth (Optional) | ✅ **NOW IN TERRAFORM** | `google_identity_platform_oauth_idp_config` | **✅ Implemented** |
+| 6. Setup Identity Platform (Config - Optional) | ✅ **NOW IN TERRAFORM** (not currently used) | `google_identity_platform_config` | **✅ Implemented** |
+| 7. Create OAuth 2.0 Client ID | Firebase Console (manual) | Still manual (Google limitation) | Manual |
+| 8. Store OAuth Secret | `gcloud secrets versions add` | Still manual (Google limitation) | Manual |
+| 9. Enable Firebase Analytics | Firebase Console (Phase 1E post-deploy) | Not automatable (Google platform limitation) | Manual |
 
 **Phase 1B: Configure Terraform** (5 minutes)
 - Navigate to your environment directory: `cd infra/environments/dev-infra-example`
@@ -82,6 +81,13 @@ The deployment process has multiple phases:
 - Check secrets created in Secret Manager
 - Test deployed services
 - Review terraform outputs for API URLs and connection strings
+
+**Phase 1E: Enable Firebase Google Analytics** (5 minutes) - ⭐ **REQUIRED POST-DEPLOYMENT STEP**
+- Open [Firebase Console](https://console.firebase.google.com/) → Select your project
+- Go to **Project Settings** → **Integrations** → **Google Analytics**
+- Create a new GA4 property or link an existing one
+- Complete the setup wizard
+- Return to Terraform Cloud and queue a new plan/apply run to capture the measurement ID
 
 ⏸️ **FOR NOW: Follow the "Manual Setup Steps" below** (Steps 1-6 above, manual column)
 
@@ -353,8 +359,14 @@ All commands should be run from within a specific environment's directory.
 
 **One Environment Per Directory:** Each directory deploys to ONE environment only. Configuration is flat and simple.
 
+The repository provides `dev-infra-example` as a template. You create additional environments (production, staging, sandbox, etc.) by copying this template.
+
 1.  **Perform Manual Setup:** (Optional) Create a new GCS bucket for staging state if using remote state.
-2.  **Create the Directory:** Copy the template: `cp -r environments/dev-infra-example environments/staging`
+2.  **Create the Directory:** Copy the template:
+    ```bash
+    cp -r environments/dev-infra-example environments/staging
+    ```
+    (Note: You can name it anything - `prod`, `staging`, `sandbox`, `prod-ops-sandbox`, etc.)
 3.  **Configure `main.tf`:** Edit `environments/staging/main.tf` and update the inline `locals` block:
     - `gcp_project_id`, `gcp_region`, and `environment = "staging"`
     - `backend_service_name` and `frontend_service_name` (e.g., `"cstudio-backend-staging"`)

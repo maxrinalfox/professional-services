@@ -14,6 +14,15 @@
 
 # modules/platform/outputs.tf
 
+# --- LOCAL VALUES FOR CONDITIONAL LOGIC ---
+locals {
+  # Extract measurement_id as non-sensitive value
+  measurement_id = try(nonsensitive(module.firebase.firebase_web_app_config.measurement_id), "")
+
+  # Check if measurement_id is populated (not empty string)
+  measurement_id_missing = local.measurement_id == "" || local.measurement_id == null
+}
+
 output "backend_service_url" {
   description = "The URL of the deployed backend service."
   value       = try(module.backend_service.service_url, null)
@@ -95,9 +104,9 @@ output "post_apply_instructions" {
 POST-APPLY SETUP INSTRUCTIONS
 ════════════════════════════════
 
-CRITICAL: Complete these steps before triggering Cloud Build
+⭐ CRITICAL: Complete these steps before triggering Cloud Build
 
-1. CREATE OAUTH 2.0 CLIENT ID
+${local.measurement_id_missing ? "0. ENABLE FIREBASE GOOGLE ANALYTICS (5 minutes) - ⭐ REQUIRED\n   - Go to: https://console.firebase.google.com/\n   - Select project: ${var.gcp_project_id}\n   - Navigate to: Project Settings → Integrations → Google Analytics\n   - Create new GA4 property or link existing one\n   - Complete the setup wizard\n   - Return to Terraform Cloud and queue a new plan/apply run\n   (This will capture the auto-generated measurement_id)\n\n" : ""}1. CREATE OAUTH 2.0 CLIENT ID
    - Go to: https://console.cloud.google.com/apis/credentials?project=${var.gcp_project_id}
    - Create new OAuth 2.0 Web Application credential
    - Add Authorized Redirect URIs:

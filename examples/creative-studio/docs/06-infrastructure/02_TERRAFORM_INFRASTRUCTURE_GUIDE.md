@@ -66,14 +66,15 @@ terraform version  # Verify installation
 1. [Prerequisites](#-prerequisites-must-do-before-terraform-apply) ⭐ **START HERE**
 2. [Variable Naming Convention](#variable-naming-convention)
 3. [Destruction Control](#destruction-control-critical-configuration)
-4. [Edge Cases & Inconsistencies (Resolved)](#edge-cases--inconsistencies-resolved)
-5. [Cloud Run Access Control](#cloud-run-access-control-rolesruninvoker)
-6. [Configuration Examples](#configuration-examples)
-7. [Protected Variables Reference](#protected-variables-reference)
-8. [Verification Checklist](#verification-checklist-before-terraform-apply)
-9. [Deployment Commands](#deployment-commands)
-10. [Troubleshooting](#troubleshooting)
-11. [Best Practices](#best-practices)
+4. [Region Agnostic Deployment](#region-agnostic-deployment-critical-todo)
+5. [Edge Cases & Inconsistencies (Resolved)](#edge-cases--inconsistencies-resolved)
+6. [Cloud Run Access Control](#cloud-run-access-control-rolesruninvoker)
+7. [Configuration Examples](#configuration-examples)
+8. [Protected Variables Reference](#protected-variables-reference)
+9. [Verification Checklist](#verification-checklist-before-terraform-apply)
+10. [Deployment Commands](#deployment-commands)
+11. [Troubleshooting](#troubleshooting)
+12. [Best Practices](#best-practices)
 
 ---
 
@@ -189,6 +190,164 @@ allow_destroy = false
 # Cloud SQL deletion_protection automatically = true
 firestore_deletion_protection_enabled = true
 ```
+
+---
+
+## Region Agnostic Deployment (CRITICAL TODO)
+
+### ⚠️ Current Status: Partially Parameterized
+
+The infrastructure has a **hybrid parameterization model** where:
+- ✅ **Terraform core** is properly region-parameterized via `var.gcp_region`
+- ⚠️ **Cloud Build configurations** have some hardcoded `us-central1` references
+- ⚠️ **Bootstrap script** hardcodes region in gcloud commands
+
+**Current Limitation:** Until all hardcoded references are fixed, deploy only to `us-central1` to ensure consistency.
+
+### Hardcoded Region References (Must Fix)
+
+#### 1. Backend Cloud Build Configuration
+**File:** `backend/cloudbuild.yaml` (Line 136)
+```yaml
+_REGION: 'us-central1'  # TODO: Make Region generic from users input
+```
+
+**Impact:** Cloud Build substitution variable defaults to us-central1
+**Status:** This is a default that gets overridden by Terraform in `backend/main.tf:322`, but should be parameterized
+
+**Fix Needed:**
+- Replace hardcoded value with a placeholder: `_REGION: '${REGION}'`
+- Cloud Build will automatically substitute from trigger variables
+- Terraform already passes this via `_REGION = var.gcp_region`
+
+---
+
+#### 2. Bootstrap Cloud Build Configuration
+**File:** `backend/cloudbuild-bootstrap.yaml` (Lines 177, 185, 188)
+
+**Line 177 - Region Substitution:**
+```yaml
+_REGION: 'us-central1'
+```
+**Fix:** Replace with `_REGION: '${REGION}'` (Terraform passes this via line 64 in `bootstrap/cloud_build_trigger.tf`)
+
+**Line 185 - VPC Connector Path:**
+```yaml
+_VPC_CONNECTOR_ID: 'projects/${PROJECT_ID}/locations/us-central1/connectors/cs-sandbox-cs-connector'
+```
+**Fix:** Replace hardcoded `us-central1` with `${REGION}`
+```yaml
+_VPC_CONNECTOR_ID: 'projects/${PROJECT_ID}/locations/${REGION}/connectors/cs-sandbox-cs-connector'
+```
+
+**Line 188 - Cloud SQL Instance Connection:**
+```yaml
+_CLOUD_SQL_INSTANCE: '${PROJECT_ID}:us-central1:creative-studio-db-c3353262'
+```
+**Fix:** Replace hardcoded `us-central1` with `${REGION}`
+```yaml
+_CLOUD_SQL_INSTANCE: '${PROJECT_ID}:${REGION}:creative-studio-db-c3353262'
+```
+
+---
+
+#### 3. Bootstrap Shell Script
+**File:** `bootstrap.sh` (Lines 742-743)
+
+**Lines 742-743 - Cloud Build Trigger Invocation:**
+```bash
+gcloud builds triggers run "${BE_SERVICE_NAME}-trigger" --branch="$GITHUB_BRANCH" --project="$GCP_PROJECT_ID" --region="us-central1"
+gcloud builds triggers run "$GCP_PROJECT_ID-trigger" --branch="$GITHUB_BRANCH" --project $GCP_PROJECT_ID --region="us-central1"
+```
+
+**Impact:** Hardcoded region prevents cross-region deployments via bootstrap script
+**Current Behavior:** Script doesn't accept region parameter, always uses `us-central1`
+
+**Fix Needed:**
+1. Add `GCP_REGION` parameter to bootstrap.sh
+2. Accept it as environment variable or command-line argument
+3. Pass to gcloud commands: `--region="${GCP_REGION}"`
+
+**Proposed Implementation:**
+```bash
+# Add to bootstrap.sh parameter handling (around line 50-100):
+GCP_REGION="${GCP_REGION:-us-central1}"
+
+# Then update the gcloud commands (lines 742-743):
+gcloud builds triggers run "${BE_SERVICE_NAME}-trigger" \
+  --branch="$GITHUB_BRANCH" \
+  --project="$GCP_PROJECT_ID" \
+  --region="${GCP_REGION}"
+
+gcloud builds triggers run "$GCP_PROJECT_ID-trigger" \
+  --branch="$GITHUB_BRANCH" \
+  --project="$GCP_PROJECT_ID" \
+  --region="${GCP_REGION}"
+```
+
+---
+
+### Terraform Infrastructure - Well Parameterized ✅
+
+The following files properly use `var.gcp_region` throughout:
+
+| File | Variable Usage | Status |
+|------|---|---|
+| `infra/environments/dev-infra-example/main.tf` | Line 48: `gcp_region = "us-central1"` (configurable local) | ✅ Parameterized |
+| `infra/modules/platform/main.tf` | Uses `var.gcp_region` for all resources | ✅ Parameterized |
+| `infra/modules/services/backend/main.tf` | Line 322: `_REGION = var.gcp_region` | ✅ Parameterized |
+| `infra/modules/bootstrap/cloud_build_trigger.tf` | Line 64: `_REGION = var.gcp_region` | ✅ Parameterized |
+| `infra/modules/data/postgresql/main.tf` | Line 22: `region = var.gcp_region` | ✅ Parameterized |
+| `infra/modules/data/firestore/main.tf` | Uses parameterized region via module input | ✅ Parameterized |
+
+**Good News:** Core Terraform infrastructure flows `gcp_region` parameter correctly through all layers.
+
+---
+
+### Implementation Checklist
+
+**Before Deploying to a Non-us-central1 Region, Complete All Items Below:**
+
+#### Phase 1: Cloud Build YAML Files
+- [ ] Update `backend/cloudbuild.yaml` line 136
+  - Change: `_REGION: 'us-central1'` → `_REGION: '${REGION}'`
+
+- [ ] Update `backend/cloudbuild-bootstrap.yaml` lines 177, 185, 188
+  - Line 177: `_REGION: 'us-central1'` → `_REGION: '${REGION}'`
+  - Line 185: `us-central1/connectors` → `${REGION}/connectors`
+  - Line 188: `us-central1:` → `${REGION}:`
+
+#### Phase 2: Bootstrap Script
+- [ ] Add region parameter handling to `bootstrap.sh`
+  - Add environment variable: `GCP_REGION="${GCP_REGION:-us-central1}"`
+  - Update lines 742-743 to use `--region="${GCP_REGION}"`
+
+#### Phase 3: Testing & Validation
+- [ ] Test deployment to us-central1 (current working state)
+- [ ] Test deployment to alternate region (e.g., us-east1)
+  - Set `gcp_region = "us-east1"` in environment config
+  - Update `bootstrap.sh` call: `GCP_REGION=us-east1 ./bootstrap.sh`
+  - Verify all resources deploy to correct region
+
+#### Phase 4: Documentation
+- [ ] Update this section with completion status
+- [ ] Add region-specific deployment examples to Configuration Examples section
+- [ ] Update deployment commands with region parameter usage
+
+---
+
+### Recommended Deployment Strategy (Until Fixed)
+
+**Current Safe Approach:**
+1. Only deploy to `us-central1` until all items are fixed
+2. Terraform parameterization will work correctly for us-central1
+3. Cloud Build and Bootstrap will use hardcoded us-central1, matching Terraform
+
+**Timeline:**
+- Phase 1 (Cloud Build YAML): ~30 minutes
+- Phase 2 (Bootstrap Script): ~30 minutes
+- Phase 3 (Testing): ~1-2 hours per region
+- Phase 4 (Documentation): ~30 minutes
 
 ---
 
