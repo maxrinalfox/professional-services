@@ -1,8 +1,14 @@
-# Firebase Hosting Proxy for CORS Resolution
+# Firebase Hosting Proxy Configuration
 
-## Problem Summary
+## Overview
 
-Frontend was making **direct API calls to Cloud Run backend**, causing CORS preflight failures:
+Firebase Hosting can proxy API requests to Cloud Run backend, eliminating cross-origin request issues. This is a **recommended architecture pattern**, not a "fix" for a broken deployment.
+
+## Implementation Pattern
+
+### Current Architecture (Before Optimization)
+
+Frontend makes **direct API calls to Cloud Run backend**, causing CORS preflight failures:
 
 - Browser sends unauthenticated OPTIONS preflight request
 - Cloud Run returns 403 Forbidden (authentication required)

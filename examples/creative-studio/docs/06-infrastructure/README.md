@@ -102,6 +102,40 @@ Google Cloud Platform setup, Terraform configuration, and deployment guides.
 
 ---
 
+### [06_FIREBASE_HOSTING_PROXY_CONFIGURATION.md](06_FIREBASE_HOSTING_PROXY_CONFIGURATION.md)
+**Firebase Hosting as API proxy (CORS resolution)**
+
+- Firebase Hosting proxy architecture
+- Routing backend requests through Firebase
+- Eliminating cross-origin request issues
+- Configuration with firebase.json rewrites
+- Cloud Build variable injection
+- Request flow diagrams
+- Best practices for proxy vs direct calls
+
+**For:** Frontend developers, DevOps engineers, security architects
+
+**When to Use:** When frontend and backend are deployed on different domains
+
+---
+
+### [07_CLOUD_BUILD_TRIGGERS.md](07_CLOUD_BUILD_TRIGGERS.md)
+**Cloud Build CI/CD pipeline configuration**
+
+- Cloud Build trigger setup and prerequisites
+- Backend trigger (code → Docker → Cloud Run)
+- Frontend trigger (code → build → Firebase Hosting)
+- Bootstrap trigger (database initialization)
+- Environment variables and secrets configuration
+- Cloud Build GitHub connection setup
+- Troubleshooting and verification
+
+**For:** DevOps engineers, backend/frontend developers
+
+**Important:** Requires manual Cloud Build GitHub connection setup in GCP Console first
+
+---
+
 ## 🏗️ Infrastructure Architecture
 
 ```

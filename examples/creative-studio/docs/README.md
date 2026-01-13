@@ -60,9 +60,11 @@ Complete documentation for the **Creative Studio** - A comprehensive Generative 
 - **[06-infrastructure/](06-infrastructure/)** - GCP setup and deployment
   - `01_GCP_PROJECT_SETUP.md` - GCP services and provisioning
   - `02_TERRAFORM_INFRASTRUCTURE.md` - Infrastructure as Code
-  - `04_CLOUD_RUN_BACKEND.md` - Backend deployment
   - `03_CLOUD_SQL_DATABASE.md` - PostgreSQL database setup
+  - `04_CLOUD_RUN_BACKEND.md` - Backend deployment
   - `05_FIREBASE_FRONTEND_HOSTING.md` - Frontend hosting
+  - `06_FIREBASE_HOSTING_PROXY_CONFIGURATION.md` - API routing via Firebase proxy
+  - `07_CLOUD_BUILD_TRIGGERS.md` - CI/CD pipeline triggers
 
 ### 📊 Operations & Monitoring
 - **[07-operations/](07-operations/)** - Operational guidance

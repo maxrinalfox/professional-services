@@ -2,15 +2,38 @@
 
 This document outlines all Cloud Build triggers used in the Creative Studio project, including their purpose, required environment variables, secrets, and execution flow.
 
-**⚠️ CRITICAL:** Secrets and environment variables are created and managed via Terraform infrastructure (see `infra/modules/secret-manager/` and `infra/modules/platform/`).
+## Overview
 
-**BEFORE PROCEEDING:** Read `infra/TERRAFORM_REVIEW.md` - it documents **4 CRITICAL Terraform issues** that will cause Cloud Build failures:
-1. **Issue #1:** Hardcoded bootstrap trigger count - always creates trigger even when disabled
-2. **Issue #2:** Missing bootstrap substitution variables - bootstrap job uses hardcoded sandbox values instead of actual environment
-3. **Issue #3:** Hard-coded database secret ID - all environments share same secret
-4. **Issue #4:** Missing bootstrap service account IAM permissions - bootstrap job can't access secrets
+Cloud Build automates the complete CI/CD pipeline:
+- **Backend Trigger** - Builds and deploys FastAPI backend to Cloud Run
+- **Frontend Trigger** - Builds and deploys Angular frontend to Firebase Hosting
+- **Bootstrap Trigger** - Runs database initialization and migrations
 
-These Terraform issues directly prevent Cloud Build triggers from working correctly. See troubleshooting section below.
+All triggers are managed via Terraform in the `infra/modules/bootstrap/` and `infra/environments/<env>/main.tf` files.
+
+## Setup Prerequisites
+
+Before Cloud Build triggers can work, ensure:
+
+1. **Cloud Build GitHub Connection** is established (manual GCP setup required)
+   - Go to: Cloud Build → Repositories → Connect Repository
+   - Select GitHub account and authorize
+   - Choose the repository with your code
+   - Note the connection name (format: `projects/<projectid>/locations/global/connections/<name>`)
+
+2. **Terraform has the connection name** in `infra/environments/<env>/main.tf`
+   ```hcl
+   locals {
+     github_conn_name = "projects/YOUR_PROJECT/locations/global/connections/YOUR_CONN_NAME"
+   }
+   ```
+
+3. **Service accounts have proper permissions**
+   - Cloud Build service account has access to Artifact Registry
+   - Cloud Build can deploy to Cloud Run
+   - Bootstrap service account can access Cloud SQL and secrets
+
+See `docs/06-infrastructure/02_TERRAFORM_INFRASTRUCTURE_GUIDE.md` for complete configuration.
 
 ---
 
@@ -607,193 +630,77 @@ Before enabling each trigger, ensure:
   gcloud secrets versions list GOOGLE_CLIENT_ID --project=PROJECT_ID
   ```
 
-### Critical Terraform Issues Preventing Cloud Build
+## Verification & Troubleshooting
 
-**READ FIRST:** `infra/TERRAFORM_REVIEW.md` contains detailed analysis of 10 issues, **4 of which are CRITICAL** and will prevent Cloud Build triggers from working.
+### Verify Cloud Build Triggers Are Working
 
-#### Terraform Issue #1: Hardcoded Bootstrap Trigger Count
-
-**Status:** ❌ **NOT YET FIXED** in your infrastructure
-
-**Problem:** `modules/platform/cloud_build_trigger_bootstrap.tf:10` has `count = 1` (hardcoded)
-- Bootstrap trigger is ALWAYS created, even when `enable_cloud_build=false`
-- When `enable_cloud_build=false`, the bootstrap service account isn't created
-- Terraform fails: `Index error: only 0 items in list when trying to access index 0`
-
-**Current Impact:** You cannot disable the bootstrap trigger. Deployments with `enable_cloud_build=false` fail.
-
-**Fix Required:**
-```terraform
-# Change from:
-count = 1  # ❌ Hardcoded
-
-# To:
-count = (var.enable_cloud_build && var.enable_cloud_run_job) ? 1 : 0  # ✅ Conditional
-```
-
-See `infra/TERRAFORM_REVIEW.md:22-108` for complete fix.
-
----
-
-#### Terraform Issue #2: Missing Bootstrap Substitution Variables
-
-**Status:** ❌ **NOT YET FIXED** - This directly causes your Cloud Build failures
-
-**Problem:** Terraform only passes 4 substitution variables to Cloud Build, but the YAML references 8 more with hardcoded values
-
-**Your Current Frontend Error:**
-```
-ERROR: failed to access secret version for secret projects/YOUR_PROJECT_ID/secrets/FIREBASE_APP_ID
-```
-
-**Why It Happens:**
-- `modules/platform/cloud_build_trigger_bootstrap.tf` doesn't pass `_BOOTSTRAP_SERVICE_ACCOUNT`, `_VPC_CONNECTOR_NAME`, `_CLOUD_SQL_INSTANCE`, etc.
-- `backend/cloudbuild-bootstrap.yaml` uses hardcoded defaults (lines 120-147):
-  ```yaml
-  _BOOTSTRAP_SERVICE_ACCOUNT: 'cs-bootstrap-sandbox@${PROJECT_ID}.iam.gserviceaccount.com'  # ❌ Hardcoded "sandbox"
-  _VPC_CONNECTOR_NAME: 'cs-sandbox-cs-connector'  # ❌ Hardcoded "sandbox"
-  _CLOUD_SQL_INSTANCE: '${PROJECT_ID}:us-central1:creative-studio-db-c3353262'  # ❌ Hardcoded hash
-  ```
-
-**Your Scenario:**
-- Deployed to `YOUR_PROJECT_ID` project
-- Actual bootstrap service account: `cs-bootstrap-sandbox@YOUR_PROJECT_ID.iam.gserviceaccount.com`
-- But it doesn't have permissions because Terraform wasn't configured correctly
-
-**Fix Required:** Pass all 12 substitution variables from Terraform:
-```terraform
-substitutions = {
-  _BOOTSTRAP_JOB_NAME        = var.bootstrap_job_name
-  _BOOTSTRAP_IMAGE_NAME      = var.bootstrap_image_name
-  _REPO_NAME                 = google_artifact_registry_repository.bootstrap_repo[0].repository_id
-  _REGION                    = var.gcp_region
-  _BOOTSTRAP_SERVICE_ACCOUNT = google_service_account.bootstrap_sa[0].email  # NEW
-  _VPC_CONNECTOR_NAME        = var.vpc_enable ? module.vpc_network[0].vpc_connector_name : ""  # NEW
-  _CLOUD_SQL_INSTANCE        = module.postgresql.connection_name  # NEW
-  _BOOTSTRAP_CPU             = var.bootstrap_job_cpu  # NEW
-  _BOOTSTRAP_MEMORY          = var.bootstrap_job_memory  # NEW
-  _BOOTSTRAP_TIMEOUT         = var.bootstrap_job_timeout  # NEW
-  _BOOTSTRAP_ENV_VARS        = join(",", [...])  # NEW
-  _BOOTSTRAP_SECRETS         = join(",", [...])  # NEW
-}
-```
-
-See `infra/TERRAFORM_REVIEW.md:112-293` for complete fix.
-
----
-
-#### Terraform Issue #3: Hard-Coded Database Secret ID
-
-**Status:** ✅ **FIXED** - Single project, no environment suffix needed
-
-**Note:** Since you're not running multiple environments in the same GCP project, the database secret ID remains `creative-studio-db-password` without environment suffix.
-
-**Final Code:**
-```terraform
-# modules/platform/main.tf
-secret_id = "creative-studio-db-password"
-db_secret_id = google_secret_manager_secret.db_password.secret_id
-```
-
-**One Project = One Secret:** This is the correct approach for your architecture where each GCP project contains a single environment.
-
----
-
-#### Terraform Issue #4: Missing Bootstrap Service Account IAM Permissions
-
-**Status:** ❌ **NOT YET FIXED** - Bootstrap job can't access secrets
-
-**Problem:** Bootstrap service account is created but NOT granted `secretmanager.secretAccessor` role
-
-**Current Code:** Missing IAM binding at `modules/platform/main.tf:460`
-
-**Your Frontend Error Connection:**
-This directly relates to why frontend deploy fails - the bootstrap job isn't properly configured by Terraform, so Cloud Build trigger references are wrong.
-
-**Fix Required:**
-```terraform
-# Add this IAM binding for bootstrap secrets
-resource "google_secret_manager_secret_iam_member" "bootstrap_runtime_secret_accessor" {
-  for_each = var.enable_cloud_run_job ? var.bootstrap_job_secrets : {}
-
-  provider  = google-beta
-  project   = var.gcp_project_id
-  secret_id = each.value.secret_id
-  role      = "roles/secretmanager.secretAccessor"
-  member    = google_service_account.bootstrap_sa[0].member
-}
-```
-
-See `infra/TERRAFORM_REVIEW.md:411-507` for complete fix.
-
----
-
-### Immediate Action Items
-
-Before Cloud Build triggers will work, fix these Terraform issues in order:
-
-1. **Apply Issue #1 fix** (5 min) - Fix bootstrap trigger count
-2. **Apply Issue #2 fix** (30 min) - Pass all substitution variables
-3. **Apply Issue #3 fix** (10 min) - Environment-specific secret IDs
-4. **Apply Issue #4 fix** (10 min) - Bootstrap IAM permissions
-5. **Apply Issue #7 fix** (20 min) - Pass bootstrap vars from environment configs
-6. **Apply Issue #9 fix** (5 min) - Export VPC connector name
-
-**Total time:** ~80 minutes to fix all CRITICAL + blocking issues
-
-Then re-run:
+List all Cloud Build triggers:
 ```bash
-cd infra/environments/prod_ops_sandbox
-terraform apply
+gcloud builds list --filter='trigger_config' --format='table(id,name,trigger_config.branch_name)'
 ```
 
----
+### Verify GitHub Connection
 
-### Debugging Failed Cloud Build Triggers
+Cloud Build requires explicit GitHub authorization:
 
-**Error:** `Permission 'secretmanager.versions.access' denied`
+1. Go to: **Cloud Build** → **Repositories**
+2. Ensure GitHub account is connected
+3. Copy the **connection name** (format: `projects/123456/locations/global/connections/my-conn`)
+4. Update `infra/environments/<env>/main.tf`:
+   ```hcl
+   github_conn_name = "projects/YOUR_PROJECT/locations/global/connections/YOUR_CONN"
+   ```
+5. Re-run: `terraform apply`
 
-**Root Causes:**
-1. **Terraform Issues #2-4 not fixed** - Substitution variables and IAM permissions incorrect (MOST COMMON)
-2. Secret doesn't exist - Check Terraform created it
-3. Service account doesn't have permission - Check IAM bindings
+### Common Issues & Solutions
 
-**Diagnostic Steps:**
+**Build fails with permission denied:**
+
 ```bash
-# Step 1: Verify Terraform applied successfully
-cd infra/environments/prod_ops_sandbox
-terraform apply
-terraform show | grep google_secret_manager
+# Grant Cloud Build service account necessary roles
+PROJECT_ID=$(gcloud config get-value project)
+CB_SA="${PROJECT_ID}@cloudbuild.gserviceaccount.com"
 
-# Step 2: Check if bootstrap service account exists and has permissions
-gcloud iam service-accounts list | grep bootstrap
-gcloud secrets get-iam-policy FIREBASE_APP_ID | grep bootstrap
+# For Artifact Registry
+gcloud projects add-iam-policy-binding $PROJECT_ID \
+  --member=serviceAccount:$CB_SA \
+  --role=roles/artifactregistry.writer
 
-# Step 3: Check Cloud Build service account permissions
-gcloud projects get-iam-policy PROJECT_ID \
-  --flatten="bindings[].members" \
-  --filter="bindings.role:roles/secretmanager.secretAccessor" | grep cloud-builds
+# For Cloud Run
+gcloud projects add-iam-policy-binding $PROJECT_ID \
+  --member=serviceAccount:$CB_SA \
+  --role=roles/run.admin
 
-# Step 4: Verify Cloud Build trigger substitutions
-gcloud builds log TRIGGER_ID --stream=false | grep -A 20 "substitutions"
-
-# Step 5: Check if secrets have actual values (not placeholders)
-gcloud secrets versions access latest --secret=FIREBASE_APP_ID --project=PROJECT_ID
+# For Secrets
+gcloud projects add-iam-policy-binding $PROJECT_ID \
+  --member=serviceAccount:$CB_SA \
+  --role=roles/secretmanager.secretAccessor
 ```
 
-**Issue:** Terraform shows "count = 1" in cloud_build_trigger_bootstrap.tf
-
-**Steps to resolve:**
-1. Fix Terraform Issue #1 - Change hardcoded count to conditional
-2. Fix Terraform Issue #2 - Add missing substitution variables
-3. Fix Terraform Issue #3 - Environment-specific secret IDs
-4. Fix Terraform Issue #4 - Bootstrap IAM permissions
-5. Run: `terraform apply`
-
-**Issue:** Secret placeholder data still showing
-
-This is expected - Terraform creates placeholders to prevent overwriting manual updates. Update with actual data:
+**View build logs:**
 ```bash
-gcloud secrets versions add SECRET_NAME \
-  --data-file=- --project=PROJECT_ID <<< "ACTUAL_VALUE"
+gcloud builds log <BUILD_ID> --stream
 ```
+
+**Bootstrap job not executing:**
+
+1. Check if job exists:
+   ```bash
+   gcloud run jobs list
+   ```
+
+2. Check service account permissions:
+   ```bash
+   gcloud projects get-iam-policy $PROJECT_ID \
+     --flatten="bindings[].members" \
+     --filter="bindings.members:*bootstrap*"
+   ```
+
+3. Test job manually:
+   ```bash
+   gcloud run jobs execute cstudio-bootstrap \
+     --region=us-central1 \
+     --wait
+   ```
+
+See `docs/06-infrastructure/04_CLOUD_RUN_BACKEND.md` for complete Cloud Run deployment guide.
