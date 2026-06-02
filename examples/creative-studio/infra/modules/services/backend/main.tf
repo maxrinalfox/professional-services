@@ -250,7 +250,6 @@ locals {
     "roles/aiplatform.user",
     "roles/storage.objectAdmin",
     "roles/firebase.developAdmin",
-    "roles/iam.serviceAccountTokenCreator",
     "roles/cloudsql.client",
   ]
 }
