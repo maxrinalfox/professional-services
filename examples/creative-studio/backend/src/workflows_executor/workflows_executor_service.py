@@ -228,7 +228,6 @@ class WorkflowsExecutorService:
         request: GenerateTextRequest,
         authorization: str | None = None,
     ):
-        logger.info("authorization: %s", authorization)
         generate_content_config = types.GenerateContentConfig(
             temperature=request.config.temperature,
             top_p=0.95,
@@ -311,7 +310,7 @@ class WorkflowsExecutorService:
         headers = {"Authorization": authorization} if authorization else {}
 
         logger.info(
-            f"Call backend with url: {url}, body: {body}, headers: {headers}"
+            f"Call backend with url: {url}, body: {body}"
         )
 
         response = await self.rest_client.post(url, json=body, headers=headers)
@@ -360,7 +359,7 @@ class WorkflowsExecutorService:
         headers = {"Authorization": authorization} if authorization else {}
 
         logger.info(
-            f"Call backend with url: {url}, body: {body}, headers: {headers}"
+            f"Call backend with url: {url}, body: {body}"
         )
 
         response = await self.rest_client.post(url, json=body, headers=headers)
@@ -434,7 +433,7 @@ class WorkflowsExecutorService:
         headers = {"Authorization": authorization} if authorization else {}
 
         logger.info(
-            f"Call backend with url: {url}, body: {body}, headers: {headers}"
+            f"Call backend with url: {url}, body: {body}"
         )
 
         response = await self.rest_client.post(url, json=body, headers=headers)
@@ -527,7 +526,7 @@ class WorkflowsExecutorService:
         headers = {"Authorization": authorization} if authorization else {}
 
         logger.info(
-            f"Call backend with url: {url}, body: {body}, headers: {headers}"
+            f"Call backend with url: {url}, body: {body}"
         )
 
         response = await self.rest_client.post(url, json=body, headers=headers)
@@ -576,7 +575,7 @@ class WorkflowsExecutorService:
         headers = {"Authorization": authorization} if authorization else {}
 
         logger.info(
-            f"Call backend with url: {url}, body: {body}, headers: {headers}"
+            f"Call backend with url: {url}, body: {body}"
         )
 
         # Note: Audio generation is synchronous in the current controller/service implementation
