@@ -55,6 +55,7 @@ async def get_current_user(
     5. Returns a Pydantic model with the user's data.
     """
     try:
+        email = None
         decoded_token = {}
         if config_service.ENVIRONMENT == "local":
             # --- Local: Use Firebase Auth ---
