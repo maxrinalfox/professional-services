@@ -165,6 +165,11 @@ class TestWorkflowServiceConfig:
             "type": "OIDC",
             "audience": EXECUTOR_OIDC_AUDIENCE,
         }
+        # The step URL keeps the /api/workflows-executor path, but the OIDC
+        # audience must be the bare service base URL (path stripped) or Cloud
+        # Run IAM rejects the token.
+        assert args["url"].endswith("/api/workflows-executor/generate_text")
+        assert "/api/workflows-executor" not in args["auth"]["audience"]
         assert args["headers"] == {
             "X-Forwarded-Authorization": "${args.user_auth_header}"
         }
@@ -179,9 +184,7 @@ class TestWorkflowServiceConfig:
         Authorization and attach no OIDC auth block."""
         from src.config.config_service import config_service
 
-        monkeypatch.setattr(
-            config_service, "BACKEND_SERVICE_ACCOUNT_EMAIL", ""
-        )
+        monkeypatch.setattr(config_service, "BACKEND_SERVICE_ACCOUNT_EMAIL", "")
 
         parsed = yaml.safe_load(
             workflow_service._generate_workflow_yaml(sample_workflow_model)
@@ -189,9 +192,7 @@ class TestWorkflowServiceConfig:
         args = parsed["main"]["steps"][0]["step_1"]["args"]
 
         assert "auth" not in args
-        assert args["headers"] == {
-            "Authorization": "${args.user_auth_header}"
-        }
+        assert args["headers"] == {"Authorization": "${args.user_auth_header}"}
 
     @pytest.mark.parametrize(
         "url,expected",
