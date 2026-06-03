@@ -14,7 +14,7 @@
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Header
+from fastapi import APIRouter, Depends, Header, HTTPException
 
 from src.workflows_executor.dto.workflows_executor_dto import (
     EditImageRequest,
@@ -41,6 +41,27 @@ router = APIRouter(
 # fall back to Authorization (local/unauthenticated deployments). [IAS-3775]
 
 
+def _resolve_user_token(
+    x_forwarded_authorization: str | None,
+    authorization: str | None,
+) -> str:
+    """Return the end-user token, preferring X-Forwarded-Authorization (set when
+    the workflow authenticates to Cloud Run via OIDC) over Authorization. Both
+    absent means the execution carried no user token, so fail loud rather than
+    make unauthenticated loopback calls that 401 opaquely downstream. [IAS-3775]
+    """
+    token = x_forwarded_authorization or authorization
+    if not token:
+        raise HTTPException(
+            status_code=401,
+            detail=(
+                "Workflow executor request carried no auth token (neither "
+                "X-Forwarded-Authorization nor Authorization)."
+            ),
+        )
+    return token
+
+
 @router.post("/generate_text")
 async def generate_text(
     request: GenerateTextRequest,
@@ -49,7 +70,8 @@ async def generate_text(
     service: WorkflowsExecutorService = Depends(),
 ):
     return await service.generate_text(
-        request, x_forwarded_authorization or authorization
+        request,
+        _resolve_user_token(x_forwarded_authorization, authorization),
     )
 
 
@@ -61,7 +83,8 @@ async def generate_image(
     service: WorkflowsExecutorService = Depends(),
 ):
     return await service.generate_image(
-        request, x_forwarded_authorization or authorization
+        request,
+        _resolve_user_token(x_forwarded_authorization, authorization),
     )
 
 
@@ -73,7 +96,8 @@ async def edit_image(
     service: WorkflowsExecutorService = Depends(),
 ):
     return await service.edit_image(
-        request, x_forwarded_authorization or authorization
+        request,
+        _resolve_user_token(x_forwarded_authorization, authorization),
     )
 
 
@@ -85,7 +109,8 @@ async def generate_video(
     service: WorkflowsExecutorService = Depends(),
 ):
     return await service.generate_video(
-        request, x_forwarded_authorization or authorization
+        request,
+        _resolve_user_token(x_forwarded_authorization, authorization),
     )
 
 
@@ -97,7 +122,8 @@ async def virtual_try_on(
     service: WorkflowsExecutorService = Depends(),
 ):
     return await service.virtual_try_on(
-        request, x_forwarded_authorization or authorization
+        request,
+        _resolve_user_token(x_forwarded_authorization, authorization),
     )
 
 
@@ -109,5 +135,6 @@ async def generate_audio(
     service: WorkflowsExecutorService = Depends(),
 ):
     return await service.generate_audio(
-        request, x_forwarded_authorization or authorization
+        request,
+        _resolve_user_token(x_forwarded_authorization, authorization),
     )

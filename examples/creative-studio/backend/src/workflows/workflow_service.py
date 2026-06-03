@@ -59,15 +59,21 @@ PROJECT_ID = config_service.PROJECT_ID
 LOCATION = config_service.WORKFLOWS_LOCATION
 BACKEND_EXECUTOR_URL = config_service.WORKFLOWS_EXECUTOR_URL
 
-# OIDC audience for authenticating workflow callbacks to the IAM-protected
-# backend: the Cloud Run service base URL (scheme://host), derived by dropping
-# the /api/workflows-executor path from the executor URL. [IAS-3775]
-_executor_url_parts = urlparse(BACKEND_EXECUTOR_URL)
-EXECUTOR_OIDC_AUDIENCE = (
-    f"{_executor_url_parts.scheme}://{_executor_url_parts.netloc}"
-    if _executor_url_parts.scheme and _executor_url_parts.netloc
-    else BACKEND_EXECUTOR_URL
-)
+def _derive_oidc_audience(executor_url: str) -> str:
+    """OIDC audience for workflow callbacks to the IAM-protected backend = the
+    Cloud Run service base URL (scheme://host), i.e. the executor URL minus its
+    /api/workflows-executor path. Falls back to the raw URL when it has no
+    scheme/host; that fallback is only reached for non-absolute URLs and the
+    audience is consumed solely when BACKEND_SERVICE_ACCOUNT_EMAIL is set
+    (deployed behind IAM), where the URL is always absolute. [IAS-3775]
+    """
+    parts = urlparse(executor_url)
+    if parts.scheme and parts.netloc:
+        return f"{parts.scheme}://{parts.netloc}"
+    return executor_url
+
+
+EXECUTOR_OIDC_AUDIENCE = _derive_oidc_audience(BACKEND_EXECUTOR_URL)
 
 
 class WorkflowService:
@@ -150,8 +156,8 @@ class WorkflowService:
             # attach an OIDC token via `auth` so Cloud Run accepts it as an
             # invoker (Workflows places the token in the Authorization header),
             # and forward the end-user token in a separate header for app-level
-            # auth. When the SA is unset (local/unauthenticated), keep the user
-            # token in Authorization (original behavior). [IAS-3775]
+            # auth. When the SA is unset (local/unauthenticated mode), keep the
+            # user token in Authorization. [IAS-3775]
             step_args = {"url": f"{BACKEND_EXECUTOR_URL}/{step_type}"}
             if config_service.BACKEND_SERVICE_ACCOUNT_EMAIL:
                 step_args["auth"] = {
@@ -185,6 +191,19 @@ class WorkflowService:
         gcp_workflow = {"main": {"params": ["args"], "steps": gcp_steps}}
 
         yaml_output = yaml.dump(gcp_workflow, indent=2)
+
+        # Log the auth mode baked into the definition so callback failures
+        # (Cloud Run IAM 403 vs app error) are diagnosable. [IAS-3775]
+        if config_service.BACKEND_SERVICE_ACCOUNT_EMAIL:
+            logger.info(
+                "Generated workflow YAML: OIDC auth mode, audience=%s",
+                EXECUTOR_OIDC_AUDIENCE,
+            )
+        else:
+            logger.info(
+                "Generated workflow YAML: user-token auth mode "
+                "(no backend SA; local/unauthenticated)"
+            )
 
         return yaml_output
 
