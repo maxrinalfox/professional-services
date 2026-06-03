@@ -15,8 +15,14 @@
  */
 
 import {ComponentFixture, TestBed} from '@angular/core/testing';
-
+import {HttpClientTestingModule} from '@angular/common/http/testing';
 import {MediaGalleryComponent} from './media-gallery.component';
+import {GalleryService} from '../gallery.service';
+import {DomSanitizer} from '@angular/platform-browser';
+import {MatIconRegistry} from '@angular/material/icon';
+import {UserService} from '../../common/services/user.service';
+import {ElementRef, NgZone} from '@angular/core';
+import {MatIconModule} from '@angular/material/icon';
 
 describe('MediaGalleryComponent', () => {
   let component: MediaGalleryComponent;
@@ -25,6 +31,15 @@ describe('MediaGalleryComponent', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       declarations: [MediaGalleryComponent],
+      imports: [HttpClientTestingModule, MatIconModule],
+      providers: [
+        {provide: GalleryService, useValue: {}},
+        {provide: DomSanitizer, useValue: {}},
+        {provide: MatIconRegistry, useValue: {}},
+        {provide: UserService, useValue: {}},
+        {provide: ElementRef, useValue: {}},
+        {provide: NgZone, useValue: {}},
+      ],
     }).compileComponents();
 
     fixture = TestBed.createComponent(MediaGalleryComponent);

@@ -88,6 +88,7 @@
               "extractLicenses": true
             },
             "build-dev": {
+              "prerender": false,
               "budgets": [
                 {
                   "type": "initial",
@@ -188,7 +189,9 @@
             "styles": [
               "src/styles.scss"
             ],
-            "scripts": []
+            "scripts": [],
+            "karmaConfig": "karma.conf.js",
+            "browsers": "ChromeHeadlessCI"
           }
         }
       }

@@ -12,11 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Annotated
 
 from fastapi import Depends, HTTPException, status
 
-from src.auth.auth_guard import get_current_user
 from src.users.user_model import UserModel, UserRoleEnum
 from src.workspaces.repository.workspace_repository import WorkspaceRepository
 from src.workspaces.schema.workspace_model import (
@@ -26,25 +24,23 @@ from src.workspaces.schema.workspace_model import (
 
 
 class WorkspaceAuth:
-    """
-    A dependency class that centralizes workspace authorization logic.
-    """
+    """A dependency class that centralizes workspace authorization logic."""
 
+    def __init__(self, workspace_repo: WorkspaceRepository = Depends()):
+        self.workspace_repo = workspace_repo
 
     async def authorize(
         self,
         workspace_id: int,
-        user: UserModel = Depends(get_current_user),
-        workspace_repo: WorkspaceRepository = Depends(),
+        user: UserModel,
     ) -> WorkspaceModel:
-        """
-        The core authorization logic. Checks if a user has rights to a workspace.
+        """The core authorization logic. Checks if a user has rights to a workspace.
 
         Raises HTTPException if unauthorized.
         Returns the WorkspaceModel if authorized.
         """
         # Check scope first (efficient query)
-        scope = await workspace_repo.get_scope(workspace_id)
+        scope = await self.workspace_repo.get_scope(workspace_id)
 
         if scope is None:
             raise HTTPException(
@@ -55,9 +51,11 @@ class WorkspaceAuth:
         # Authorization checks
         is_admin = UserRoleEnum.ADMIN in user.roles
         is_public = scope == WorkspaceScopeEnum.PUBLIC
-        
+
         if not (is_admin or is_public):
-            is_member = await workspace_repo.is_member(workspace_id, user.id)
+            is_member = await self.workspace_repo.is_member(
+                workspace_id, user.id
+            )
             if not is_member:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
@@ -65,13 +63,9 @@ class WorkspaceAuth:
                 )
 
         # If authorized, return the full workspace object
-        return await workspace_repo.get_by_id(workspace_id)
+        return await self.workspace_repo.get_by_id(workspace_id)
 
 
-# Create a single instance to be used as a dependency
-workspace_auth_service = WorkspaceAuth()
-
-# Create an annotated dependency for cleaner use in endpoint signatures
-AuthorizedWorkspace = Annotated[
-    WorkspaceModel, Depends(workspace_auth_service.authorize)
-]
+# Global instance removed. Use Depends(WorkspaceAuth) instead.
+# workspace_auth_service = WorkspaceAuth()
+# AuthorizedWorkspace = Annotated[WorkspaceModel, Depends(workspace_auth_service.authorize)]

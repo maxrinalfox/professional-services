@@ -155,7 +155,7 @@ steps:
       - 'firebase'
       - 'deploy'
       - '--project=${PROJECT_ID}'
-      - '--only=hosting:${PROJECT_ID}'
+      - '--only=hosting:${_FIREBASE_SITE_ID}'
       - '--non-interactive'
     waitFor: ['Build Angular App']
     dir: examples/creative-studio/frontend
