@@ -70,6 +70,34 @@ class TestGetCurrentUser:
 
     @pytest.mark.anyio
     @patch("src.auth.auth_guard.auth.verify_id_token")
+    async def test_get_current_user_grants_admin_from_list(
+        self, mock_verify, mock_user_service, monkeypatch
+    ):
+        """A user whose email is in the comma-separated ADMIN_USER_EMAIL list
+        is granted (and persisted) the ADMIN role."""
+        config_service.ENVIRONMENT = "local"
+        config_service.ALLOWED_ORGS_STR = ""
+        monkeypatch.setattr(
+            config_service,
+            "ADMIN_USER_EMAIL",
+            "other@fox.com,test@example.com",
+        )
+
+        mock_verify.return_value = {
+            "email": "test@example.com",
+            "name": "Test User",
+            "picture": "http://example.com/pic.jpg",
+        }
+
+        user = await get_current_user(
+            token="valid_token", user_service=mock_user_service
+        )
+
+        assert UserRoleEnum.ADMIN in user.roles
+        mock_user_service.user_repo.update.assert_awaited()
+
+    @pytest.mark.anyio
+    @patch("src.auth.auth_guard.auth.verify_id_token")
     async def test_get_current_user_no_email(
         self, mock_verify, mock_user_service
     ):
@@ -138,3 +166,22 @@ class TestRoleChecker:
 
         assert exc_info.value.status_code == 403
         assert "do not have sufficient permissions" in exc_info.value.detail
+
+
+class TestAdminEmails:
+    """Tests for multi-admin ADMIN_USER_EMAIL parsing."""
+
+    @pytest.mark.parametrize(
+        "raw,expected",
+        [
+            ("a@fox.com", ["a@fox.com"]),
+            ("a@fox.com,b@fox.com", ["a@fox.com", "b@fox.com"]),
+            (" a@fox.com , b@fox.com ", ["a@fox.com", "b@fox.com"]),
+            ("system", []),
+            ("", []),
+            ("a@fox.com,system", ["a@fox.com"]),
+        ],
+    )
+    def test_admin_emails_parsing(self, raw, expected, monkeypatch):
+        monkeypatch.setattr(config_service, "ADMIN_USER_EMAIL", raw)
+        assert config_service.admin_emails == expected
