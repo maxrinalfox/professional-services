@@ -141,6 +141,81 @@ class TestWorkflowServiceConfig:
         assert "url" in step_1["args"]
         assert "body" in step_1["args"]
 
+    def test_generate_workflow_yaml_oidc_when_sa_set(
+        self, workflow_service, sample_workflow_model, monkeypatch
+    ):
+        """SA set (deployed behind Cloud Run IAM): each step carries an OIDC
+        auth block and forwards the user token in X-Forwarded-Authorization,
+        NOT Authorization (which holds the OIDC token Cloud Run consumes)."""
+        from src.config.config_service import config_service
+        from src.workflows.workflow_service import EXECUTOR_OIDC_AUDIENCE
+
+        monkeypatch.setattr(
+            config_service,
+            "BACKEND_SERVICE_ACCOUNT_EMAIL",
+            "cs-be-development-run@proj.iam.gserviceaccount.com",
+        )
+
+        parsed = yaml.safe_load(
+            workflow_service._generate_workflow_yaml(sample_workflow_model)
+        )
+        args = parsed["main"]["steps"][0]["step_1"]["args"]
+
+        assert args["auth"] == {
+            "type": "OIDC",
+            "audience": EXECUTOR_OIDC_AUDIENCE,
+        }
+        # The step URL keeps the /api/workflows-executor path, but the OIDC
+        # audience must be the bare service base URL (path stripped) or Cloud
+        # Run IAM rejects the token.
+        assert args["url"].endswith("/api/workflows-executor/generate_text")
+        assert "/api/workflows-executor" not in args["auth"]["audience"]
+        assert args["headers"] == {
+            "X-Forwarded-Authorization": "${args.user_auth_header}"
+        }
+        # The OIDC token occupies Authorization; the user token must not also
+        # be placed there (that would break Cloud Run IAM).
+        assert "Authorization" not in args["headers"]
+
+    def test_generate_workflow_yaml_user_token_when_sa_unset(
+        self, workflow_service, sample_workflow_model, monkeypatch
+    ):
+        """SA unset (local/unauthenticated): keep the user token in
+        Authorization and attach no OIDC auth block."""
+        from src.config.config_service import config_service
+
+        monkeypatch.setattr(config_service, "BACKEND_SERVICE_ACCOUNT_EMAIL", "")
+
+        parsed = yaml.safe_load(
+            workflow_service._generate_workflow_yaml(sample_workflow_model)
+        )
+        args = parsed["main"]["steps"][0]["step_1"]["args"]
+
+        assert "auth" not in args
+        assert args["headers"] == {"Authorization": "${args.user_auth_header}"}
+
+    @pytest.mark.parametrize(
+        "url,expected",
+        [
+            (
+                "https://svc-123.us-central1.run.app/api/workflows-executor",
+                "https://svc-123.us-central1.run.app",
+            ),
+            (
+                "http://localhost:8080/api/workflows-executor",
+                "http://localhost:8080",
+            ),
+            ("http://localhost:8080", "http://localhost:8080"),
+            ("not-a-url", "not-a-url"),
+        ],
+    )
+    def test_derive_oidc_audience(self, url, expected):
+        """Audience is the service base URL (scheme://host), path stripped;
+        non-absolute URLs fall back to the raw value."""
+        from src.workflows.workflow_service import _derive_oidc_audience
+
+        assert _derive_oidc_audience(url) == expected
+
 
 class TestCreateWorkflow:
     """Tests for create_workflow method."""

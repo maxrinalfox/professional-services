@@ -17,6 +17,7 @@ import datetime
 import json
 import logging
 import uuid
+from urllib.parse import urlparse
 
 import google.auth
 import yaml
@@ -57,6 +58,23 @@ logger = logging.getLogger(__name__)
 PROJECT_ID = config_service.PROJECT_ID
 LOCATION = config_service.WORKFLOWS_LOCATION
 BACKEND_EXECUTOR_URL = config_service.WORKFLOWS_EXECUTOR_URL
+
+
+def _derive_oidc_audience(executor_url: str) -> str:
+    """OIDC audience for workflow callbacks to the IAM-protected backend = the
+    Cloud Run service base URL (scheme://host), i.e. the executor URL minus its
+    /api/workflows-executor path. Falls back to the raw URL when it has no
+    scheme/host; that fallback is only reached for non-absolute URLs and the
+    audience is consumed solely when BACKEND_SERVICE_ACCOUNT_EMAIL is set
+    (deployed behind IAM), where the URL is always absolute. [IAS-3775]
+    """
+    parts = urlparse(executor_url)
+    if parts.scheme and parts.netloc:
+        return f"{parts.scheme}://{parts.netloc}"
+    return executor_url
+
+
+EXECUTOR_OIDC_AUDIENCE = _derive_oidc_audience(BACKEND_EXECUTOR_URL)
 
 
 class WorkflowService:
@@ -134,16 +152,32 @@ class WorkflowService:
                 "config": config,
             }
 
+            # Build the executor call. When deployed behind Cloud Run IAM
+            # (BACKEND_SERVICE_ACCOUNT_EMAIL set), the workflow runs as that SA;
+            # attach an OIDC token via `auth` so Cloud Run accepts it as an
+            # invoker (Workflows places the token in the Authorization header),
+            # and forward the end-user token in a separate header for app-level
+            # auth. When the SA is unset (local/unauthenticated mode), keep the
+            # user token in Authorization. [IAS-3775]
+            step_args = {"url": f"{BACKEND_EXECUTOR_URL}/{step_type}"}
+            if config_service.BACKEND_SERVICE_ACCOUNT_EMAIL:
+                step_args["auth"] = {
+                    "type": "OIDC",
+                    "audience": EXECUTOR_OIDC_AUDIENCE,
+                }
+                step_args["headers"] = {
+                    "X-Forwarded-Authorization": "${args.user_auth_header}"
+                }
+            else:
+                step_args["headers"] = {
+                    "Authorization": "${args.user_auth_header}"
+                }
+            step_args["body"] = body
+
             gcp_step = {
                 step_name: {
                     "call": "http.post",
-                    "args": {
-                        "url": f"{BACKEND_EXECUTOR_URL}/{step_type}",
-                        "headers": {
-                            "Authorization": "${args.user_auth_header}"
-                        },
-                        "body": body,
-                    },
+                    "args": step_args,
                     "result": f"{step_name}_result",
                 },
             }
@@ -158,6 +192,19 @@ class WorkflowService:
         gcp_workflow = {"main": {"params": ["args"], "steps": gcp_steps}}
 
         yaml_output = yaml.dump(gcp_workflow, indent=2)
+
+        # Log the auth mode baked into the definition so callback failures
+        # (Cloud Run IAM 403 vs app error) are diagnosable. [IAS-3775]
+        if config_service.BACKEND_SERVICE_ACCOUNT_EMAIL:
+            logger.info(
+                "Generated workflow YAML: OIDC auth mode, audience=%s",
+                EXECUTOR_OIDC_AUDIENCE,
+            )
+        else:
+            logger.info(
+                "Generated workflow YAML: user-token auth mode "
+                "(no backend SA; local/unauthenticated)"
+            )
 
         return yaml_output
 

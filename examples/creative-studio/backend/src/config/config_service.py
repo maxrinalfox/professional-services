@@ -107,7 +107,10 @@ class ConfigService(BaseSettings):
     # --- Workflows ---
     WORKFLOWS_LOCATION: str = "us-central1"
     WORKFLOWS_EXECUTOR_URL: str = (
-        "http://localhost:8080"  # This service could be deployed alone in the future
+        # Includes the /api/workflows-executor router prefix (workflow steps
+        # POST to "{this}/{step_type}"). This service could be deployed alone
+        # in the future.
+        "http://localhost:8080/api/workflows-executor"
     )
     BACKEND_SERVICE_ACCOUNT_EMAIL: str = ""
 
