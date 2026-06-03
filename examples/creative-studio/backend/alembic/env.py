@@ -20,14 +20,10 @@ from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from alembic import context
-
 from src.database import Base, get_conn_string
-from src.users.user_model import User
-from src.workspaces.schema.workspace_model import Workspace
-from src.brand_guidelines.schema.brand_guideline_model import BrandGuideline
-from src.common.schema.media_item_model import MediaItem
-from src.media_templates.schema.media_template_model import MediaTemplate
-from src.source_assets.schema.source_asset_model import SourceAsset
+from src.tags.schema.tags_model import (
+    Tag,
+)  # Import to ensure registered with Base.metadata
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -78,7 +74,9 @@ def do_run_migrations(connection: Connection) -> None:
 
 
 from google.cloud.sql.connector import Connector, IPTypes
+
 from src.config.config_service import config_service
+
 
 # Define a local get_connection for Alembic to avoid loop issues with the global one
 async def alembic_get_connection():
@@ -110,6 +108,7 @@ async def alembic_get_connection():
     )
     return conn
 
+
 async def run_migrations_online() -> None:
     """Run migrations in 'online' mode.
 
@@ -119,10 +118,13 @@ async def run_migrations_online() -> None:
     """
     # Create a configuration dict from the alembic config
     configuration = config.get_section(config.config_ini_section, {})
-    
+
     # If using Cloud SQL Connector, we need to pass the async_creator
     connect_args = {}
-    if config_service.INSTANCE_CONNECTION_NAME and not config_service.USE_CLOUD_SQL_AUTH_PROXY:
+    if (
+        config_service.INSTANCE_CONNECTION_NAME
+        and not config_service.USE_CLOUD_SQL_AUTH_PROXY
+    ):
         # We override the URL to be empty/generic because the connector handles it
         configuration["sqlalchemy.url"] = "postgresql+asyncpg://"
         connect_args["async_creator"] = alembic_get_connection

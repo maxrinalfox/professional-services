@@ -15,14 +15,24 @@
  */
 
 import {TestBed} from '@angular/core/testing';
+import {HttpClientTestingModule} from '@angular/common/http/testing';
+import {Router} from '@angular/router';
 
 import {AuthGuardService} from './auth.guard.service';
+import {AuthService} from './auth.service';
 
-describe('AuthGaurdService', () => {
+describe('AuthGuardService', () => {
   let service: AuthGuardService;
 
   beforeEach(() => {
-    TestBed.configureTestingModule({});
+    TestBed.configureTestingModule({
+      imports: [HttpClientTestingModule],
+      providers: [
+        AuthGuardService,
+        {provide: AuthService, useValue: {}},
+        {provide: Router, useValue: {}},
+      ],
+    });
     service = TestBed.inject(AuthGuardService);
   });
 

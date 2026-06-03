@@ -14,32 +14,33 @@
  * limitations under the License.
  */
 
-import {Component, OnInit} from '@angular/core';
-import {ActivatedRoute} from '@angular/router';
+import {Component, OnInit, Inject, PLATFORM_ID} from '@angular/core';
+import {isPlatformBrowser} from '@angular/common';
 import {MatDialog} from '@angular/material/dialog';
 import {MatSnackBar} from '@angular/material/snack-bar';
-import {Workspace, WorkspaceScope} from '../../models/workspace.model';
-import {WorkspaceService} from '../../../services/workspace/workspace.service';
+import {ActivatedRoute} from '@angular/router';
+import {map, switchMap} from 'rxjs';
 import {WorkspaceStateService} from '../../../services/workspace/workspace-state.service';
-import {CreateWorkspaceModalComponent} from '../create-workspace-modal/create-workspace-modal.component';
-import {ConfirmationDialogComponent} from '../confirmation-dialog/confirmation-dialog.component';
+import {WorkspaceService} from '../../../services/workspace/workspace.service';
 import {
   handleErrorSnackbar,
   handleSuccessSnackbar,
 } from '../../../utils/handleMessageSnackbar';
-import {
-  InviteUserData,
-  InviteUserModalComponent,
-} from '../invite-user-modal/invite-user-modal.component';
-import {UserService} from '../../services/user.service';
+import {JobStatus} from '../../models/media-item.model';
 import {UserModel, UserRolesEnum} from '../../models/user.model';
+import {Workspace, WorkspaceScope} from '../../models/workspace.model';
+import {BrandGuidelineService} from '../../services/brand-guideline/brand-guideline.service';
+import {UserService} from '../../services/user.service';
 import {
   BrandGuidelineDialogComponent,
   BrandGuidelineDialogData,
 } from '../brand-guideline-dialog/brand-guideline-dialog.component';
-import {BrandGuidelineService} from '../../services/brand-guideline/brand-guideline.service';
-import {finalize, map, switchMap} from 'rxjs';
-import {JobStatus, MediaItem} from '../../models/media-item.model';
+import {ConfirmationDialogComponent} from '../confirmation-dialog/confirmation-dialog.component';
+import {CreateWorkspaceModalComponent} from '../create-workspace-modal/create-workspace-modal.component';
+import {
+  InviteUserData,
+  InviteUserModalComponent,
+} from '../invite-user-modal/invite-user-modal.component';
 
 @Component({
   selector: 'app-workspace-switcher',
@@ -54,6 +55,8 @@ export class WorkspaceSwitcherComponent implements OnInit {
   readonly JobStatus = JobStatus;
   public WorkspaceScope = WorkspaceScope;
 
+  isBrowser: boolean;
+
   constructor(
     private workspaceService: WorkspaceService,
     private workspaceStateService: WorkspaceStateService,
@@ -62,8 +65,10 @@ export class WorkspaceSwitcherComponent implements OnInit {
     private route: ActivatedRoute,
     public dialog: MatDialog,
     private snackBar: MatSnackBar,
+    @Inject(PLATFORM_ID) platformId: Object,
   ) {
     this.currentUser = this.userService.getUserDetails();
+    this.isBrowser = isPlatformBrowser(platformId);
   }
 
   ngOnInit(): void {
@@ -76,7 +81,8 @@ export class WorkspaceSwitcherComponent implements OnInit {
       // Actually, workspaceStateService might need checking too.
       // Let's assume id is number here based on the goal.
       this.activeWorkspaceId = typeof id === 'string' ? parseInt(id, 10) : id;
-      this.activeWorkspace = this.workspaces.find(w => w.id === this.activeWorkspaceId) || null;
+      this.activeWorkspace =
+        this.workspaces.find(w => w.id === this.activeWorkspaceId) || null;
     });
 
     this.brandGuidelineService.activeBrandGuidelineJob$.subscribe(job => {
@@ -116,6 +122,8 @@ export class WorkspaceSwitcherComponent implements OnInit {
   }
 
   initializeActiveWorkspace(): void {
+    if (!this.isBrowser) return;
+
     const storedWorkspaceId = localStorage.getItem('activeWorkspaceId');
     const queryParamId = this.route.snapshot.queryParamMap.get('workspaceId');
 
@@ -123,9 +131,9 @@ export class WorkspaceSwitcherComponent implements OnInit {
     let preferredWorkspaceId: number | null = null;
 
     if (queryParamId) {
-        preferredWorkspaceId = parseInt(queryParamId, 10);
+      preferredWorkspaceId = parseInt(queryParamId, 10);
     } else if (storedWorkspaceId) {
-        preferredWorkspaceId = parseInt(storedWorkspaceId, 10);
+      preferredWorkspaceId = parseInt(storedWorkspaceId, 10);
     }
 
     if (
@@ -152,14 +160,17 @@ export class WorkspaceSwitcherComponent implements OnInit {
   setActiveWorkspace(workspaceId: number | null): void {
     // We might need to cast to any if workspaceStateService expects string,
     // but we should check that service too. For now, let's assume we pass number.
-    this.workspaceStateService.setActiveWorkspaceId(workspaceId as any);
+    this.workspaceStateService.setActiveWorkspaceId(workspaceId);
     this.activeWorkspace =
       this.workspaces.find(w => w.id === workspaceId) || null;
     this.brandGuidelineService.clearCache();
-    if (workspaceId) {
-      localStorage.setItem('activeWorkspaceId', workspaceId.toString());
-    } else {
-      localStorage.removeItem('activeWorkspaceId');
+
+    if (this.isBrowser) {
+      if (workspaceId) {
+        localStorage.setItem('activeWorkspaceId', workspaceId.toString());
+      } else {
+        localStorage.removeItem('activeWorkspaceId');
+      }
     }
   }
 
@@ -305,7 +316,10 @@ export class WorkspaceSwitcherComponent implements OnInit {
                 .deleteBrandGuideline(guideline.id)
                 .subscribe({
                   next: () => {
-                    handleSuccessSnackbar(this.snackBar, 'Brand Guideline deleted.');
+                    handleSuccessSnackbar(
+                      this.snackBar,
+                      'Brand Guideline deleted.',
+                    );
                   },
                   error: error =>
                     handleErrorSnackbar(
@@ -328,28 +342,30 @@ export class WorkspaceSwitcherComponent implements OnInit {
           this.brandGuidelineService
             .createBrandGuideline(workspaceId, result.file, result.name)
             .subscribe({
-            next: () => {
-              // 3. On success, show the "processing" snackbar
-              handleSuccessSnackbar(
-                this.snackBar,
-                'File uploaded! We will process it and notify you upon completion. You can close this window or navigate away!',
-              );
-            },
-            error: error => {
-              // On error, clear the job so the spinner disappears
-              this.brandGuidelineService.clearActiveJob();
-              handleErrorSnackbar(this.snackBar, error, 'Upload failed');
-            },
-          });
+              next: () => {
+                // 3. On success, show the "processing" snackbar
+                handleSuccessSnackbar(
+                  this.snackBar,
+                  'File uploaded! We will process it and notify you upon completion. You can close this window or navigate away!',
+                );
+              },
+              error: error => {
+                // On error, clear the job so the spinner disappears
+                this.brandGuidelineService.clearActiveJob();
+                handleErrorSnackbar(this.snackBar, error, 'Upload failed');
+              },
+            });
         }
       });
   }
 
   openFeedbackForm(event: MouseEvent): void {
     event.stopPropagation();
-    window.open(
-      'https://docs.google.com/forms/d/e/1FAIpQLSceWvu7G354h-dTbOGvNGEraEjcUAgPE300WNY5qr-WJbh3Eg/viewform',
-      '_blank',
-    );
+    if (this.isBrowser) {
+      window.open(
+        'https://docs.google.com/forms/d/e/1FAIpQLSceWvu7G354h-dTbOGvNGEraEjcUAgPE300WNY5qr-WJbh3Eg/viewform',
+        '_blank',
+      );
+    }
   }
 }

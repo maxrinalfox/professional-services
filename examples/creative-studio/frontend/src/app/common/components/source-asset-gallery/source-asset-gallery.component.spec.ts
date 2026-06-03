@@ -15,16 +15,45 @@
  */
 
 import {ComponentFixture, TestBed} from '@angular/core/testing';
-
 import {SourceAssetGalleryComponent} from './source-asset-gallery.component';
+import {SourceAssetService} from '../../services/source-asset.service';
+import {UserService} from '../../services/user.service';
+import {MatDialog} from '@angular/material/dialog';
+import {MatSnackBar} from '@angular/material/snack-bar';
+import {BehaviorSubject, of, Subject} from 'rxjs';
+import {NO_ERRORS_SCHEMA} from '@angular/core';
 
 describe('SourceAssetGalleryComponent', () => {
   let component: SourceAssetGalleryComponent;
   let fixture: ComponentFixture<SourceAssetGalleryComponent>;
+  let mockSourceAssetService: any;
+  let mockUserService: any;
 
   beforeEach(async () => {
+    mockSourceAssetService = {
+      isLoading$: new BehaviorSubject<boolean>(false),
+      allAssetsLoaded: new BehaviorSubject<boolean>(false),
+      assets: new BehaviorSubject<any[]>([]),
+      setFilters: jasmine.createSpy('setFilters'),
+      loadAssets: jasmine.createSpy('loadAssets'),
+      deleteAsset: jasmine.createSpy('deleteAsset').and.returnValue(of(null)),
+    };
+
+    mockUserService = {
+      getUserDetails: jasmine
+        .createSpy('getUserDetails')
+        .and.returnValue({email: 'test@test.com'}),
+    };
+
     await TestBed.configureTestingModule({
       declarations: [SourceAssetGalleryComponent],
+      providers: [
+        {provide: SourceAssetService, useValue: mockSourceAssetService},
+        {provide: UserService, useValue: mockUserService},
+        {provide: MatDialog, useValue: {open: jasmine.createSpy('open')}},
+        {provide: MatSnackBar, useValue: {open: jasmine.createSpy('open')}},
+      ],
+      schemas: [NO_ERRORS_SCHEMA],
     }).compileComponents();
 
     fixture = TestBed.createComponent(SourceAssetGalleryComponent);
