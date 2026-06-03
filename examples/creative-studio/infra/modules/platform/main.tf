@@ -528,3 +528,13 @@ resource "google_project_iam_member" "backend_run_sa_bucket_reader" {
 
   depends_on = [module.backend_service]
 }
+
+# --- Least-privilege signed-URL signing permission (IAS-3768) ---
+# Allow ONLY the backend Cloud Run runtime SA to impersonate the bucket writer/signer
+# SA for GCS signed URLs (replaces the broad project-level tokenCreator grant that
+# previously lived in services/backend cloud_run_sa_backend_permissions).
+resource "google_service_account_iam_member" "backend_run_sign_as_writer" {
+  service_account_id = "projects/${var.gcp_project_id}/serviceAccounts/${module.storage.bucket_writer_sa_email}"
+  role               = "roles/iam.serviceAccountTokenCreator"
+  member             = module.backend_service.run_sa_member
+}
