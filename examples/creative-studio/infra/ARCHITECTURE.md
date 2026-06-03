@@ -330,7 +330,7 @@ graph TB
 graph TB
     subgraph "Backend Cloud Run Service Account"
         BESA["🔐 cs-be-{env}-run"]
-        BEPERMS["Permissions:<br/>- aiplatform.user<br/>- storage.objectAdmin<br/>- firebase.developAdmin<br/>- iam.serviceAccountTokenCreator<br/>- cloudsql.client"]
+        BEPERMS["Permissions:<br/>- aiplatform.user<br/>- storage.objectAdmin<br/>- firebase.developAdmin<br/>- cloudsql.client<br/>- workflows.editor + workflows.invoker<br/>- serviceAccountUser (act as self, for Workflows identity)<br/>- serviceAccountTokenCreator (scoped to signer SA)"]
     end
 
     subgraph "Backend Cloud Build Service Account"
