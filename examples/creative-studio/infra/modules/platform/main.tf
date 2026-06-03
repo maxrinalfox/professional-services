@@ -80,6 +80,12 @@ locals {
 
     # ========== SECRETS & SECURITY APIs ==========
     "secretmanager.googleapis.com",
+
+    # ========== WORKFLOWS APIs (IAS-3775) ==========
+    # Required by the Workflows feature: workflow_service.py manages
+    # google_workflows_v1 definitions and executions_v1 executions.
+    "workflows.googleapis.com",
+    "workflowexecutions.googleapis.com",
   ]
 }
 
@@ -146,6 +152,13 @@ locals {
   backend_url = "https://${local.backend_service_name}-${data.google_project.project.number}.${var.gcp_region}.run.app"
   frontend_url = "https://${var.gcp_project_id}.web.app"
 
+  # Backend Cloud Run runtime SA email — computed deterministically (NOT
+  # module.backend_service.run_sa_email) to avoid a module input<-output cycle:
+  # this value is injected into the backend's OWN env vars below. Mirrors the
+  # backend module's SA account_id "${resource_prefix}-${environment}-run"
+  # (resource_prefix = "cs-be"; see services/backend/main.tf). [IAS-3775]
+  backend_run_sa_email = "cs-be-${var.environment}-run@${var.gcp_project_id}.iam.gserviceaccount.com"
+
   # --- DATABASE NAMING (Single Source of Truth) ---
   # Firestore database name is auto-computed from environment, not user-configurable
   # This ensures FIREBASE_DB env var always matches the actual database name
@@ -180,6 +193,13 @@ locals {
       "CORS_ORIGINS"     = "[\"${local.frontend_url}\"]"
       "GENMEDIA_BUCKET"  = module.storage.bucket_name
       "SIGNING_SA_EMAIL" = module.storage.bucket_writer_sa_email
+
+      # Workflows feature wiring (IAS-3775). The executor URL MUST include the
+      # /api/workflows-executor route prefix: workflow steps POST to
+      # "{WORKFLOWS_EXECUTOR_URL}/{step_type}" (workflow_service.py) and those
+      # routes are mounted under that prefix (workflows_executor_controller.py).
+      "WORKFLOWS_EXECUTOR_URL"        = "${local.backend_url}/api/workflows-executor"
+      "BACKEND_SERVICE_ACCOUNT_EMAIL" = local.backend_run_sa_email
     },
     local.backend_env_vars_protected  # Protected values override user input if conflicting
   )
@@ -537,4 +557,26 @@ resource "google_service_account_iam_member" "backend_run_sign_as_writer" {
   service_account_id = "projects/${var.gcp_project_id}/serviceAccounts/${module.storage.bucket_writer_sa_email}"
   role               = "roles/iam.serviceAccountTokenCreator"
   member             = module.backend_service.run_sa_member
+}
+
+# --- Workflows executor self-invocation (IAS-3775) ---
+# Workflow executions run as the backend runtime SA (set as the workflow's
+# service_account via BACKEND_SERVICE_ACCOUNT_EMAIL) and POST back to the
+# IAM-protected backend's /api/workflows-executor/* endpoints. Grant that SA
+# run.invoker on the backend service.
+#
+# Implemented as a separate resource (rather than appending to
+# var.backend_invoker_identities) because the env-root local cannot reference a
+# module output, and feeding the backend module's own run_sa_member into its
+# invoker_identities input would create a module input<-output cycle. This
+# mirrors the cross-module fe_trigger_can_view_backend / backend_run_sign_as_writer
+# pattern above. IAM members are additive, so this coexists with the module's
+# own invoker bindings.
+resource "google_cloud_run_v2_service_iam_member" "backend_run_sa_self_invoke" {
+  project    = var.gcp_project_id
+  name       = module.backend_service.service_name
+  location   = module.backend_service.location
+  role       = "roles/run.invoker"
+  member     = module.backend_service.run_sa_member
+  depends_on = [module.backend_service]
 }
