@@ -98,6 +98,29 @@ class TestGetCurrentUser:
 
     @pytest.mark.anyio
     @patch("src.auth.auth_guard.auth.verify_id_token")
+    async def test_get_current_user_non_listed_email_not_granted_admin(
+        self, mock_verify, mock_user_service, monkeypatch
+    ):
+        """A user whose email is NOT in ADMIN_USER_EMAIL is never granted the
+        ADMIN role (guards against an accidental blanket grant)."""
+        config_service.ENVIRONMENT = "local"
+        config_service.ALLOWED_ORGS_STR = ""
+        monkeypatch.setattr(config_service, "ADMIN_USER_EMAIL", "admin@fox.com")
+
+        mock_verify.return_value = {
+            "email": "test@example.com",  # not in the admin list
+            "name": "Test User",
+            "picture": "http://example.com/pic.jpg",
+        }
+
+        user = await get_current_user(
+            token="valid_token", user_service=mock_user_service
+        )
+
+        assert UserRoleEnum.ADMIN not in user.roles
+
+    @pytest.mark.anyio
+    @patch("src.auth.auth_guard.auth.verify_id_token")
     async def test_get_current_user_no_email(
         self, mock_verify, mock_user_service
     ):

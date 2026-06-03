@@ -1231,23 +1231,24 @@ async def create_gallery_item(
 
 ### Admin User Auto-Configuration
 
-When a user authenticates, the system checks if their email matches the configured `ADMIN_USER_EMAIL` environment variable. If it does:
+When a user authenticates, the system checks if their email is one of the configured admin emails (`ADMIN_USER_EMAIL`, which may be a single address or a comma-separated list). If it matches:
 
 - The system automatically assigns the `ADMIN` role if not already present
 - This check occurs on **every login**, ensuring admins always retain access
 - If an admin's role was accidentally removed, it will be restored on next login
-- The admin email is configured via the `ADMIN_USER_EMAIL` environment variable
+- Admin emails are configured via the `ADMIN_USER_EMAIL` environment variable (comma-separated for multiple admins)
 
 **Configuration**:
 ```python
-# In your environment or Cloud Secret Manager
-ADMIN_USER_EMAIL="your-admin@example.com"
+# In your environment or Cloud Secret Manager. Comma-separate for multiple admins.
+ADMIN_USER_EMAIL="admin@example.com,second-admin@example.com"
 ```
 
 **Implementation** (`backend/src/auth/auth_guard.py`):
 ```python
-# Ensure the configured admin user always has admin role
-if email == config_service.ADMIN_USER_EMAIL:
+# Ensure configured admin users always have the admin role.
+# ADMIN_USER_EMAIL may be a single address or a comma-separated list.
+if email in config_service.admin_emails:
     if UserRoleEnum.ADMIN not in user_doc.roles:
         logger.info(f"Granting admin role to configured admin user: {email}")
         updated_roles = list(set(user_doc.roles) | {UserRoleEnum.ADMIN})
