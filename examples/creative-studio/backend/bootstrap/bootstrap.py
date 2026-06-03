@@ -67,7 +67,11 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
 def get_admin_email() -> str:
-    return config_service.ADMIN_USER_EMAIL
+    # Bootstrap seeds a single primary admin user + workspace. ADMIN_USER_EMAIL
+    # may be a comma-separated list (see config_service.admin_emails); use the
+    # first configured admin, falling back to "system" (which skips seeding).
+    admins = config_service.admin_emails
+    return admins[0] if admins else "system"
 
 
 async def ensure_admin_user_exists(db: AsyncSession) -> UserModel | None:

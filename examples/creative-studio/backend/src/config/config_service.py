@@ -164,6 +164,17 @@ class ConfigService(BaseSettings):
     def IMAGE_BUCKET(self) -> str:
         return f"{self.GENMEDIA_BUCKET}/images"
 
+    @computed_field
+    @property
+    def admin_emails(self) -> list[str]:
+        """Emails granted the ADMIN role on login. ADMIN_USER_EMAIL may be a
+        single address or a comma-separated list; the bootstrap default
+        "system" yields no admins."""
+        return [
+            email.strip()
+            for email in self.ADMIN_USER_EMAIL.split(",")
+            if email.strip() and email.strip() != "system"
+        ]
 
 
 # Create a single, cached instance of the settings to be used throughout the app.

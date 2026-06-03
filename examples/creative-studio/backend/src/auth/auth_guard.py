@@ -118,8 +118,9 @@ async def get_current_user(
                 detail="Could not create or retrieve user profile.",
             )
 
-        # Ensure the configured admin user always has admin role
-        if email == config_service.ADMIN_USER_EMAIL:
+        # Ensure configured admin users always have the admin role.
+        # ADMIN_USER_EMAIL may be a single address or a comma-separated list.
+        if email in config_service.admin_emails:
             if UserRoleEnum.ADMIN not in user_doc.roles:
                 logger.info(f"Granting admin role to configured admin user: {email}")
                 updated_roles = list(set(user_doc.roles) | {UserRoleEnum.ADMIN})
