@@ -240,8 +240,9 @@ resource "google_service_account_iam_member" "trigger_sa_impersonate_run_sa" {
 # - Access Vertex AI APIs for ML features (aiplatform.user)
 # - Read/write to Cloud Storage buckets (storage.objectAdmin)
 # - Access Firestore database (firebase.developAdmin)
-# - Create temporary access tokens for other services (iam.serviceAccountTokenCreator)
 # - Access Cloud SQL databases (cloudsql.client)
+# - Manage and execute GCP Workflows (workflows.editor + workflows.invoker)
+# - Act as itself, to attach itself as a workflow's identity (serviceAccountUser)
 # - Read secrets from Secret Manager (secretmanager.secretAccessor)
 
 locals {
@@ -251,6 +252,10 @@ locals {
     "roles/storage.objectAdmin",
     "roles/firebase.developAdmin",
     "roles/cloudsql.client",
+    # Workflows feature (IAS-3775): manage workflow definitions
+    # (workflows.editor) and create executions (workflows.invoker).
+    "roles/workflows.editor",
+    "roles/workflows.invoker",
   ]
 }
 
@@ -261,6 +266,17 @@ resource "google_project_iam_member" "run_sa_project_permissions" {
   project = var.gcp_project_id
   role    = each.value
   member  = google_service_account.run_sa.member
+}
+
+# Allow the runtime SA to act as itself (IAS-3775). Required to create GCP
+# Workflows whose service_account is this SA: the workflow runs as it and makes
+# OIDC-authenticated callbacks to the backend. Without this, workflow creation
+# fails with "iam.serviceAccounts.ActAs is required to use service account as
+# workflow identity". Scoped to this single SA (least privilege).
+resource "google_service_account_iam_member" "run_sa_act_as_self" {
+  service_account_id = google_service_account.run_sa.name
+  role               = "roles/iam.serviceAccountUser"
+  member             = google_service_account.run_sa.member
 }
 
 # Grant Secret Manager access to Cloud Run runtime service account
