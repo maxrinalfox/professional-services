@@ -59,6 +59,7 @@ PROJECT_ID = config_service.PROJECT_ID
 LOCATION = config_service.WORKFLOWS_LOCATION
 BACKEND_EXECUTOR_URL = config_service.WORKFLOWS_EXECUTOR_URL
 
+
 def _derive_oidc_audience(executor_url: str) -> str:
     """OIDC audience for workflow callbacks to the IAM-protected backend = the
     Cloud Run service base URL (scheme://host), i.e. the executor URL minus its
