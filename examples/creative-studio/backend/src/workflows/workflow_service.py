@@ -17,6 +17,7 @@ import datetime
 import json
 import logging
 import uuid
+from urllib.parse import urlparse
 
 import google.auth
 import yaml
@@ -57,6 +58,16 @@ logger = logging.getLogger(__name__)
 PROJECT_ID = config_service.PROJECT_ID
 LOCATION = config_service.WORKFLOWS_LOCATION
 BACKEND_EXECUTOR_URL = config_service.WORKFLOWS_EXECUTOR_URL
+
+# OIDC audience for authenticating workflow callbacks to the IAM-protected
+# backend: the Cloud Run service base URL (scheme://host), derived by dropping
+# the /api/workflows-executor path from the executor URL. [IAS-3775]
+_executor_url_parts = urlparse(BACKEND_EXECUTOR_URL)
+EXECUTOR_OIDC_AUDIENCE = (
+    f"{_executor_url_parts.scheme}://{_executor_url_parts.netloc}"
+    if _executor_url_parts.scheme and _executor_url_parts.netloc
+    else BACKEND_EXECUTOR_URL
+)
 
 
 class WorkflowService:
@@ -134,16 +145,32 @@ class WorkflowService:
                 "config": config,
             }
 
+            # Build the executor call. When deployed behind Cloud Run IAM
+            # (BACKEND_SERVICE_ACCOUNT_EMAIL set), the workflow runs as that SA;
+            # attach an OIDC token via `auth` so Cloud Run accepts it as an
+            # invoker (Workflows places the token in the Authorization header),
+            # and forward the end-user token in a separate header for app-level
+            # auth. When the SA is unset (local/unauthenticated), keep the user
+            # token in Authorization (original behavior). [IAS-3775]
+            step_args = {"url": f"{BACKEND_EXECUTOR_URL}/{step_type}"}
+            if config_service.BACKEND_SERVICE_ACCOUNT_EMAIL:
+                step_args["auth"] = {
+                    "type": "OIDC",
+                    "audience": EXECUTOR_OIDC_AUDIENCE,
+                }
+                step_args["headers"] = {
+                    "X-Forwarded-Authorization": "${args.user_auth_header}"
+                }
+            else:
+                step_args["headers"] = {
+                    "Authorization": "${args.user_auth_header}"
+                }
+            step_args["body"] = body
+
             gcp_step = {
                 step_name: {
                     "call": "http.post",
-                    "args": {
-                        "url": f"{BACKEND_EXECUTOR_URL}/{step_type}",
-                        "headers": {
-                            "Authorization": "${args.user_auth_header}"
-                        },
-                        "body": body,
-                    },
+                    "args": step_args,
                     "result": f"{step_name}_result",
                 },
             }
