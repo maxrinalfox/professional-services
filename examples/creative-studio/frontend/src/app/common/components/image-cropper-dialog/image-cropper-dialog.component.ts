@@ -31,7 +31,6 @@ import {
   AssetScopeEnum,
   AssetTypeEnum,
 } from '../../../admin/source-assets-management/source-asset.model';
-import {WorkspaceStateService} from '../../../services/workspace/workspace-state.service';
 import {environment} from '../../../../environments/environment';
 
 interface AspectRatio {
@@ -94,6 +93,7 @@ export class ImageCropperDialogComponent {
       backgroundColor: this.backgroundColor,
       autoCrop: true,
     };
+    this.dialogRef.addPanelClass('image-cropper-dialog');
     this.handleFile(this.data.imageFile); // Handle the file on init
   }
 
@@ -238,6 +238,18 @@ export class ImageCropperDialogComponent {
         .subscribe(asset => {
           this.sourceAssetService.addAsset(asset);
           this.dialogRef.close(asset); // Close and return the final asset
+        });
+    }
+  }
+
+  uploadOriginalImage() {
+    if (this.imageFile) {
+      this.isUploading = true;
+      this.uploadAsset(this.imageFile, 'other')
+        .pipe(finalize(() => (this.isUploading = false)))
+        .subscribe(asset => {
+          this.sourceAssetService.addAsset(asset);
+          this.dialogRef.close(asset);
         });
     }
   }

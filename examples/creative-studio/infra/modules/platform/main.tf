@@ -12,63 +12,133 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# --- Shared Platform Resources ---
+# ============================================================================
+# PLATFORM MODULE - SERVICE ORCHESTRATION LAYER
+# ============================================================================
+#
+# This module orchestrates all infrastructure services:
+# - Core infrastructure (APIs, storage, Firebase, networking)
+# - Data layer (PostgreSQL database)
+# - Application services (backend, frontend)
+# - Bootstrap automation
+#
+# Each sub-module is designed to be independent and reusable while
+# this layer handles the coordination and cross-module dependencies.
+# ============================================================================
 
-resource "google_storage_bucket" "genmedia" {
-  name                        = "${var.gcp_project_id}-cs-${var.environment}-bucket"
-  location                    = var.gcp_region
-  uniform_bucket_level_access = true
+# --- ENABLE REQUIRED GOOGLE CLOUD APIs ---
+# --- BOOTSTRAP JOB LOGIC ---
+# The bootstrap job is automatically enabled based on infrastructure needs:
+# - Always enabled if cloud_build is enabled (useful for any deployment)
+# - Cloud Run Job for database initialization is essential when:
+#   * VPC is enabled (DB is private, needs secure access through VPC connector)
+#   * DB has public IP (bootstrap job can run in Cloud Run with public IP access)
+locals {
+  # === SERVICE NAMING ===
+  # Service names are COMPUTED from the environment to ensure consistency
+  # Users cannot override these - they are derived automatically
+  # Pattern: cstudio-{service}-{environment}
+  # Examples: cstudio-backend-development, cstudio-backend-production
+  backend_service_name  = "cstudio-backend-${var.environment}"
+  frontend_service_name = "cstudio-frontend-${var.environment}"
 
-  cors {
-    origin          = ["*"]
-    method          = ["GET", "PUT", "POST", "DELETE", "HEAD", "OPTIONS"]
-    response_header = ["Content-Type", "Access-Control-Allow-Origin", "x-goog-resumable", "Authorization", "Origin"]
-    max_age_seconds = 3600
-  }
+  # Bootstrap job is always enabled - it handles database initialization
+  # (migrations, seeding, asset uploads)
+
+  required_apis = [
+    # ========== FIREBASE CORE APIs ==========
+    "firebase.googleapis.com",
+    "firebasehosting.googleapis.com",
+    "identitytoolkit.googleapis.com",
+    "cloudresourcemanager.googleapis.com",
+
+    # ========== CORE INFRASTRUCTURE APIs ==========
+    "serviceusage.googleapis.com",
+    "iam.googleapis.com",
+    "iamcredentials.googleapis.com",
+
+    # ========== CLOUD BUILD & DEPLOYMENT APIs ==========
+    "cloudbuild.googleapis.com",
+    "artifactregistry.googleapis.com",
+
+    # ========== CLOUD RUN APIs ==========
+    "run.googleapis.com",
+
+    # ========== NETWORKING & VPC APIs ==========
+    "compute.googleapis.com",
+    "servicenetworking.googleapis.com",
+    "vpcaccess.googleapis.com",
+
+    # ========== DATABASE APIs ==========
+    "sqladmin.googleapis.com",
+
+    # ========== DATA & STORAGE APIs ==========
+    "firestore.googleapis.com",
+    "cloudfunctions.googleapis.com",
+    "aiplatform.googleapis.com",
+    "texttospeech.googleapis.com",
+
+    # ========== SECRETS & SECURITY APIs ==========
+    "secretmanager.googleapis.com",
+
+    # ========== WORKFLOWS APIs (IAS-3775) ==========
+    # Required by the Workflows feature: workflow_service.py manages
+    # google_workflows_v1 definitions and executions_v1 executions.
+    "workflows.googleapis.com",
+    "workflowexecutions.googleapis.com",
+  ]
 }
 
-resource "google_service_account" "bucket_reader_sa" {
-  account_id   = "cs-${var.environment}-read"
-  display_name = "SA for reading GenMedia (${var.environment}) bucket"
+resource "google_project_service" "apis" {
+  for_each = toset(local.required_apis)
+
+  project            = var.gcp_project_id
+  service            = each.key
+  disable_on_destroy = false
 }
 
-resource "google_storage_bucket_iam_member" "bucket_viewer_binding" {
-  bucket = google_storage_bucket.genmedia.name
-  role   = "roles/storage.objectViewer"
-  member = "serviceAccount:${google_service_account.bucket_reader_sa.email}"
+# API Initialization Delay
+resource "time_sleep" "api_initialization" {
+  create_duration = "10s"
+  depends_on = [
+    google_project_service.apis
+  ]
 }
 
-resource "google_storage_bucket_iam_member" "bucket_creator_binding" {
-  bucket = google_storage_bucket.genmedia.name
-  role   = "roles/storage.objectCreator"
-  member = "serviceAccount:${google_service_account.bucket_reader_sa.email}"
-}
-
+# --- PROJECT DATA ---
 data "google_project" "project" {
   project_id = var.gcp_project_id
 }
 
-# --- Predictable URLs & Environment Variables ---
-locals {
-  region_code  = join("", [for s in split("-", var.gcp_region) : substr(s, 0, 1)])
-  backend_url = "https://${var.backend_service_name}-${data.google_project.project.number}.${var.gcp_region}.run.app"
-
-  frontend_url = "https://${var.gcp_project_id}.web.app" # Predictable Firebase URL
-
-  backend_env_vars = merge(
-    lookup(var.be_env_vars, "common", {}),
-    lookup(var.be_env_vars, var.environment, {}),
-    {
-      "CORS_ORIGINS"     = "[\"${local.frontend_url}\"]"
-      "GENMEDIA_BUCKET"  = google_storage_bucket.genmedia.name
-      "SIGNING_SA_EMAIL" = google_service_account.bucket_reader_sa.email
-    }
-  )
+# --- DATABASE PASSWORD SECRETS ---
+resource "random_password" "db_password" {
+  length  = 32
+  special = true
 }
 
+resource "google_secret_manager_secret" "db_password" {
+  secret_id = "creative-studio-db-password"
+  project   = var.gcp_project_id
 
-# --- Cloud Build Repository Connection ---
+  replication {
+    user_managed {
+      replicas {
+        location = var.gcp_region
+      }
+    }
+  }
+
+  depends_on = [google_project_service.apis]
+}
+
+resource "google_secret_manager_secret_version" "db_password" {
+  secret      = google_secret_manager_secret.db_password.id
+  secret_data = random_password.db_password.result
+}
+
+# --- CLOUD BUILD REPOSITORY CONNECTION ---
 resource "google_cloudbuildv2_repository" "source_repo" {
+  count             = var.enable_cloud_build ? 1 : 0
   provider          = google-beta
   name              = var.github_repo_name
   location          = var.gcp_region
@@ -76,32 +146,171 @@ resource "google_cloudbuildv2_repository" "source_repo" {
   remote_uri        = "https://github.com/${var.github_repo_owner}/${var.github_repo_name}.git"
 }
 
-# Postgres Database related
-# 1. Read the Secret (Created by Bootstrap script)
-data "google_secret_manager_secret_version" "db_password" {
-  secret  = "creative-studio-db-password"
-  project = var.gcp_project_id
-  version = "latest"
+# --- COMPUTED LOCALS ---
+locals {
+  region_code = join("", [for s in split("-", var.gcp_region) : substr(s, 0, 1)])
+  backend_url = "https://${local.backend_service_name}-${data.google_project.project.number}.${var.gcp_region}.run.app"
+  frontend_url = "https://${var.gcp_project_id}.web.app"
+
+  # Backend Cloud Run runtime SA email — computed deterministically (NOT
+  # module.backend_service.run_sa_email) to avoid a module input<-output cycle:
+  # this value is injected into the backend's OWN env vars below. Mirrors the
+  # backend module's SA account_id "${resource_prefix}-${environment}-run"
+  # (resource_prefix = "cs-be"; see services/backend/main.tf). [IAS-3775]
+  backend_run_sa_email = "cs-be-${var.environment}-run@${var.gcp_project_id}.iam.gserviceaccount.com"
+
+  # --- DATABASE NAMING (Single Source of Truth) ---
+  # Firestore database name is auto-computed from environment, not user-configurable
+  # This ensures FIREBASE_DB env var always matches the actual database name
+  firestore_database_name = "cstudio-${var.environment}"
+
+  # Auto-computed Firebase SDK configuration (always available from auto-created web app)
+  firebase_sdk_config = {
+    FIREBASE_API_KEY             = module.firebase.firebase_web_app_config.api_key
+    FIREBASE_AUTH_DOMAIN         = module.firebase.firebase_web_app_config.auth_domain
+    FIREBASE_PROJECT_ID          = module.firebase.firebase_web_app_config.project
+    FIREBASE_STORAGE_BUCKET      = module.firebase.firebase_web_app_config.storage_bucket
+    FIREBASE_MESSAGING_SENDER_ID = module.firebase.firebase_web_app_config.messaging_sender_id
+    FIREBASE_MEASUREMENT_ID      = module.firebase.firebase_web_app_config.measurement_id
+  }
+
+  frontend_secrets_auto = keys(local.firebase_sdk_config)
+
+
+  # --- PROTECTED BACKEND ENV VARS (Module-controlled, user cannot override) ---
+  # These are critical infrastructure variables that must be consistent
+  backend_env_vars_protected = {
+    "ENVIRONMENT"  = var.environment                    # Must match environment variable
+    "FIREBASE_DB"  = local.firestore_database_name     # Must match firestore_database_name
+  }
+
+  # --- FINAL BACKEND ENV VARS (Protected + User Customizations) ---
+  # User can override LOG_LEVEL, CORS_ORIGINS, etc., but not critical values
+  backend_env_vars = merge(
+    var.be_env_vars,  # User-provided variables (LOG_LEVEL, IDENTITY_PLATFORM_ALLOWED_ORGS, etc.)
+    {
+      # Infrastructure-managed variables (user cannot override these)
+      "CORS_ORIGINS"     = "[\"${local.frontend_url}\"]"
+      "GENMEDIA_BUCKET"  = module.storage.bucket_name
+      "SIGNING_SA_EMAIL" = module.storage.bucket_writer_sa_email
+
+      # Workflows feature wiring (IAS-3775). The executor URL MUST include the
+      # /api/workflows-executor route prefix: workflow steps POST to
+      # "{WORKFLOWS_EXECUTOR_URL}/{step_type}" (workflow_service.py) and those
+      # routes are mounted under that prefix (workflows_executor_controller.py).
+      "WORKFLOWS_EXECUTOR_URL"        = "${local.backend_url}/api/workflows-executor"
+      "BACKEND_SERVICE_ACCOUNT_EMAIL" = local.backend_run_sa_email
+    },
+    local.backend_env_vars_protected  # Protected values override user input if conflicting
+  )
+
+  source_repository_id = var.enable_cloud_build ? google_cloudbuildv2_repository.source_repo[0].id : ""
 }
 
-# 2. Call PostgreSQL Module
+# --- CORE INFRASTRUCTURE ---
+
+module "firebase" {
+  source = "../core/firebase"
+
+  gcp_project_id             = var.gcp_project_id
+  enable_cloud_build         = var.enable_cloud_build
+  enable_identity_platform   = var.enable_identity_platform
+  api_initialization         = time_sleep.api_initialization
+}
+
+module "storage" {
+  source = "../core/storage"
+
+  gcp_project_id              = var.gcp_project_id
+  gcp_region                  = var.gcp_region
+  environment                 = var.environment
+  storage_allow_destroy       = var.allow_destroy
+  storage_cors_allowed_origins = var.storage_cors_allowed_origins
+
+  depends_on = [google_project_service.apis]
+}
+
+# --- DATA LAYER ---
+
+# PostgreSQL Database
 module "postgresql" {
-  source      = "../postgresql"
-  project_id  = var.gcp_project_id
-  region      = var.gcp_region
-  
-  # Pass the ACTUAL value to create the user
-  db_password = data.google_secret_manager_secret_version.db_password.secret_data
+  source     = "../data/postgresql"
+  project_id = var.gcp_project_id
+  gcp_region = var.gcp_region
+
+  # Pass the generated password
+  db_password = google_secret_manager_secret_version.db_password.secret_data
+
+  # Control whether the instance has a public IP
+  public_ip_enabled = var.cloud_sql_public_ip_enabled
+
+  # Deletion protection is the inverse of allow_destroy
+  # Dev: allow_destroy=true → deletion_protection=false (allows terraform destroy)
+  # Prod: allow_destroy=false → deletion_protection=true (prevents accidental deletion)
+  deletion_protection_enabled = !var.allow_destroy
+
+  # Private network configuration (always pass, will be null if vpc_enable=false)
+  vpc_network_id = var.vpc_enable ? module.vpc_network[0].network_id : null
+
+  depends_on = [
+    google_project_service.apis,
+    module.vpc_network,
+  ]
 }
 
-# --- Service Module Calls ---
+# Firestore Database (always created with auto-computed name from environment)
+# The database name is automatically derived from the environment variable for consistency
+# Example: environment = "development" → firestore_database_name = "cstudio-development"
+module "firestore" {
+  source            = "../data/firestore"
+  project_id        = var.gcp_project_id
+  gcp_region        = var.gcp_region
+  database_name     = local.firestore_database_name  # Auto-computed from environment
+  allow_destroy     = var.allow_destroy
+  deletion_protection_enabled = !var.allow_destroy  # Auto-enabled for production (allow_destroy = false)
+
+  depends_on = [
+    google_project_service.apis,
+  ]
+}
+
+# --- NETWORKING ---
+
+module "vpc_network" {
+  count                 = var.vpc_enable ? 1 : 0
+  source                = "../networking"
+  project_id            = var.gcp_project_id
+  gcp_region            = var.gcp_region
+  name                  = "cs-${var.environment}"
+  primary_subnet_cidr   = var.vpc_primary_subnet_cidr
+  connector_subnet_cidr = var.vpc_connector_subnet_cidr
+
+  depends_on = [google_project_service.apis]
+}
+
+# --- DESTROY ORDER MANAGEMENT ---
+# When using VPC, we need to ensure Cloud SQL is destroyed before the service
+# networking connection is deleted. This null_resource acts as an ordering gate.
+resource "null_resource" "postgresql_destroyed_first" {
+  count = var.vpc_enable ? 1 : 0
+
+  triggers = {
+    # Reference the vpc connection to create implicit dependency
+    vpc_connection = module.vpc_network[0].private_service_connection
+  }
+
+  depends_on = [module.postgresql]
+}
+
+# --- APPLICATION SERVICES ---
+
 module "backend_service" {
-  source = "../cloud-run-service"
+  source = "../services/backend"
 
   gcp_project_id        = var.gcp_project_id
   gcp_region            = var.gcp_region
   environment           = var.environment
-  service_name          = var.backend_service_name
+  service_name          = local.backend_service_name
   resource_prefix       = "cs-be"
   github_conn_name      = var.github_conn_name
   github_repo_owner     = var.github_repo_owner
@@ -109,41 +318,62 @@ module "backend_service" {
   github_branch_name    = var.github_branch_name
   cloudbuild_yaml_path  = "examples/creative-studio/backend/cloudbuild.yaml"
   included_files_glob   = ["**/creative-studio/backend/**"]
-  container_env_vars    = local.backend_env_vars
-  runtime_secrets = var.backend_runtime_secrets
-  custom_audiences      = var.backend_custom_audiences
-  scaling_min_instances = 1
-  source_repository_id = google_cloudbuildv2_repository.source_repo.id
-  cpu = var.be_cpu
-  memory = var.be_memory
-  build_substitutions   = merge(var.be_build_substitutions,
+
+  container_env_vars = merge(
+    local.backend_env_vars,
     {
-      _REGION = var.gcp_region
-      _SERVICE_NAME = var.backend_service_name
+      "USE_CLOUD_SQL_PRIVATE_IP" = var.cloud_sql_public_ip_enabled ? "false" : "true"
     }
   )
 
-  # database
+  runtime_secrets = merge(
+    var.backend_runtime_secrets,
+    {
+      "GOOGLE_TOKEN_AUDIENCE" = "OAUTH_CLIENT_ID"
+      "DB_PASS"               = google_secret_manager_secret.db_password.secret_id
+    }
+  )
+  scaling_min_instances = 1
+  source_repository_id  = local.source_repository_id
+  cpu                   = var.be_cpu
+  memory                = var.be_memory
+
+  build_substitutions = {
+    _REGION       = var.gcp_region
+    _SERVICE_NAME = local.backend_service_name
+  }
+
+  # VPC configuration
+  vpc_connector_id = var.vpc_enable ? module.vpc_network[0].vpc_connector_id : null
+
+  # Database
   cloud_sql_connection_name = module.postgresql.connection_name
   db_name                   = module.postgresql.db_name
   db_user                   = module.postgresql.db_user
-  
-  # Pass the Secret ID reference (NOT the value) for Cloud Run
-  db_secret_id              = "creative-studio-db-password"
-}
+  db_secret_id              = google_secret_manager_secret.db_password.secret_id
 
-resource "google_firebase_project" "default" {
-  provider = google-beta
-  project = var.gcp_project_id
+  # Admin user configuration
+  admin_user_email = var.bootstrap_admin_user_email
+
+  # Cloud Run access control
+  invoker_identities  = var.backend_invoker_identities
+
+  # Cloud Build trigger
+  enable_cloud_build_trigger    = var.enable_cloud_build
+  require_approval_for_deploy   = var.require_approval_for_deploy
+
+  depends_on = [
+    google_project_service.apis
+  ]
 }
 
 module "frontend_service" {
-  source = "../firebase-hosting-service"
+  source = "../services/frontend"
 
-  source_repository_id = google_cloudbuildv2_repository.source_repo.id
+  source_repository_id = local.source_repository_id
   gcp_project_id       = var.gcp_project_id
-  gcp_region            = var.gcp_region
-  firebase_project_id  = google_firebase_project.default.project
+  gcp_region           = var.gcp_region
+  firebase_project_id  = module.firebase.firebase_project_id != null ? module.firebase.firebase_project_id : var.gcp_project_id
   service_name         = var.gcp_project_id
   environment          = var.environment
   resource_prefix      = "cs-fe"
@@ -151,43 +381,202 @@ module "frontend_service" {
   cloudbuild_yaml_path = "examples/creative-studio/frontend/cloudbuild-deploy.yaml"
   included_files_glob  = ["**/creative-studio/frontend/**"]
 
-  build_substitutions = merge(
-    var.fe_build_substitutions,
-    {
-      # This block should ONLY contain non-secret, underscore-prefixed values
-      _BACKEND_URL         = local.frontend_url # The frontend will redirect the api calls to the backend
-      _FE_SERVICE_NAME     = var.frontend_service_name
-      _BACKEND_SERVICE_ID  = var.backend_service_name
-      _FIREBASE_PROJECT_ID = var.gcp_project_id
+  build_substitutions = {
+    _BACKEND_URL         = local.frontend_url
+    _FE_SERVICE_NAME     = local.frontend_service_name
+    _BACKEND_SERVICE_ID  = local.backend_service_name
+    _FIREBASE_PROJECT_ID = var.gcp_project_id
+    _FIREBASE_APP_ID     = module.firebase.firebase_web_app_id
+
+    # Firebase SDK secrets passed directly as substitutions (auto-discovered from Firebase web app)
+    # No need to store these in Secret Manager - they're embedded in Cloud Build config
+    _FIREBASE_API_KEY             = try(local.firebase_sdk_config["FIREBASE_API_KEY"], "")
+    _FIREBASE_AUTH_DOMAIN         = try(local.firebase_sdk_config["FIREBASE_AUTH_DOMAIN"], "")
+    _FIREBASE_PROJECT_ID_SDK      = try(local.firebase_sdk_config["FIREBASE_PROJECT_ID"], "")
+    _FIREBASE_STORAGE_BUCKET      = try(local.firebase_sdk_config["FIREBASE_STORAGE_BUCKET"], "")
+    _FIREBASE_MESSAGING_SENDER_ID = try(local.firebase_sdk_config["FIREBASE_MESSAGING_SENDER_ID"], "")
+    _FIREBASE_MEASUREMENT_ID      = try(local.firebase_sdk_config["FIREBASE_MEASUREMENT_ID"], "")
+  }
+
+  enable_cloud_build_trigger    = var.enable_cloud_build
+  require_approval_for_deploy   = var.require_approval_for_deploy
+
+  depends_on = [
+    google_project_service.apis,
+    module.firebase
+  ]
+}
+
+# --- SECRETS MANAGEMENT ---
+# Centralized secret creation and permission management
+# All application secrets are created here and permissions are granted to the appropriate service accounts
+# This is defined AFTER the service modules so we can reference their service account members
+module "app_secrets" {
+  source = "../core/secrets"
+
+  gcp_project_id = var.gcp_project_id
+
+  # Secrets configuration with their accessors
+  # Structure: secret_name -> { description, accessors: [list of service account members] }
+  secrets_config = {
+    # Unified OAuth credential used by both frontend and backend
+    "OAUTH_CLIENT_ID" = {
+      # Description is truncated to 63 chars (GCP label limit)
+      description = "OAuth 2.0 Client ID for frontend and backend"
+      accessors = [
+        # Frontend Cloud Build needs access to inject into build
+        module.frontend_service.trigger_sa_member,
+        # Backend Cloud Build needs access to validate during build
+        module.backend_service.trigger_sa_member,
+        # Backend Cloud Run needs access to read at runtime
+        module.backend_service.run_sa_member,
+      ]
     }
-  )
+  }
+
+  depends_on = [
+    google_project_service.apis,
+    module.frontend_service,
+    module.backend_service
+  ]
 }
 
-module "frontend_secrets" {
-  source = "../secret-manager"
+# --- BOOTSTRAP INFRASTRUCTURE ---
 
-  gcp_project_id    = var.gcp_project_id
-  secret_names      = var.frontend_secrets
-  accessor_sa_email = module.frontend_service.trigger_sa_email
+module "bootstrap" {
+  source = "../bootstrap"
+
+  gcp_project_id                        = var.gcp_project_id
+  gcp_region              = var.gcp_region
+  environment             = var.environment
+  enable_cloud_build      = var.enable_cloud_build
+  enable_cloud_run_job    = true  # Bootstrap job is always enabled
+  require_approval_for_deploy = var.require_approval_for_deploy
+
+  genmedia_bucket_name = module.storage.bucket_name
+  bootstrap_job_secrets = {
+    "DB_PASS" = {
+      secret_id = google_secret_manager_secret.db_password.secret_id
+    }
+  }
+
+  # Cloud Build trigger config
+  source_repository_id = local.source_repository_id
+  github_branch_name = var.github_branch_name
+  bootstrap_image_name = "cstudio-bootstrap"  # Standardized image name
+  bootstrap_admin_user_email = var.bootstrap_admin_user_email
+  vpc_connector_name = var.vpc_enable ? (length(module.vpc_network) > 0 ? module.vpc_network[0].vpc_connector_name : "") : ""
+  vpc_connector_id = var.vpc_enable ? (length(module.vpc_network) > 0 ? module.vpc_network[0].vpc_connector_id : "") : ""
+  cloud_sql_connection_name = module.postgresql.connection_name
+  firestore_database_name = local.firestore_database_name
+  bootstrap_job_cpu = "2000m"  # Standard CPU allocation
+  bootstrap_job_memory = "2048Mi"  # Standard memory allocation
+  bootstrap_job_timeout = 600  # Standard timeout in seconds
+
+  depends_on = [
+    module.postgresql,
+    module.vpc_network,
+    module.storage
+  ]
 }
 
-module "backend_secrets" {
-  source = "../secret-manager"
+# --- SECRET PERMISSION ORDERING ---
+# CRITICAL: Terraform creates resources in this order:
+# 1. Backend service module instantiates (creates Cloud Run service with secret references)
+# 2. App secrets module instantiates and depends on backend service outputs
+# 3. App secrets creates the IAM bindings granting the backend service account secret access
+#
+# The timing issue:
+# - Backend service is created before IAM bindings exist
+# - When Cloud Run service starts, it tries to access secrets immediately
+# - May get "Permission denied" if IAM binding isn't in place yet
+#
+# Solution:
+# - GCP eventually propagates the IAM binding change
+# - Cloud Run's service account gradually gains access
+# - If "Permission denied" occurs, running 'terraform apply' again will succeed
+#   (because IAM binding now exists and Cloud Run will re-auth)
+#
+# For deterministic behavior, use this null_resource to ensure app_secrets
+# completes before Terraform marks the deployment as successful
+resource "null_resource" "backend_secrets_ready" {
+  triggers = {
+    backend_id = module.backend_service.service_iam_done
+    secrets_id = jsonencode(module.app_secrets.accessor_bindings)
+  }
 
-  gcp_project_id    = var.gcp_project_id
-  secret_names      = var.backend_secrets
-  accessor_sa_email = module.backend_service.trigger_sa_email
+  depends_on = [module.app_secrets]
 }
 
-# --- Cross-Module Permissions ---
+# --- CROSS-MODULE PERMISSIONS ---
 
-# Grant the Frontend's deploy trigger (which runs `firebase deploy`)
-# permission to "get" the Backend's Cloud Run service to validate the rewrite rule.
+# Grant the Frontend's deploy trigger permission to view the Backend
 resource "google_cloud_run_v2_service_iam_member" "fe_trigger_can_view_backend" {
+  count    = var.enable_cloud_build ? 1 : 0
   provider = google-beta
   project  = var.gcp_project_id
   name     = module.backend_service.service_name
   location = module.backend_service.location
   role     = "roles/run.viewer"
-  member   = "serviceAccount:${module.frontend_service.trigger_sa_email}"
+  member   = module.frontend_service.trigger_sa_member
+
+  depends_on = [
+    module.backend_service.service_iam_done,
+    module.frontend_service
+  ]
+}
+
+# --- ADDITIONAL CROSS-MODULE BINDINGS ---
+
+# Grant backend service account to Genmedia bucket
+resource "google_storage_bucket_iam_member" "backend_sa_gcs_object_creator" {
+  bucket = module.storage.bucket_name
+  role   = "roles/storage.objectCreator"
+  member = module.backend_service.run_sa_member
+
+  depends_on = [
+    module.storage,
+    module.backend_service
+  ]
+}
+
+# Grant bucket reader SA to backend Cloud Run
+resource "google_project_iam_member" "backend_run_sa_bucket_reader" {
+  project = var.gcp_project_id
+  role    = "roles/storage.objectViewer"
+  member  = module.backend_service.run_sa_member
+
+  depends_on = [module.backend_service]
+}
+
+# --- Least-privilege signed-URL signing permission (IAS-3768) ---
+# Allow ONLY the backend Cloud Run runtime SA to impersonate the bucket writer/signer
+# SA for GCS signed URLs (replaces the broad project-level tokenCreator grant that
+# previously lived in services/backend cloud_run_sa_backend_permissions).
+resource "google_service_account_iam_member" "backend_run_sign_as_writer" {
+  service_account_id = "projects/${var.gcp_project_id}/serviceAccounts/${module.storage.bucket_writer_sa_email}"
+  role               = "roles/iam.serviceAccountTokenCreator"
+  member             = module.backend_service.run_sa_member
+}
+
+# --- Workflows executor self-invocation (IAS-3775) ---
+# Workflow executions run as the backend runtime SA (set as the workflow's
+# service_account via BACKEND_SERVICE_ACCOUNT_EMAIL) and POST back to the
+# IAM-protected backend's /api/workflows-executor/* endpoints. Grant that SA
+# run.invoker on the backend service.
+#
+# Implemented as a separate resource (rather than appending to
+# var.backend_invoker_identities) because the env-root local cannot reference a
+# module output, and feeding the backend module's own run_sa_member into its
+# invoker_identities input would create a module input<-output cycle. This
+# mirrors the cross-module fe_trigger_can_view_backend / backend_run_sign_as_writer
+# pattern above. IAM members are additive, so this coexists with the module's
+# own invoker bindings.
+resource "google_cloud_run_v2_service_iam_member" "backend_run_sa_self_invoke" {
+  project    = var.gcp_project_id
+  name       = module.backend_service.service_name
+  location   = module.backend_service.location
+  role       = "roles/run.invoker"
+  member     = module.backend_service.run_sa_member
+  depends_on = [module.backend_service]
 }

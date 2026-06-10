@@ -1,0 +1,998 @@
+# Terraform Infrastructure Configuration Guide
+
+This guide covers Terraform configuration, variable naming conventions, edge cases, and best practices for deploying Creative Studio infrastructure.
+
+---
+
+## ⚠️ Prerequisites (MUST DO BEFORE terraform apply)
+
+**Before you can deploy with Terraform, you MUST complete these manual setup steps:**
+
+### 1. ⭐ Create Cloud Build GitHub Connection (CRITICAL)
+
+This is the **most important prerequisite** - without it, Cloud Build triggers won't work.
+
+**Why Manual?** GCP doesn't provide a Terraform resource for v2 connections + GitHub OAuth requires user interaction.
+
+**Steps:**
+1. Go to: [GCP Cloud Build Connections](https://console.cloud.google.com/cloud-build/connections)
+2. Click "Create connection"
+3. Select **"GitHub (Cloud Build GitHub App)"** as the source
+4. Click "Authenticate" and authorize the Google Cloud Build app on GitHub
+5. Select your GitHub repository
+6. Click "Create" and **copy the connection name** (e.g., `gh-myaccount-con`)
+7. Update `github_conn_name` in your environment's `main.tf` with this connection name
+
+**Reference:** See `infra/environments/dev-infra-example/main.tf` (lines 56-71) for configuration details.
+
+### 2. Create GCP Project (if not already done)
+
+- Go to [GCP Console](https://console.cloud.google.com/)
+- Create a new project
+- Enable billing on the project (required for cloud resources)
+
+### 3. Accept Firebase Terms of Service
+
+- Go to [Firebase Console](https://console.firebase.google.com/)
+- Sign in and accept the Firebase Terms of Service
+- This is required per Google account, one-time only
+
+### 4. Authenticate gcloud CLI
+
+```bash
+gcloud auth login
+gcloud config set project YOUR_PROJECT_ID
+```
+
+### 5. Install Terraform
+
+```bash
+# Download and install Terraform v1.13+
+terraform version  # Verify installation
+```
+
+---
+
+## 📋 Quick Reference
+
+- **Infrastructure Code Location:** `/infra/`
+- **Configuration Per Environment:** `/infra/environments/{environment}/main.tf`
+- **Modules:** `/infra/modules/`
+- **Architecture & Variable Naming:** See [`/infra/ARCHITECTURE.md`](/infra/ARCHITECTURE.md)
+- **Quick Start Guide:** See [`/infra/QUICK_START.md`](/infra/QUICK_START.md)
+
+## 📚 Table of Contents
+
+1. [Prerequisites](#-prerequisites-must-do-before-terraform-apply) ⭐ **START HERE**
+2. [Variable Naming Convention](#variable-naming-convention)
+3. [Destruction Control](#destruction-control-critical-configuration)
+4. [Region Agnostic Deployment](#region-agnostic-deployment-critical-todo)
+5. [Edge Cases & Inconsistencies (Resolved)](#edge-cases--inconsistencies-resolved)
+6. [Cloud Run Access Control](#cloud-run-access-control-rolesruninvoker)
+7. [Configuration Examples](#configuration-examples)
+8. [Protected Variables Reference](#protected-variables-reference)
+9. [Verification Checklist](#verification-checklist-before-terraform-apply)
+10. [Deployment Commands](#deployment-commands)
+11. [Troubleshooting](#troubleshooting)
+12. [Best Practices](#best-practices)
+
+---
+
+## Variable Naming Convention
+
+### Overview
+
+All Terraform variables follow a strict naming convention to prevent configuration mistakes and ensure consistency.
+
+### Naming Patterns
+
+**1. Project-Level Variables**
+- Prefix: `gcp_` for all Google Cloud references
+- Examples: `gcp_project_id`, `gcp_region`
+- **Required in every environment configuration**
+
+**2. Service-Specific Variables**
+- Prefix: `<service>_` (lowercase service name)
+- Examples:
+  - `storage_allow_destroy` (Cloud Storage)
+  - `storage_cors_allowed_origins` (Cloud Storage)
+  - `cloud_sql_public_ip_enabled` (Cloud SQL)
+  - `firestore_deletion_protection_enabled` (Firestore)
+
+**3. Destruction Control Variables**
+- Single source of truth: `allow_destroy` at platform level
+- Set once in your environment, applies to all resources
+- **Development:** `allow_destroy = true` (allows cleanup)
+- **Production:** `allow_destroy = false` (prevents accidents)
+
+**4. Database Protection**
+- Pattern: `<service>_deletion_protection_enabled`
+- Separate from `allow_destroy` (see below)
+- Recommended: `false` for dev, `true` for prod
+
+---
+
+## Destruction Control: Critical Configuration
+
+### The `allow_destroy` Variable
+
+**Purpose:** Controls whether Terraform can destroy resources like storage buckets and databases.
+
+**Behavior:**
+| Setting | Development | Production |
+|---------|-------------|-----------|
+| `allow_destroy = true` | ✅ Resources can be destroyed | ❌ **NEVER USE** |
+| `allow_destroy = false` | ❌ Prevents accidental cleanup | ✅ Required |
+
+**Implementation:**
+```hcl
+# In your environment's main.tf
+locals {
+  allow_destroy = true  # Dev environment
+}
+
+# Platform module receives this once and applies to:
+# - Cloud Storage bucket
+# - Cloud SQL instance
+# - Firestore database
+```
+
+**Why Unified Variable?**
+
+Previously, three different variables controlled destruction:
+- `storage_force_destroy` (platform) ❌ DEPRECATED
+- `allow_destroy` (platform) ✅ CURRENT
+- `force_destroy` (storage module) ❌ RENAMED
+
+**This created confusion:**
+```hcl
+# Bad: User sets allow_destroy = false
+allow_destroy = false
+
+# But storage module received force_destroy = true
+# Result: Bucket could be deleted despite allow_destroy = false ❌
+```
+
+**Fixed in v1.1:**
+```hcl
+# Good: Single source of truth
+allow_destroy = false
+
+# ALL resources (storage, SQL, Firestore) respect this setting ✅
+```
+
+### Deletion Protection vs Allow Destroy
+
+**Important:** `allow_destroy` controls both Terraform destruction AND Cloud SQL deletion protection:
+
+| Variable | Purpose | Behavior |
+|----------|---------|----------|
+| `allow_destroy` | Controls resource destruction & Cloud SQL protection | `true` = destroyable + no GCP protection; `false` = protected |
+| `firestore_deletion_protection_enabled` | Firestore GCP protection | Independent setting for Firestore |
+
+**How Cloud SQL Works:**
+- Cloud SQL `deletion_protection` is automatically set to `!allow_destroy`
+- Dev: `allow_destroy=true` → `deletion_protection=false` (allows terraform destroy)
+- Prod: `allow_destroy=false` → `deletion_protection=true` (prevents GCP deletion)
+
+**Recommended Setup:**
+
+Development:
+```hcl
+allow_destroy = true
+# Cloud SQL deletion_protection automatically = false
+firestore_deletion_protection_enabled = false
+```
+
+Production:
+```hcl
+allow_destroy = false
+# Cloud SQL deletion_protection automatically = true
+firestore_deletion_protection_enabled = true
+```
+
+---
+
+## Region Agnostic Deployment (CRITICAL TODO)
+
+### ⚠️ Current Status: Partially Parameterized
+
+The infrastructure has a **hybrid parameterization model** where:
+- ✅ **Terraform core** is properly region-parameterized via `var.gcp_region`
+- ⚠️ **Cloud Build configurations** have some hardcoded `us-central1` references
+- ⚠️ **Bootstrap script** hardcodes region in gcloud commands
+
+**Current Limitation:** Until all hardcoded references are fixed, deploy only to `us-central1` to ensure consistency.
+
+### Hardcoded Region References (Must Fix)
+
+#### 1. Backend Cloud Build Configuration
+**File:** `backend/cloudbuild.yaml` (Line 136)
+```yaml
+_REGION: 'us-central1'  # TODO: Make Region generic from users input
+```
+
+**Impact:** Cloud Build substitution variable defaults to us-central1
+**Status:** This is a default that gets overridden by Terraform in `backend/main.tf:322`, but should be parameterized
+
+**Fix Needed:**
+- Replace hardcoded value with a placeholder: `_REGION: '${REGION}'`
+- Cloud Build will automatically substitute from trigger variables
+- Terraform already passes this via `_REGION = var.gcp_region`
+
+---
+
+#### 2. Bootstrap Cloud Build Configuration
+**File:** `backend/cloudbuild-bootstrap.yaml` (Lines 177, 185, 188)
+
+**Line 177 - Region Substitution:**
+```yaml
+_REGION: 'us-central1'
+```
+**Fix:** Replace with `_REGION: '${REGION}'` (Terraform passes this via line 64 in `bootstrap/cloud_build_trigger.tf`)
+
+**Line 185 - VPC Connector Path:**
+```yaml
+_VPC_CONNECTOR_ID: 'projects/${PROJECT_ID}/locations/us-central1/connectors/cs-sandbox-cs-connector'
+```
+**Fix:** Replace hardcoded `us-central1` with `${REGION}`
+```yaml
+_VPC_CONNECTOR_ID: 'projects/${PROJECT_ID}/locations/${REGION}/connectors/cs-sandbox-cs-connector'
+```
+
+**Line 188 - Cloud SQL Instance Connection:**
+```yaml
+_CLOUD_SQL_INSTANCE: '${PROJECT_ID}:us-central1:creative-studio-db-c3353262'
+```
+**Fix:** Replace hardcoded `us-central1` with `${REGION}`
+```yaml
+_CLOUD_SQL_INSTANCE: '${PROJECT_ID}:${REGION}:creative-studio-db-c3353262'
+```
+
+---
+
+#### 3. Bootstrap Shell Script
+**File:** `bootstrap.sh` (Lines 742-743)
+
+**Lines 742-743 - Cloud Build Trigger Invocation:**
+```bash
+gcloud builds triggers run "${BE_SERVICE_NAME}-trigger" --branch="$GITHUB_BRANCH" --project="$GCP_PROJECT_ID" --region="us-central1"
+gcloud builds triggers run "$GCP_PROJECT_ID-trigger" --branch="$GITHUB_BRANCH" --project $GCP_PROJECT_ID --region="us-central1"
+```
+
+**Impact:** Hardcoded region prevents cross-region deployments via bootstrap script
+**Current Behavior:** Script doesn't accept region parameter, always uses `us-central1`
+
+**Fix Needed:**
+1. Add `GCP_REGION` parameter to bootstrap.sh
+2. Accept it as environment variable or command-line argument
+3. Pass to gcloud commands: `--region="${GCP_REGION}"`
+
+**Proposed Implementation:**
+```bash
+# Add to bootstrap.sh parameter handling (around line 50-100):
+GCP_REGION="${GCP_REGION:-us-central1}"
+
+# Then update the gcloud commands (lines 742-743):
+gcloud builds triggers run "${BE_SERVICE_NAME}-trigger" \
+  --branch="$GITHUB_BRANCH" \
+  --project="$GCP_PROJECT_ID" \
+  --region="${GCP_REGION}"
+
+gcloud builds triggers run "$GCP_PROJECT_ID-trigger" \
+  --branch="$GITHUB_BRANCH" \
+  --project="$GCP_PROJECT_ID" \
+  --region="${GCP_REGION}"
+```
+
+---
+
+### Terraform Infrastructure - Well Parameterized ✅
+
+The following files properly use `var.gcp_region` throughout:
+
+| File | Variable Usage | Status |
+|------|---|---|
+| `infra/environments/dev-infra-example/main.tf` | Line 48: `gcp_region = "us-central1"` (configurable local) | ✅ Parameterized |
+| `infra/modules/platform/main.tf` | Uses `var.gcp_region` for all resources | ✅ Parameterized |
+| `infra/modules/services/backend/main.tf` | Line 322: `_REGION = var.gcp_region` | ✅ Parameterized |
+| `infra/modules/bootstrap/cloud_build_trigger.tf` | Line 64: `_REGION = var.gcp_region` | ✅ Parameterized |
+| `infra/modules/data/postgresql/main.tf` | Line 22: `region = var.gcp_region` | ✅ Parameterized |
+| `infra/modules/data/firestore/main.tf` | Uses parameterized region via module input | ✅ Parameterized |
+
+**Good News:** Core Terraform infrastructure flows `gcp_region` parameter correctly through all layers.
+
+---
+
+### Implementation Checklist
+
+**Before Deploying to a Non-us-central1 Region, Complete All Items Below:**
+
+#### Phase 1: Cloud Build YAML Files
+- [ ] Update `backend/cloudbuild.yaml` line 136
+  - Change: `_REGION: 'us-central1'` → `_REGION: '${REGION}'`
+
+- [ ] Update `backend/cloudbuild-bootstrap.yaml` lines 177, 185, 188
+  - Line 177: `_REGION: 'us-central1'` → `_REGION: '${REGION}'`
+  - Line 185: `us-central1/connectors` → `${REGION}/connectors`
+  - Line 188: `us-central1:` → `${REGION}:`
+
+#### Phase 2: Bootstrap Script
+- [ ] Add region parameter handling to `bootstrap.sh`
+  - Add environment variable: `GCP_REGION="${GCP_REGION:-us-central1}"`
+  - Update lines 742-743 to use `--region="${GCP_REGION}"`
+
+#### Phase 3: Testing & Validation
+- [ ] Test deployment to us-central1 (current working state)
+- [ ] Test deployment to alternate region (e.g., us-east1)
+  - Set `gcp_region = "us-east1"` in environment config
+  - Update `bootstrap.sh` call: `GCP_REGION=us-east1 ./bootstrap.sh`
+  - Verify all resources deploy to correct region
+
+#### Phase 4: Documentation
+- [ ] Update this section with completion status
+- [ ] Add region-specific deployment examples to Configuration Examples section
+- [ ] Update deployment commands with region parameter usage
+
+---
+
+### Recommended Deployment Strategy (Until Fixed)
+
+**Current Safe Approach:**
+1. Only deploy to `us-central1` until all items are fixed
+2. Terraform parameterization will work correctly for us-central1
+3. Cloud Build and Bootstrap will use hardcoded us-central1, matching Terraform
+
+**Timeline:**
+- Phase 1 (Cloud Build YAML): ~30 minutes
+- Phase 2 (Bootstrap Script): ~30 minutes
+- Phase 3 (Testing): ~1-2 hours per region
+- Phase 4 (Documentation): ~30 minutes
+
+---
+
+## Edge Cases & Inconsistencies (Resolved)
+
+### Issue #1: Destruction Control Variable Consolidation ✅
+
+**Problem Identified:**
+Three variables controlled bucket destruction with conflicting names and behaviors.
+
+**Root Cause:**
+Legacy code had: `storage_force_destroy`, `allow_destroy`, and storage module's `force_destroy`.
+
+**Resolution (v1.1):**
+- ✅ Removed deprecated `storage_force_destroy` from platform variables
+- ✅ Renamed storage module variables to use `storage_` prefix
+- ✅ Single source of truth: `allow_destroy` at platform level
+
+**Migration:**
+If upgrading from older version:
+```hcl
+# OLD (Remove these):
+storage_force_destroy = true  # DEPRECATED
+
+# NEW (Use this):
+allow_destroy = true  # Single variable for all destruction control
+```
+
+### Issue #2: Variable Naming Inconsistency ✅
+
+**Problem Identified:**
+Storage module variables didn't follow naming patterns:
+- `allow_destroy` ✅ Good
+- `force_destroy` ❌ Confusing (removed)
+- `cors_allowed_origins` ❌ Missing `storage_` prefix
+
+**Resolution (v1.1):**
+- ✅ Storage variables now use `storage_` prefix
+- ✅ Consistent with Cloud SQL pattern (`cloud_sql_*`)
+- ✅ Consistent with Firestore pattern (`firestore_*`)
+
+**Variables Changed:**
+```hcl
+# OLD:
+cors_allowed_origins = ["*"]
+
+# NEW:
+storage_cors_allowed_origins = ["*"]
+```
+
+### Issue #3: Firestore Database Name Not Visible ✅
+
+**Problem Identified:**
+Database name auto-computed as `cstudio-{environment}` but users couldn't see it before applying.
+
+**Resolution (v1.1):**
+Added `firestore_database_name` output to environment layer.
+
+**How to Verify:**
+```bash
+cd infra/environments/dev-infra-example
+
+# Before applying
+terraform plan
+terraform output firestore_database_name
+
+# After applying
+terraform output infrastructure_ready
+```
+
+**Output Example:**
+```json
+{
+  "firestore_database_name": "cstudio-development",
+  "environment": "development",
+  "project_id": "my-gcp-project",
+  ...
+}
+```
+
+### Issue #4: Bootstrap Environment Variable Protection (Pending)
+
+**Status:** Identified for refinement in upcoming release
+
+**Current Limitation:**
+Bootstrap job environment variables lack the same protection mechanism as backend service.
+
+**What's Protected (Backend Service):**
+```hcl
+# These are auto-computed and cannot be overridden:
+ENVIRONMENT = "development"
+FIREBASE_DB = "cstudio-development"
+```
+
+**What's Not Yet Protected (Bootstrap):**
+```hcl
+# Users can override these (not protected):
+be_env_vars = {
+  DB_NAME = "wrong_db"  # Could be set incorrectly
+}
+```
+
+**Workaround (For Now):**
+- Use exact variable names from documentation
+- Verify before applying: `terraform plan`
+- Review `BOOTSTRAP.md` for required variables
+
+**Future Plan:**
+Bootstrap will implement protected variables pattern:
+```hcl
+# Planned protection:
+bootstrap_env_vars_protected = {
+  "DB_NAME" = "creative_studio"
+  "DB_USER" = "studio_user"
+}
+```
+
+---
+
+## Configuration Examples
+
+### Development Environment
+
+```hcl
+# infra/environments/dev-infra-example/main.tf
+locals {
+  # === PROJECT ===
+  gcp_project_id = "my-dev-project"
+  gcp_region     = "us-central1"
+  environment    = "development"
+
+  # === DESTRUCTION CONTROL ===
+  allow_destroy = true  # Dev: allow cleanup
+  # Cloud SQL deletion_protection automatically = false
+
+  # === DATABASE PROTECTION ===
+  firestore_deletion_protection_enabled    = false
+
+  # === VPC (Optional for Dev) ===
+  vpc_enable                   = false
+  cloud_sql_public_ip_enabled  = true  # Dev: public access OK
+
+  # === STORAGE ===
+  storage_cors_allowed_origins = ["*"]  # Dev: allow all
+
+  # === ENVIRONMENT VARIABLES ===
+  be_env_vars = {
+    LOG_LEVEL                      = "DEBUG"
+    IDENTITY_PLATFORM_ALLOWED_ORGS = ""
+  }
+
+  # ... rest of config
+}
+```
+
+### Production Environment
+
+```hcl
+# infra/environments/prod/main.tf
+locals {
+  # === PROJECT ===
+  gcp_project_id = "my-prod-project"
+  gcp_region     = "us-central1"
+  environment    = "production"
+
+  # === DESTRUCTION CONTROL ===
+  allow_destroy = false  # Prod: NEVER allow destruction
+  # Cloud SQL deletion_protection automatically = true
+
+  # === DATABASE PROTECTION ===
+  firestore_deletion_protection_enabled    = true
+
+  # === VPC (Recommended for Prod) ===
+  vpc_enable                   = true
+  cloud_sql_public_ip_enabled  = false  # Prod: private only
+
+  # === STORAGE ===
+  storage_cors_allowed_origins = [
+    "https://myapp.com",
+    "https://www.myapp.com"
+  ]
+
+  # === ENVIRONMENT VARIABLES ===
+  be_env_vars = {
+    LOG_LEVEL                      = "INFO"
+    IDENTITY_PLATFORM_ALLOWED_ORGS = "example.com"
+  }
+
+  # ... rest of config
+}
+```
+
+---
+
+## Cloud Run Access Control (roles/run.invoker)
+
+### Overview
+
+The Creative Studio backend API runs on Google Cloud Run and uses IAM-based access control to restrict **who can invoke (call) the backend service** at the network level. This is separate from and complements application-level authentication (Identity Platform).
+
+### Configuration Variable: `backend_invoker_identities`
+
+**Type:** `list(string)`
+**Location:** `infra/environments/{environment}/main.tf`
+**Default:** `[]` (empty list = public access)
+
+### How It Works
+
+The `backend_invoker_identities` variable controls the `roles/run.invoker` IAM role on the Cloud Run backend service:
+
+```
+User Configuration (environment/main.tf)
+         ↓
+backend_invoker_identities = ["group:developers@company.com"]
+         ↓
+Platform Module (platform/main.tf)
+         ↓
+Backend Service Module (modules/services/backend/main.tf)
+         ↓
+Google Cloud IAM
+Grant roles/run.invoker to specified identities
+```
+
+**Code Implementation:**
+
+File: `infra/modules/services/backend/main.tf` (Lines 270-283)
+
+```hcl
+resource "google_cloud_run_v2_service_iam_member" "invoker" {
+  for_each = length(var.invoker_identities) > 0 ?
+            toset(var.invoker_identities) :
+            toset(["allUsers"])
+
+  name     = google_cloud_run_v2_service.this.name
+  location = google_cloud_run_v2_service.this.location
+  role     = "roles/run.invoker"
+  member   = each.value
+}
+```
+
+**Logic:**
+- If `invoker_identities` is **NOT empty**: Grant `roles/run.invoker` ONLY to those identities
+- If `invoker_identities` **IS empty**: Grant `roles/run.invoker` to `allUsers` (public access)
+
+### Configuration Examples
+
+#### Example 1: Public Access (Development)
+
+```hcl
+# infra/environments/dev-infra-example/main.tf
+backend_invoker_identities = []  # Empty = allUsers
+
+# Result: Anyone can call the API
+# Use case: Development, testing, public APIs
+```
+
+#### Example 2: Restrict to Development Team
+
+```hcl
+# infra/environments/dev-infra-example/main.tf
+backend_invoker_identities = ["group:dev-team@company.com"]
+
+# Result: Only members of dev-team@company.com Google Group can access
+# Use case: Team-only development environment
+```
+
+#### Example 3: Production with Multiple Teams + CI/CD
+
+```hcl
+# infra/environments/prod/main.tf
+backend_invoker_identities = [
+  "group:developers@company.com",
+  "group:qa-team@company.com",
+  "serviceAccount:cloud-build@project.iam.gserviceaccount.com"
+]
+
+# Result:
+# - All developers and QA can access
+# - CI/CD pipeline can deploy and test
+```
+
+#### Example 4: Restrict to Admin Only
+
+```hcl
+# infra/environments/prod/main.tf
+backend_invoker_identities = ["user:cto@company.com"]
+
+# Result: Only the CTO can call the API
+# Use case: Highly restricted API
+```
+
+### Identity Format Reference
+
+| Format | Example | Purpose |
+|--------|---------|---------|
+| `user:` | `user:john@example.com` | Specific person |
+| `group:` | `group:developers@example.com` | Google Group members |
+| `serviceAccount:` | `serviceAccount:ci-cd@project.iam.gserviceaccount.com` | Service account (for automation) |
+
+### Two-Layer Security Model
+
+**Important:** Cloud Run access control works alongside Identity Platform authentication:
+
+| Layer | What It Controls | When It Applies | Response if Denied |
+|-------|------------------|-----------------|-------------------|
+| **Layer 1: Cloud Run IAM** | Who can invoke the service | Before request reaches backend | 403 Forbidden |
+| **Layer 2: Identity Platform** | Who is authenticated | Inside backend application | 401 Unauthorized |
+
+**Example Security Flow:**
+
+```
+User makes request to backend API
+         ↓
+Cloud Run: Check roles/run.invoker
+  - If no restrictions: ✅ Allow to proceed
+  - If restricted: Check if user in list
+         ↓ (Request passed Cloud Run)
+Backend Application: Check Identity Platform
+  - If disabled: ✅ Allow all requests
+  - If enabled: Validate ID token
+         ↓ (Request passed authentication)
+Execute Business Logic
+```
+
+**Recommended Production Setup:**
+```hcl
+# Layer 1: Restrict at Cloud Run level
+backend_invoker_identities = ["group:internal-team@company.com"]
+
+# Layer 2: Enable Identity Platform at application level
+enable_identity_platform = true
+
+# Result: Defense in depth - two security boundaries
+```
+
+### How to Configure
+
+**Step 1:** Open your environment configuration
+```bash
+vim infra/environments/prod/main.tf
+```
+
+**Step 2:** Locate the CLOUD RUN ACCESS CONTROL section
+```hcl
+# === CLOUD RUN ACCESS CONTROL ===
+backend_invoker_identities = []  # Change this!
+```
+
+**Step 3:** Set who should have access
+```hcl
+# Development: Public
+backend_invoker_identities = []
+
+# Production: Specific group
+backend_invoker_identities = ["group:developers@company.com"]
+
+# Production: Multiple groups + CI/CD
+backend_invoker_identities = [
+  "group:developers@company.com",
+  "serviceAccount:cloud-build@project.iam.gserviceaccount.com"
+]
+```
+
+**Step 4:** Deploy
+```bash
+cd infra/environments/prod
+terraform plan
+terraform apply
+```
+
+### Verification & Monitoring
+
+#### Check Current Access Control
+
+```bash
+gcloud run services get-iam-policy creative-studio-backend-prod \
+  --region=us-central1 \
+  --format=json
+```
+
+Expected output (if restricted):
+```json
+{
+  "bindings": [
+    {
+      "role": "roles/run.invoker",
+      "members": ["group:developers@company.com"]
+    }
+  ]
+}
+```
+
+#### Test Access (Authorized User)
+
+```bash
+gcloud run invoke creative-studio-backend-prod \
+  --region us-central1
+```
+
+Expected: Request succeeds and returns backend response
+
+#### Test Access (Unauthorized User)
+
+```bash
+curl https://creative-studio-backend-prod-us-central1.run.app/health
+```
+
+Expected (if restricted):
+```
+403 Forbidden
+"The caller does not have permission [run.routes.invoke] on the provided resource"
+```
+
+#### Monitor Failed Access Attempts
+
+```bash
+gcloud logging read \
+  "resource.type=cloud_run_service AND severity=ERROR" \
+  --filter="resource.labels.service_name=creative-studio-backend-prod" \
+  --format=json
+```
+
+### Common Mistakes
+
+| Mistake | Impact | Solution |
+|---------|--------|----------|
+| Using email instead of `user:email` format | IAM rule doesn't work | Use `user:john@example.com` not `john@example.com` |
+| Forgetting to include CI/CD service account | Automated deployments fail | Add `serviceAccount:cloud-build@project.iam.gserviceaccount.com` |
+| Setting empty list unintentionally | API becomes public when it shouldn't be | Explicitly set `[]` for public or list identities for restricted |
+| Misspelling group name | Authorization always fails | Verify group exists in Google Workspace admin console |
+
+---
+
+## Protected Variables Reference
+
+### Backend Service (Auto-Computed)
+
+These variables are **automatically set** and cannot be overridden:
+
+| Variable | Value | How It's Set |
+|----------|-------|--------------|
+| `ENVIRONMENT` | "development" or "production" | From `var.environment` (protected) |
+| `CORS_ORIGINS` | Backend service URL | From computed frontend URL (protected) |
+| `GENMEDIA_BUCKET` | "creative-studio-{project-id}-assets" | From Cloud Storage module (protected) |
+| `SIGNING_SA_EMAIL` | Service account email | From storage module (protected) |
+
+### Backend Service (Defaults + Terraform Override)
+
+These variables have sensible defaults but can be overridden by Terraform env vars:
+
+| Variable | Default | Can Be Overridden | How |
+|----------|---------|------------------|-----|
+| `FIREBASE_DB` | "cstudio-development" | Yes | Terraform sets `FIREBASE_DB` env var per environment |
+
+**Why This Works:**
+- `FIREBASE_DB` has a safe default for local development
+- Terraform passes the environment-specific value via env var (e.g., `cstudio-production`)
+- Backend uses whatever is in the env var, or defaults to `cstudio-development` if missing
+- Application doesn't care where the value came from - it just uses it
+
+**Example:**
+```hcl
+# Development - Terraform passes FIREBASE_DB = "cstudio-development"
+# Backend receives it, uses it ✅
+
+# Production - Terraform passes FIREBASE_DB = "cstudio-production"
+# Backend receives it, uses it ✅
+
+# Local dev without Terraform - no FIREBASE_DB env var
+# Backend uses default: "cstudio-development" ✅
+```
+
+**If User Attempts Override (Protected Values):**
+The platform module merges with protected values taking precedence:
+```hcl
+# User sets:
+be_env_vars = {
+  ENVIRONMENT = "custom"
+  LOG_LEVEL = "DEBUG"
+}
+
+# Platform computes (protected):
+backend_env_vars_protected = {
+  ENVIRONMENT = "development"
+  CORS_ORIGINS = "https://backend-dev..."
+}
+
+# Result after merge (last-wins semantics):
+ENVIRONMENT = "development"    # ✅ Protected value wins
+CORS_ORIGINS = "https://..."   # ✅ Protected value wins
+LOG_LEVEL = "DEBUG"            # ✅ User value (not protected)
+```
+
+---
+
+## Verification Checklist Before `terraform apply`
+
+### 1. Variable Values
+- [ ] `gcp_project_id` is correct
+- [ ] `gcp_region` is correct
+- [ ] `environment` is "development" or "production"
+- [ ] `allow_destroy` is correct for environment (true for dev, false for prod)
+
+### 2. Computed Resources
+- [ ] Run `terraform plan` and review
+- [ ] Run `terraform output firestore_database_name` to verify database name
+- [ ] Database name follows pattern: `cstudio-{environment}`
+
+### 3. Protection Settings
+- [ ] Cloud SQL deletion protection is automatically controlled by `allow_destroy`
+  - Dev: `allow_destroy = true` → `deletion_protection = false`
+  - Prod: `allow_destroy = false` → `deletion_protection = true`
+- [ ] Firestore deletion protection must be set separately:
+  - Dev: `firestore_deletion_protection_enabled = false`
+  - Prod: `firestore_deletion_protection_enabled = true`
+
+### 4. Network Settings
+- [ ] Dev: Can use `vpc_enable = false` with `cloud_sql_public_ip_enabled = true`
+- [ ] Prod: Should use `vpc_enable = true` with `cloud_sql_public_ip_enabled = false`
+- [ ] Never use both VPC and public IP simultaneously
+
+### 5. Storage/CORS
+- [ ] Dev: `storage_cors_allowed_origins = ["*"]` is OK
+- [ ] Prod: `storage_cors_allowed_origins` lists specific domains only
+
+---
+
+## Deployment Commands
+
+### Plan Changes
+```bash
+cd infra/environments/{environment}
+terraform init
+terraform plan
+terraform output firestore_database_name  # Verify computed names
+```
+
+### Apply Changes
+```bash
+terraform apply
+terraform output infrastructure_ready  # Review endpoints and next steps
+```
+
+### Destroy (Development Only!)
+```bash
+# Only valid if allow_destroy = true
+terraform destroy
+
+# WARNING: This will delete:
+# - Cloud Storage bucket (if empty or allow_destroy=true)
+# - Cloud SQL database
+# - Firestore database
+# NEVER RUN on production with allow_destroy=false
+```
+
+---
+
+## Troubleshooting
+
+### Issue: "Invalid configuration: vpc_enable = true but cloud_sql_public_ip_enabled = true"
+
+**Cause:** Cannot use both VPC and public IP simultaneously.
+
+**Solution:**
+```hcl
+# Choose one:
+
+# Option 1: VPC (Recommended for Prod)
+vpc_enable                   = true
+cloud_sql_public_ip_enabled  = false
+
+# Option 2: Public IP (Only for Dev)
+vpc_enable                   = false
+cloud_sql_public_ip_enabled  = true
+```
+
+### Issue: Firestore Database Name Doesn't Match Environment
+
+**Cause:** Variable naming confusion or misconfiguration.
+
+**Solution:**
+```bash
+# Verify computed name
+terraform output firestore_database_name
+
+# Should show: cstudio-{your-environment}
+# If not, check:
+# 1. Is environment = "development" or "production"?
+# 2. Did you set firebase_db_name manually? (don't)
+```
+
+### Issue: Storage Bucket or Cloud SQL Won't Delete
+
+**Cause:** `allow_destroy = false`
+
+**Solution:**
+```hcl
+# Only if you're sure (dev environment ONLY):
+allow_destroy = true
+
+terraform apply
+terraform destroy
+```
+
+**Note:** Cloud SQL `deletion_protection` is automatically set to `!allow_destroy`, so changing `allow_destroy = true` will also disable deletion protection.
+
+---
+
+## Best Practices
+
+1. **Always run `terraform plan` before apply**
+   ```bash
+   terraform plan
+   # Review all changes carefully
+   ```
+
+2. **Verify computed outputs**
+   ```bash
+   terraform output firestore_database_name
+   terraform output infrastructure_ready
+   ```
+
+3. **Never manually override protected variables**
+   - If you try, the platform module will override your values (expected)
+   - This is a safety feature, not a bug
+
+4. **Use consistent naming across environments**
+   - Dev: `allow_destroy = true`
+   - Prod: `allow_destroy = false`
+   - Never mix these up
+
+5. **Reference ARCHITECTURE.md for questions**
+   - Contains detailed variable naming guide
+   - Lists all protected vs customizable variables
+   - Includes data flow diagrams
+
+6. **Keep environment configs DRY**
+   - Only override values that differ from defaults
+   - Use comments to explain non-obvious settings
+
+---
+
+## Further Reading
+
+- **[Infrastructure Variable Naming Convention](/infra/ARCHITECTURE.md#infrastructure-variable-naming-convention)** - Complete reference
+- **[Protected Variables Design](/infra/ARCHITECTURE.md#single-source-of-truth-protected-variables-design)** - Why certain vars are protected
+- **[QUICK_START.md](/infra/QUICK_START.md)** - Step-by-step deployment
+- **[README.md](/infra/README.md)** - Infrastructure overview

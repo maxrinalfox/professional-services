@@ -28,8 +28,9 @@ export type ImagenRequest = {
   upscaleFactor?: '' | 'x2' | 'x4';
   sourceAssetIds?: number[];
   sourceMediaItems?: SourceMediaItemLink[];
-  workspaceId?: string;
+  workspaceId?: number;
   useBrandGuidelines: boolean;
+  enhancePrompt?: boolean;
   googleSearch?: boolean;
   resolution?: '1K' | '2K' | '4K';
 };
@@ -52,6 +53,12 @@ export interface ReferenceImageDto {
   referenceType: 'ASSET' | 'STYLE';
 }
 
+export interface AssetReferenceDto {
+  id: number;
+  type: 'source_asset' | 'media_item';
+  index?: number;
+}
+
 export type VeoRequest = {
   prompt: string;
   generationModel: string;
@@ -64,13 +71,17 @@ export type VeoRequest = {
   negativePrompt: string;
   generateAudio: boolean;
   durationSeconds: number;
-  startImageAssetId?: number;
-  endImageAssetId?: number;
-  sourceVideoAssetId?: number;
+  startImageAssetId?: AssetReferenceDto;
+  endImageAssetId?: AssetReferenceDto;
+  sourceVideoAssetId?: AssetReferenceDto;
   sourceMediaItems?: SourceMediaItemLink[];
-  workspaceId?: string;
+  workspaceId?: number;
   useBrandGuidelines: boolean;
+  enhancePrompt?: boolean;
   referenceImages?: ReferenceImageDto[];
+  referenceVideo?: AssetReferenceDto | null;
+  referenceAudio?: AssetReferenceDto | null;
+  parentMediaItemId?: number | null;
 };
 
 export type SearchResponse = {
@@ -114,5 +125,36 @@ export interface GallerySearchDto {
   mimeType?: string;
   model?: string;
   status?: string;
-  workspaceId?: string;
+  workspaceId?: number;
+  includeDeleted?: boolean;
+  startDate?: string;
+  endDate?: string;
+  itemType?: string;
+  query?: string;
+  tags?: string[];
+}
+
+export interface GalleryFiltersState {
+  query: string;
+  startDate: Date | null;
+  endDate: Date | null;
+  mimeType: string;
+  model: string;
+  itemType: string;
+  tags: string[];
+  onlyMyMedia: boolean;
+}
+
+export interface ReferenceVideo {
+  id: number;
+  type: 'source_asset' | 'media_item';
+  previewUrl: string;
+  index?: number;
+}
+
+export interface ReferenceAudio {
+  id: number;
+  type: 'source_asset' | 'media_item';
+  name: string;
+  index?: number;
 }

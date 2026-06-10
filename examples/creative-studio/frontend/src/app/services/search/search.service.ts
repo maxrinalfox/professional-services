@@ -14,27 +14,23 @@
  * limitations under the License.
  */
 
-import {Injectable} from '@angular/core';
 import {HttpClient} from '@angular/common/http';
+import {Injectable} from '@angular/core';
+import {MatSnackBar} from '@angular/material/snack-bar';
 import {
   BehaviorSubject,
   catchError,
   EMPTY,
-  finalize,
-  interval,
   map,
   Observable,
-  startWith,
   Subscription,
   switchMap,
-  takeWhile,
   tap,
   timer,
 } from 'rxjs';
 import {environment} from '../../../environments/environment';
-import {ImagenRequest, VeoRequest} from '../../common/models/search.model';
 import {JobStatus, MediaItem} from '../../common/models/media-item.model';
-import {MatSnackBar} from '@angular/material/snack-bar';
+import {ImagenRequest, VeoRequest} from '../../common/models/search.model';
 import {
   handleErrorSnackbar,
   handleSuccessSnackbar,
@@ -49,7 +45,7 @@ export interface ConcatenationInput {
   type: 'media_item' | 'source_asset';
 }
 export interface ConcatenateVideosDto {
-  workspaceId: string;
+  workspaceId: number;
   name: string;
   inputs: ConcatenationInput[];
   aspectRatio: string;
@@ -66,6 +62,10 @@ export class SearchService {
   private activeImageJob = new BehaviorSubject<MediaItem | null>(null);
   public activeImageJob$ = this.activeImageJob.asObservable();
   private imagePollingSubscription: Subscription | null = null;
+
+  private activeAudioJob = new BehaviorSubject<MediaItem | null>(null);
+  public activeAudioJob$ = this.activeAudioJob.asObservable();
+  private audioPollingSubscription: Subscription | null = null;
 
   // Persisted prompts
   imagePrompt = '';
@@ -269,7 +269,7 @@ export class SearchService {
       tap(initialItem => {
         this.activeVtoJob.next(initialItem);
         this.startVtoPolling(initialItem.id);
-      })
+      }),
     );
   }
 
@@ -292,7 +292,10 @@ export class SearchService {
           ) {
             this.stopVtoPolling();
             if (latestItem.status === JobStatus.COMPLETED) {
-              handleSuccessSnackbar(this._snackBar, 'Your VTO result is ready!');
+              handleSuccessSnackbar(
+                this._snackBar,
+                'Your VTO result is ready!',
+              );
             } else {
               handleErrorSnackbar(
                 this._snackBar,
@@ -329,5 +332,77 @@ export class SearchService {
   clearActiveVtoJob() {
     this.activeVtoJob.next(null);
     this.stopVtoPolling();
+  }
+
+  /**
+   * Starts the Audio generation job by POSTing to the backend.
+   * Returns an Observable of the initial MediaItem.
+   */
+  startAudioGeneration(audioRequest: any): Observable<MediaItem> {
+    const searchURL = `${environment.backendURL}/audios/generate`;
+
+    return this.http.post<MediaItem>(searchURL, audioRequest).pipe(
+      tap(initialItem => {
+        this.activeAudioJob.next(initialItem);
+        this.startAudioPolling(initialItem.id);
+      }),
+    );
+  }
+
+  clearActiveAudioJob() {
+    this.activeAudioJob.next(null);
+  }
+
+  /**
+   * Private method to poll the status of an audio item.
+   * @param mediaId The ID of the job to poll.
+   */
+  private startAudioPolling(mediaId: number): void {
+    this.stopAudioPolling();
+
+    this.audioPollingSubscription = timer(5000, 15000)
+      .pipe(
+        switchMap(() => this.getAudioMediaItem(mediaId)),
+        tap(latestItem => {
+          this.activeAudioJob.next(latestItem);
+
+          if (
+            latestItem.status === JobStatus.COMPLETED ||
+            latestItem.status === JobStatus.FAILED
+          ) {
+            this.stopAudioPolling();
+            if (latestItem.status === JobStatus.COMPLETED) {
+              handleSuccessSnackbar(this._snackBar, 'Your audio is ready!');
+            } else {
+              handleErrorSnackbar(
+                this._snackBar,
+                {message: latestItem.errorMessage || latestItem.error_message},
+                `Audio generation failed: ${latestItem.errorMessage || latestItem.error_message}`,
+              );
+            }
+          }
+        }),
+        catchError(err => {
+          console.error('Polling failed', err);
+          this.stopAudioPolling();
+          return EMPTY;
+        }),
+      )
+      .subscribe();
+  }
+
+  private stopAudioPolling(): void {
+    this.audioPollingSubscription?.unsubscribe();
+    this.audioPollingSubscription = null;
+  }
+
+  /**
+   * Fetches the current state of a media item by its ID.
+   * @param mediaId The unique ID of the media item to check.
+   * @returns An Observable of the MediaItem.
+   */
+  getAudioMediaItem(mediaId: number): Observable<MediaItem> {
+    const getURL = `${environment.backendURL}/gallery/item/${mediaId}`;
+    return this.http.get<MediaItem>(getURL);
   }
 }

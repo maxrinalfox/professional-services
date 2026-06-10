@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Set
+from typing import Any
 
 import google.auth
 from google.auth.exceptions import DefaultCredentialsError
@@ -21,8 +21,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class ConfigService(BaseSettings):
-    """
-    Manages application configuration using Pydantic.
+    """Manages application configuration using Pydantic.
     It automatically reads from environment variables, provides type safety,
     and fails fast if critical settings are missing.
     """
@@ -33,7 +32,10 @@ class ConfigService(BaseSettings):
     # system environment variables.
     # The path is relative to this file's location (src/config/).
     model_config = SettingsConfigDict(
-        case_sensitive=True, env_file=".env", env_file_encoding="utf-8", extra="ignore"
+        case_sensitive=True,
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
     )
 
     # --- Core Project Settings ---
@@ -41,6 +43,7 @@ class ConfigService(BaseSettings):
     LOCATION: str = "global"
     ENVIRONMENT: str = "development"
     FRONTEND_URL: str = "http://localhost:4200"
+    BACKEND_URL: str = "http://localhost:8080"
     LOG_LEVEL: str = "INFO"
     INIT_VERTEX: bool = True
 
@@ -59,7 +62,10 @@ class ConfigService(BaseSettings):
     GEMINI_AUDIO_ANALYSIS_MODEL_ID: str = "gemini-2.5-pro"
 
     # --- Collections ---
-    FIREBASE_DB: str = "cstudio-development"
+    FIREBASE_DB: str = Field(
+        default="cstudio-development",
+        description="Firestore database name (default: cstudio-development, overridden by FIREBASE_DB env var from Terraform)"
+    )
 
     # --- Database Configuration ---
     INSTANCE_CONNECTION_NAME: str = ""
@@ -69,12 +75,16 @@ class ConfigService(BaseSettings):
     USE_CLOUD_SQL_AUTH_PROXY: bool = False
     DB_HOST: str = "localhost"
     DB_PORT: str = "5432"
+    # Use private IP for Cloud SQL connection (only used when INSTANCE_CONNECTION_NAME is set)
+    # When False (default): Uses public IP for backward compatibility
+    # When True: Uses private IP (requires VPC Connector in Cloud Run)
+    USE_CLOUD_SQL_PRIVATE_IP: bool = False
 
     # --- Veo ---
-    VEO_MODEL_ID: str = "veo-2.0-generate-001"
+    VEO_MODEL_ID: str = "veo-3.1-generate-001"
 
     # --- VTO ---
-    VTO_MODEL_ID: str = "virtual-try-on-preview-08-04"
+    VTO_MODEL_ID: str = "virtual-try-on-001"
 
     # --- Lyria ---
     LYRIA_MODEL_VERSION: str = "lyria-002"
@@ -94,6 +104,16 @@ class ConfigService(BaseSettings):
     )
     ADMIN_USER_EMAIL: str = "system"
 
+    # --- Workflows ---
+    WORKFLOWS_LOCATION: str = "us-central1"
+    WORKFLOWS_EXECUTOR_URL: str = (
+        # Includes the /api/workflows-executor router prefix (workflow steps
+        # POST to "{this}/{step_type}"). This service could be deployed alone
+        # in the future.
+        "http://localhost:8080/api/workflows-executor"
+    )
+    BACKEND_SERVICE_ACCOUNT_EMAIL: str = ""
+
     @model_validator(mode="before")
     @classmethod
     def get_default_project_id(cls, values: Any) -> Any:
@@ -110,13 +130,12 @@ class ConfigService(BaseSettings):
     # <<< FIX 2: New validator to handle dependent default values >>>
     @model_validator(mode="after")
     def set_dependent_defaults(self) -> "ConfigService":
-        """
-        Sets default values for fields that depend on other fields (like PROJECT_ID),
+        """Sets default values for fields that depend on other fields (like PROJECT_ID),
         after the initial values have been loaded and validated.
         """
         if not self.PROJECT_ID:
             raise ValueError(
-                "PROJECT_ID could not be determined. Please set it via environment variable."
+                "PROJECT_ID could not be determined. Please set it via environment variable.",
             )
 
         # If these fields were not set by environment variables, set their default now.
@@ -128,7 +147,7 @@ class ConfigService(BaseSettings):
     # This computed field cleanly separates the raw string from the processed set.
     @computed_field
     @property
-    def ALLOWED_ORGS(self) -> Set[str]:
+    def ALLOWED_ORGS(self) -> set[str]:
         return set(
             org.strip()
             for org in self.ALLOWED_ORGS_STR.split(",")
@@ -144,6 +163,18 @@ class ConfigService(BaseSettings):
     @property
     def IMAGE_BUCKET(self) -> str:
         return f"{self.GENMEDIA_BUCKET}/images"
+
+    @computed_field
+    @property
+    def admin_emails(self) -> list[str]:
+        """Emails granted the ADMIN role on login. ADMIN_USER_EMAIL may be a
+        single address or a comma-separated list; the bootstrap default
+        "system" yields no admins."""
+        return [
+            email.strip()
+            for email in self.ADMIN_USER_EMAIL.split(",")
+            if email.strip() and email.strip() != "system"
+        ]
 
 
 # Create a single, cached instance of the settings to be used throughout the app.

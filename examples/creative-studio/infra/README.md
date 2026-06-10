@@ -2,39 +2,148 @@
 
 This repository contains the Terraform configuration for deploying the Creative Studio application platform (frontend and backend) to Google Cloud.
 
+## 🚀 Quick Links
+
+- **[QUICK_START.md](./QUICK_START.md)** ⭐ **START HERE** - Step-by-step setup guide (60-90 minutes)
+- **[ARCHITECTURE.md](./ARCHITECTURE.md)** - Infrastructure architecture overview & variable naming guide
+- **[Recent Changes (v1.2)](#infrastructure-review--fixes-v12)** - Latest simplifications and improvements
+
 ## 🚀 Overview
 
 This infrastructure is managed using a modular, environment-based approach with Terraform. The key principles are:
 * **Don't Repeat Yourself (DRY):** All the logic for creating a service is defined once in a reusable **module**.
 * **Strong Isolation:** Each environment (`dev`, `prod`, etc.) is managed in its own directory, with its own state file, to prevent accidental changes to production.
+* **Phase-Based Automation:** Infrastructure deployment happens in phases:
+  - **Phase 1** (Now): Manual Firebase setup + Terraform deployment
+  - **Phase 2** (Planned): Terraform auto-creates Firebase project & web app
+  - **Phase 3** (Planned): Terraform auto-creates OAuth credentials
 
 ## 📁 Directory Structure
 
-The project is organized into `modules` and `environments`.
+The project is organized into `modules` and `environments` with a simplified environment-per-directory approach.
 
 ```
 infrastructure/
 │
 ├── modules/                # Reusable "Blueprints"
-│   ├── cloud-run-service/  # Defines how to build ONE service
-│   └── platform/           # Defines the ENTIRE application platform
+│   ├── platform/           # Main module: Defines the ENTIRE application platform
+│   ├── core/               # Core resources (storage, secrets, VPC)
+│   ├── data/               # Data layer (Cloud SQL, Firestore)
+│   ├── networking/         # Networking resources (VPC, subnets)
+│   └── services/           # Service modules (backend, frontend, bootstrap)
 │
 └── environments/
-    ├── dev/                # Configuration for the 'dev' environment
-    │   ├── main.tf         # Calls the platform module with dev values
-    │   ├── backend.tf      # Defines where to store the dev state file
-    │   └── dev.tfvars      # Contains all variables for dev
-    │
-    └── prod/               # Configuration for the 'prod' environment
-        └── ...
+    ├── dev-infra-example/  # Development environment configuration
+        ├── main.tf         # Inline locals + platform module call (all config in one file)
+        └── backend.tf      # Optional: Remote state configuration (commented out by default)
 ```
-* **`/modules`**: Contains reusable building blocks. The `platform` module is the main entry point, which in turn uses the `cloud-run-service` module.
-* **`/environments`**: Contains a directory for each distinct deployment environment. These directories call the `platform` module with the correct set of variables.
+
+**Key Design Principles:**
+* **`/modules`**: Reusable building blocks with centralized validation and outputs
+* **`/environments`**: Thin configuration layer with inline `locals` block (no separate `variables.tf` or `outputs.tf`)
+* **One file per environment:** All configuration is in `main.tf` with clear section comments
+* **Optional `backend.tf`:** Commented out by default; uncomment and configure if using GCS remote state
+* **No duplication:** Validation logic and outputs remain in modules, not environments
 
 ---
-## ⚠️ Manual Setup Steps
+## ⚠️ Pre-Deployment Guide
 
-Before you can use Terraform, you must perform these one-time manual steps.
+### 🔄 Complete Deployment Flow (Current + Future Phases)
+
+The deployment process has multiple phases:
+
+**Phase 1A: GCP, Firebase & Identity Platform Setup** (Currently: Manual Firebase, Terraform-Automated Identity Platform)
+| Step | Current Approach | Future (Phase 2) | Status |
+|------|------------------|------------------|--------|
+| 1. Create GCP Project | GCP Console | `terraform apply` | Manual |
+| 2. Create Firebase Project | Firebase Console | `google_firebase_project` | Manual |
+| 3. Create Firebase Web App | Firebase Console | `google_firebase_web_app` | Manual |
+| 4. Get Firebase App ID | `gcloud firebase apps list` | Auto-output | Manual |
+| 5. Create Cloud Build Connection | GCP Console | Still manual (GCP limitation) | Manual |
+| 6. Setup Identity Platform (Config - Optional) | ✅ **NOW IN TERRAFORM** (not currently used) | `google_identity_platform_config` | **✅ Implemented** |
+| 7. Create OAuth 2.0 Client ID | Firebase Console (manual) | Still manual (Google limitation) | Manual |
+| 8. Store OAuth Secret | `gcloud secrets versions add` | Still manual (Google limitation) | Manual |
+| 9. Enable Firebase Analytics | Firebase Console (Phase 1E post-deploy) | Not automatable (Google platform limitation) | Manual |
+
+**Phase 1B: Configure Terraform** (5 minutes)
+- Navigate to your environment directory: `cd infra/environments/dev-infra-example`
+- Edit `main.tf` locals block with values from Phase 1A
+- Set `firebase_web_app_id` in locals (from Step 4 above)
+- Set GitHub configuration (github_repo_owner, github_repo_name, github_branch_name, github_conn_name)
+- (Optional) Uncomment `backend.tf` and configure GCS bucket if using remote state
+
+**Phase 1C: Deploy Infrastructure** (15 minutes)
+- `terraform init && terraform plan && terraform apply`
+- Terraform auto-discovers Firebase SDK config
+- Creates all cloud resources
+
+**Phase 1D: Verify** (5 minutes)
+- Check secrets created in Secret Manager
+- Test deployed services
+- Review terraform outputs for API URLs and connection strings
+
+**Phase 1E: Enable Firebase Google Analytics** (5 minutes) - ⭐ **REQUIRED POST-DEPLOYMENT STEP**
+- Open [Firebase Console](https://console.firebase.google.com/) → Select your project
+- Go to **Project Settings** → **Integrations** → **Google Analytics**
+- Create a new GA4 property or link an existing one
+- Complete the setup wizard
+- Return to Terraform Cloud and queue a new plan/apply run to capture the measurement ID
+
+⏸️ **FOR NOW: Follow the "Manual Setup Steps" below** (Steps 1-6 above, manual column)
+
+ℹ️ **FUTURE (Phase 2):** Steps 1-4 will be fully Terraform-automated. See `TERRAFORM_OUTPUTS_AND_CICD.md` for roadmap.
+
+---
+
+## 📋 Terraform Prerequisites & System Requirements
+
+Before starting the manual setup steps, ensure your environment meets these prerequisites:
+
+### System Requirements
+- **Terraform CLI** v1.13+ installed and in PATH
+- **Google Cloud SDK (gcloud CLI)** installed
+- **jq** (JSON processor) for script operations
+- **bash** 4.0+ for running deployment scripts
+
+### Google Cloud Project Requirements
+- ✅ GCP Project must already exist (created via [GCP Console](https://console.cloud.google.com/))
+- ✅ **IMPORTANT:** User account must have accepted [Firebase Terms of Service](https://firebase.google.com/) before proceeding
+- ✅ **IMPORTANT:** Billing account must be enabled on the project (required for Blaze plan features)
+  - Without billing, some Google Cloud services will not be available
+  - Go to: GCP Console → Billing → Link a billing account to this project
+- ✅ Service account with sufficient IAM permissions (recommended: Editor or custom role with specific permissions)
+- ✅ **IMPORTANT:** Project label `firebase = "enabled"` may be required for some Firebase features
+  - Check: GCP Console → Project → Labels → Add label if missing
+
+### Terraform & Provider Requirements
+- **google provider** v5.0+ (for standard Google Cloud resources)
+- **google-beta provider** v5.0+ (for Firebase resources and beta features)
+- **hashicorp/random provider** (for password generation)
+- **Backend:** GCS bucket for remote state storage (created manually in Step 3b)
+
+### API Requirements
+The platform module automatically enables **17 required Google Cloud APIs**:
+- Core APIs: Cloud Billing, Cloud Resource Manager, Service Usage, IAM, IAM Credentials
+- Firebase APIs: Firebase, Firebase Hosting, Identity Toolkit, Firestore
+- Compute: Compute Engine, Cloud Run, VPC Access
+- Database: Cloud SQL Admin
+- CI/CD: Cloud Build, Artifact Registry
+- Logging & Security: Cloud Logging, Secret Manager
+- Optional: Cloud Functions, Vertex AI, Text-to-Speech
+
+**Note:** You don't need to enable these manually - the platform module does it automatically during `terraform apply`.
+
+### GitHub & Cloud Build Requirements
+- ✅ GitHub repository (public or private) with the Creative Studio source code
+- ✅ Cloud Build connection to GitHub created and authorized
+  - This cannot be fully automated (GCP limitation) and must be done manually in GCP Console
+  - See: Manual Setup Step #5 below
+
+---
+
+## ⚠️ Manual Setup Steps (Current Phase 1)
+
+Before you can use Terraform, you must perform these one-time manual steps in this order:
 
 ### 1. Install Prerequisite Software
 You must install the following command-line tools on your local machine:
@@ -50,98 +159,490 @@ on linux_amd64
 ```
 * **Google Cloud SDK:** [Install gcloud](https://cloud.google.com/sdk/docs/install)
 
-### 2. Authenticate with Google Cloud
+### 2. Accept Firebase Terms of Service ⭐ CRITICAL
+
+Before you can use Firebase, your Google account must accept the Firebase Terms of Service:
+
+1. Go to [Firebase Console](https://console.firebase.google.com/)
+2. Sign in with the Google account you'll use for deployment
+3. Accept the Firebase Terms of Service when prompted
+4. This is a one-time requirement per Google account
+
+**Why this matters:** Firebase APIs won't work without this acceptance, and `terraform apply` will fail.
+
+### 3. Enable Billing Account ⭐ CRITICAL
+
+Google Cloud services (including Firebase) require a billing account:
+
+1. Go to [GCP Console](https://console.cloud.google.com/) → **Billing**
+2. Click **Link a billing account**
+3. Create or select an existing billing account
+4. Link it to your GCP project
+5. Verify billing is enabled: GCP Console → Project Settings → Billing Account should show your account
+
+**Why this matters:** Without billing enabled, some Google Cloud APIs will not work, and deployment will fail.
+
+### 4. Authenticate with Google Cloud
 You need to authenticate your local machine with Google Cloud. This command will open a browser for you to log in.
 ```bash
-gcloud auth list
-gcloud config list
-
-gcloud config set account <your account email>
 gcloud auth login
-gcloud config set project <your project id>
-gcloud auth application-default set-quota-project <your project id>
-
 gcloud auth list
-gcloud config list
+gcloud config set project <your project id>
 ```
 
-### 3. Create a GCS Bucket for Terraform State
-Terraform needs a GCS bucket to store its state file for each environment. This must be done manually because the backend configuration is read before Terraform can create any resources.
->
-**Run this command for each environment (dev, prod, etc.), making sure to use a globally unique bucket name:**
-```bash
-# Example for the 'dev' environment
-export PROJECT_ID=creative-studio-arena && \
-gsutil mb -p $PROJECT_ID gs://$PROJECT_ID-cstudio-dev-tfstate
-```
+### 5. Create Cloud Build GitHub Connection ⭐ CRITICAL (MUST DO BEFORE terraform apply!)
 
-### 4. Connect GitHub to Cloud Build
-You must authorize Google Cloud Build to access your GitHub repository.
-1.  Go to the Google Cloud Console: **Cloud Build > Settings**.
-2.  Click **Connect repository 2nd Gen**.
-3.  Choose **Create Host Connection > GitHub (Cloud Build GitHub App)** as the source.
-4.  Follow the prompts to authenticate and install the GitHub App on your account and enable the required APIs if needed.
-5.  **Crucially, grant the app access to your `MauroCominotti/maurocominotti-vertex-ai-creative-studio` repository.**
-6.  Note the **Connection Name** (e.g., `gh-mauro-con`) as you will need it for your `.tfvars` file and select the **Region** of your choice.
+You must authorize Google Cloud Build to access your GitHub repository. **This MUST be done before running terraform apply** because Terraform will create Cloud Build triggers that reference this connection.
 
-### 5. Setup Firebase Auth and upgrade to use with Google Identity Platform
-1.  Go to the [Firebase Console](https://console.firebase.google.com/).
-2.  Select your Google Cloud project from the list.
-3.  In the left-hand navigation pane, go to **Build** > **Authentication**.
-4.  Click **Get started**. This action enables Google Identity Platform for your project.
-5.  If prompted, click **Upgrade to Identity Platform**. This gives you access to enterprise-grade features like multi-tenancy and SAML/OIDC federation, which are built on top of Firebase Authentication.
-6.  Once enabled, navigate to the [Google Cloud Console](https://console.cloud.google.com/).
-7.  In the navigation menu, go to **APIs & Services** > **Credentials**.
-8.  Under the **OAuth 2.0 Client IDs** section, you will see a client named **Web client (auto created by Google Service)**. This is the client your web application will use to authenticate users via Identity Platform.
-9.  Click on the name of the web client to open its details page.
-10. Copy the **Client ID**. This value is the unique identifier for your web application.
+**Why it's mandatory before terraform apply:**
+- Terraform will fail if the connection doesn't exist
+- Cloud Build triggers won't work without the connection
+- The connection must be created in GCP Console (cannot be automated)
 
-    This Client ID serves as the **audience** for the OIDC tokens that Identity Platform issues to your authenticated users. When a user accesses your application through Identity-Aware Proxy (IAP), IAP will inspect the user's token and verify that its `aud` (audience) claim exactly matches this Client ID. This ensures that tokens intended for other applications cannot be used to access this one.
+**Steps:**
 
-11. We will now use this Client ID as the value for the `IAP_AUDIENCE` variable in our Terraform configuration. Open the `environments/your-env/your-env.tfvars` file and add the following line, replacing `<YOUR_WEB_CLIENT_ID>` with the value you just copied:
+1.  Go to the Google Cloud Console: **[Cloud Build > Manage connections](https://console.cloud.google.com/cloud-build/connections)**
+2.  Click **Create connection**.
+3.  Choose **GitHub (Cloud Build GitHub App)** as the source.
+4.  Click "Authenticate" and follow the prompts to authorize the Google Cloud Build app on your GitHub account.
+5.  Select your GitHub repository where Creative Studio code is located.
+6.  Click **Create** to create the connection.
+7.  **COPY THE CONNECTION NAME** (e.g., `gh-myaccount-con`) - you'll need this in the next step.
+8.  Update `github_conn_name` in your environment's `main.tf` locals block with this connection name.
 
-    ```tfvars
-    IAP_AUDIENCE = "<YOUR_WEB_CLIENT_ID>"
-    ```
+**Reference:** See `infra/environments/dev-infra-example/main.tf` (lines 56-71) for where to configure this value.
 
-### 6. Setup env variables & Deploy Infra
+---
+
+### 6. Create Firebase Project & Web App ⭐ CRITICAL
+
+**⚠️ IMPORTANT: These can now be fully automated with Terraform (Phase 2)!**
+
+**Option A: Let Terraform Create Them (RECOMMENDED - Phase 2 Automation)**
+- Firebase Project will be created by: `google_firebase_project` resource
+- Firebase Web App will be created by: `google_firebase_web_app` resource
+- Web App ID will be auto-discovered by: `data "google_firebase_web_app_config"` data source
+- **Result:** No manual Firebase Console steps needed!
+- **Status:** Phase 2 ready to implement (~2 hours)
+- See: [Phase 2 Implementation Plan in TERRAFORM_OUTPUTS_AND_CICD.md](./TERRAFORM_OUTPUTS_AND_CICD.md#⏳-phase-2-next---ready-to-implement-firebase-project--web-app-automation)
+
+**Option B: Create Manually in Firebase Console (Current Phase 1 - if Phase 2 not yet implemented)**
+This approach requires manual creation in the Firebase Console:
+
+**6a. Create Firebase Project (Manual)**
+1. Go to [Firebase Console](https://console.firebase.google.com/)
+2. Click **Add project**
+3. Select your GCP project (the one with billing enabled)
+4. Enable Google Analytics (optional)
+5. Wait for creation to complete (2-3 minutes)
+
+**6b. Create Firebase Web App (Manual)**
+1. In Firebase Console, go to **Project Settings** → **Your apps**
+2. Click **Add app** → Choose **Web** (</> icon)
+3. Register app with name: `cstudio-fe` (or your choice)
+4. Copy the Firebase SDK config shown (but you don't need it - Terraform will auto-discover!)
+5. **Get the Firebase Web App ID for Terraform:**
+   ```bash
+   gcloud firebase apps list --project=YOUR_GCP_PROJECT_ID
+   # Output example:
+   # 1:123456789:web:abc123xyz456def
+   # Copy this value → Use as firebase_web_app_id in your environment's main.tf locals block
+   ```
+
+📖 **Reference:** Based on [Firebase Terraform Getting Started Guide](https://firebase.google.com/docs/projects/terraform/get-started)
+
+### 7. Create a GCS Bucket for Terraform State (Optional)
+Terraform can store state locally or in a GCS bucket. The default is local state, which is fine for initial development.
+
+**For remote state (recommended for production):**
+1. Create a GCS bucket for each environment:
+   ```bash
+   export PROJECT_ID=your-gcp-project && \
+   gsutil mb -p $PROJECT_ID gs://$PROJECT_ID-cstudio-dev-tfstate
+   ```
+2. Edit your environment's `backend.tf` file (currently commented out)
+3. Configure the bucket name and uncomment the `terraform` block
+4. Run `terraform init` to migrate state to the bucket
+
+**For initial development:** Skip this step and use local state. You can add remote state later by editing `backend.tf`.
+
+### 8. Setup OAuth Client ID (if using authentication)
+This step creates the OAuth Client ID that will be used for authentication. Currently, this must be done manually.
+
+1. Go to [Google Cloud Console](https://console.cloud.google.com/)
+2. Navigate to **APIs & Services** → **Credentials**
+3. Click **Create Credentials** → **OAuth 2.0 Client ID**
+4. Choose **Web application** as the application type
+5. Add authorized redirect URIs (you can add these later):
+   - `https://{your-domain}/auth/callback`
+   - `http://localhost:3000/auth/callback` (for local testing)
+6. Click **Create**
+7. Copy the **Client ID** (not the Client Secret)
+8. Use this value in your environment's `main.tf` locals block for:
+   - `backend_custom_audiences` - Add Client ID to this list
+   - `frontend_custom_audiences` - Add Client ID to this list
+   - `identity_platform_google_oauth_client_id` - Set to your OAuth Client ID
+
+### 8a. OAuth Credential Management (Unified)
+
+**Single OAuth 2.0 Client ID for Both Services**
+
+The system uses a **unified OAuth credential** (`OAUTH_CLIENT_ID`) for both frontend and backend:
+
+- **Frontend:** Cloud Build injects it into the application as `GOOGLE_CLIENT_ID`
+- **Backend:** Cloud Run mounts it as `GOOGLE_TOKEN_AUDIENCE` environment variable
+- **Same value:** Both services use the identical OAuth Client ID
+
+#### Setup Steps
+
+1. **Create OAuth Client ID in GCP Console** (one-time)
+   - Navigate to: [APIs & Services → Credentials](https://console.cloud.google.com/apis/credentials)
+   - Create new "OAuth 2.0 Client ID" of type "Web application"
+   - Add authorized redirect URIs:
+     - `https://{PROJECT_ID}.firebaseapp.com/__/auth/handler`
+     - `https://{PROJECT_ID}.web.app/__/auth/handler`
+
+2. **Populate the Secret** (one-time, used by both services)
+   ```bash
+   gcloud secrets versions add OAUTH_CLIENT_ID \
+     --data-file=- \
+     --project={GCP_PROJECT_ID} \
+     <<< "YOUR_CLIENT_ID.apps.googleusercontent.com"
+   ```
+
+#### How It Works
+
+Terraform's `core/secrets` module automatically:
+1. **Creates** the unified `OAUTH_CLIENT_ID` secret in Secret Manager
+2. **Grants permissions** to three service accounts:
+   - Frontend Cloud Build trigger (for build-time injection)
+   - Backend Cloud Build trigger (for validation)
+   - Backend Cloud Run runtime (for token validation)
+3. **Maps** the secret to environment variable names:
+   - Frontend receives: `OAUTH_CLIENT_ID` → injected as `GOOGLE_CLIENT_ID`
+   - Backend receives: `OAUTH_CLIENT_ID` → mounted as `GOOGLE_TOKEN_AUDIENCE`
+
+**No Terraform configuration needed** - secrets are managed entirely within the platform module's `app_secrets` configuration.
+
+**Important Security Notes:**
+- Secrets are NEVER stored in `.tfvars` or version control
+- `GOOGLE_TOKEN_AUDIENCE` is NOT in `be_env_vars` (it's always a secret)
+- Secret-to-environment-variable mapping is transparent via `secret_key_ref`
+- Database password is auto-generated and stored separately in Secret Manager
+
+### 8b. Build-Time Secret Validation
+
+Both frontend and backend Cloud Build pipelines validate that secrets are properly configured:
+
+**Frontend Validation** (`frontend/cloudbuild-deploy.yaml`):
+- ✅ Checks if `OAUTH_CLIENT_ID` is populated (not empty)
+- ✅ Fails with clear error message if missing or contains placeholder value
+- ✅ Provides exact command to fix the issue
+
+**Backend Validation** (`backend/cloudbuild.yaml`):
+- ✅ Checks if `GOOGLE_TOKEN_AUDIENCE` is populated (not empty)
+- ✅ Fails with clear error message if missing or contains placeholder value
+- ✅ Explains the relationship to `OAUTH_CLIENT_ID` secret
+- ✅ Shows exact command to populate the secret
+
+**Why Build-Time Validation?**
+- Fast-fail: Errors caught during build, not at runtime
+- Clear feedback: Users know exactly what to fix
+- No wasted resources: Prevents failed Cloud Run deployments
+
+### 9. Configure Terraform & Deploy Infrastructure
 #### 🛠️ Managing Environments
 
 All commands should be run from within a specific environment's directory.
 
 #### Creating a New Environment (e.g., `staging`)
 
-1.  **Perform Manual Setup:** Create a new GCS bucket for the staging state (see Manual Step #3 above).
-2.  **(Optional) Create the Directory:** Copy the `dev` directory: `cp -r environments/dev environments/staging`
-3.  **Configure `backend.tf`:** Edit `environments/staging/backend.tf` to point to your new staging GCS bucket.
-4.  **Configure/Update `your-env.tfvars`:** Rename `dev.tfvars` to `staging.tfvars` and update the values inside (project ID, service names, etc.) for your new environment.
-5.  **Deploy:** Navigate to the new directory and run the standard `init` and `apply` commands.
+**One Environment Per Directory:** Each directory deploys to ONE environment only. Configuration is flat and simple.
+
+The repository provides `dev-infra-example` as a template. You create additional environments (production, staging, sandbox, etc.) by copying this template.
+
+1.  **Perform Manual Setup:** (Optional) Create a new GCS bucket for staging state if using remote state.
+2.  **Create the Directory:** Copy the template:
+    ```bash
+    cp -r environments/dev-infra-example environments/staging
+    ```
+    (Note: You can name it anything - `prod`, `staging`, `sandbox`, `prod-ops-sandbox`, etc.)
+3.  **Configure `main.tf`:** Edit `environments/staging/main.tf` and update the inline `locals` block:
+    - `gcp_project_id`, `gcp_region`, and `environment = "staging"`
+    - `backend_service_name` and `frontend_service_name` (e.g., `"cstudio-backend-staging"`)
+    - `be_env_vars` (only user-customizable variables - protected vars are auto-computed):
+      ```hcl
+      be_env_vars = {
+        LOG_LEVEL                      = "INFO"
+        IDENTITY_PLATFORM_ALLOWED_ORGS = ""
+        # NOTE: ENVIRONMENT and FIREBASE_DB are auto-computed by platform module
+        # ENVIRONMENT = "staging"
+        # FIREBASE_DB = "cstudio-staging"
+      }
+      ```
+    - Database configuration:
+      ```hcl
+      firestore_deletion_protection_enabled  = true  # Prod: true, Dev: false
+      cloud_sql_deletion_protection_enabled  = true  # Prod: true, Dev: false
+      allow_destroy                          = false # Prod: false, Dev: true
+      # NOTE: firestore_database_name is auto-computed as "cstudio-${environment}"
+      ```
+    - Service sizing, GitHub config, and other values for staging
+    - Set `allow_destroy = false` for production-like environments
+4.  **Configure `backend.tf` (Optional):** If using remote state:
+    - Uncomment the `terraform` block in `backend.tf`
+    - Update the bucket name to point to your staging GCS bucket
+5.  **Deploy:**
     ```bash
     cd environments/staging
     terraform init
-    terraform apply -var-file="staging.tfvars"
+    terraform apply
     ```
 
 
-#### Deploying an Existing Environment (e.g., `dev`)
+#### Deploying an Existing Environment (e.g., `dev-infra-example`)
 
-1.  **Navigate to the `dev` directory:**
+1.  **Navigate to the environment directory:**
     ```bash
-    cd environments/dev
+    cd environments/dev-infra-example
     ```
 2.  **Initialize Terraform:**
-    This downloads the necessary providers and configures the remote state backend.
+    This downloads the necessary providers and configures the remote state backend (if configured in `backend.tf`).
     ```bash
     terraform init
     ```
 3.  **Plan the changes:**
     Always review the plan carefully before applying.
     ```bash
-    terraform plan -var-file="dev.tfvars"
+    terraform plan
     ```
 4.  **Apply the changes:**
     This will build and deploy the infrastructure.
     ```bash
-    terraform apply -var-file="dev.tfvars"
+    terraform apply
     ```
+
+---
+
+## ✅ Pre-Deployment Verification Checklist
+
+Before running `terraform apply`, verify all prerequisites are complete:
+
+### Prerequisites Completion (Done Once Per Google Account/Project)
+
+**System Requirements:**
+- [ ] Terraform v1.13+ installed: `terraform version`
+- [ ] Google Cloud SDK installed: `gcloud version`
+- [ ] jq installed (JSON processor): `jq --version`
+- [ ] bash 4.0+ available: `bash --version`
+
+**Google Cloud Account & Project Setup:**
+- [ ] Google account has accepted [Firebase Terms of Service](https://firebase.google.com/)
+- [ ] GCP Project created: Go to [GCP Console](https://console.cloud.google.com/)
+- [ ] Billing account linked to project: GCP Console → Billing → Verify account is linked
+- [ ] Authenticated with gcloud: `gcloud auth login && gcloud config set project YOUR_PROJECT_ID`
+- [ ] Service account permissions verified (Editor role or custom permissions)
+- [ ] (Optional) Project labeled with `firebase="enabled"` in GCP Console → Labels
+
+**Firebase Setup:**
+- [ ] Firebase Project created: [Firebase Console](https://console.firebase.google.com/) → Add Project
+- [ ] Firebase Web App created (name: `cstudio-fe`)
+- [ ] Firebase Web App ID obtained: `gcloud firebase apps list --project=YOUR_PROJECT`
+  - Format: `1:PROJECT_NUMBER:web:HASH` (e.g., `1:123456789:web:abc123xyz456def`)
+
+**GitHub & Cloud Build:**
+- [ ] GitHub repository created and accessible
+- [ ] Cloud Build connection to GitHub created: GCP Console → Cloud Build → Manage connections
+  - Connection name noted (e.g., `github-conn`)
+- [ ] GitHub App authorized in Cloud Build
+
+**OAuth Configuration (if using authentication):**
+- [ ] OAuth 2.0 Client ID created: GCP Console → APIs & Services → Credentials
+  - Application type: Web application
+  - Redirect URIs added
+  - Client ID copied (not the secret)
+
+**Terraform State Backend:**
+- [ ] GCS bucket created for Terraform state: `gsutil mb -p $PROJECT_ID gs://$PROJECT_ID-cstudio-ENV-tfstate`
+- [ ] Bucket name ready to use in `backend.tf`
+
+### Configuration Files Setup (Done Per Environment)
+
+**Terraform Files:**
+- [ ] Navigate to your environment directory (e.g., `cd infra/environments/dev-infra-example`)
+- [ ] Edit `main.tf` locals block and verify all values are set:
+  - [ ] `gcp_project_id` = YOUR_GCP_PROJECT_ID
+  - [ ] `gcp_region` = YOUR_REGION (e.g., `us-central1`)
+  - [ ] `environment` = development|production
+  - [ ] `firebase_web_app_id` = 1:PROJECT_NUMBER:web:HASH (or null for auto-create)
+  - [ ] `github_repo_owner` = YOUR_GITHUB_USERNAME
+  - [ ] `github_repo_name` = creative-studio (or your repo name)
+  - [ ] `github_branch_name` = main (or your deployment branch)
+  - [ ] `github_conn_name` = github-conn (or your connection name)
+  - [ ] `be_env_vars` configured (user-customizable only: LOG_LEVEL, IDENTITY_PLATFORM_ALLOWED_ORGS, etc.)
+  - [ ] `firestore_deletion_protection_enabled` set appropriately (false for dev, true for prod)
+  - [ ] `allow_destroy` set appropriately (true for dev, false for production)
+  - [ ] `storage_cors_allowed_origins` set appropriately (["*"] for dev, specific domains for prod)
+  - [ ] `vpc_enable`, `cloud_sql_public_ip_enabled`, `cloud_sql_deletion_protection_enabled` configured
+  - [ ] **Note:** ENVIRONMENT and FIREBASE_DB vars are auto-computed - do NOT configure them manually
+
+**Secrets Management:**
+- [ ] No additional configuration needed - Terraform manages all secrets
+- [ ] Secrets are created and permissions granted automatically via `core/secrets` module
+- [ ] After `terraform apply`, manually populate `OAUTH_CLIENT_ID` secret (see section 8a above)
+
+**Backend Configuration (Optional):**
+- [ ] (Optional) If using remote state, edit `backend.tf` and uncomment the `terraform` block
+- [ ] Update bucket name to point to your GCS state bucket
+- [ ] Run `terraform init` to migrate state to remote backend
+
+### Ready to Deploy
+
+Once all items above are checked:
+```bash
+cd environments/YOUR_ENVIRONMENT
+terraform init
+terraform validate  # Should succeed with no errors
+terraform plan      # Review the plan carefully
+terraform apply     # Deploy infrastructure
+```
+
+---
+
+## Infrastructure Review & Fixes (v1.2)
+
+### Summary of v1.2 - Over-Engineering Simplification ✅
+
+The infrastructure has been refactored to remove unnecessary complexity while maintaining full functionality. All changes have been **validated with `terraform validate`** and verified against the implementation plan.
+
+Based on comprehensive over-engineering analysis, the following optimizations were implemented to simplify configuration while maintaining full functionality:
+
+**Variables Removed (Low Risk - Unused/Redundant):**
+- `backend_custom_audiences` - Removed from platform and backend service modules (project ID is sufficient as audience)
+- `frontend_custom_audiences` - Removed from platform and frontend service modules
+- `bootstrap_job_name` - Removed from bootstrap module (now always auto-computed as `cstudio-bootstrap-${environment}`)
+- `bootstrap_job_env_vars` variable definition - Removed from bootstrap/variables.tf (but computed env vars are still passed via platform module)
+- Environment validation duplication - Removed from 5+ child modules (validation now at platform module only)
+- Firebase web app ID documentation - Simplified from Phase 1/2 dual-mode to single simplified description
+
+**Variables Added (Safety Feature):**
+- `require_approval_for_deploy` - New variable to enable manual approval gates for Cloud Build deployments (best practice for production to prevent accidental deployments)
+  - Added to: `platform/variables.tf`, `bootstrap/variables.tf`, `backend/variables.tf`, `frontend/variables.tf`
+  - Used in Cloud Build trigger `approval_config` blocks
+
+**Variables Kept (As-Is - Properly Designed):**
+- VPC Connector (`vpc_connector_name` and `vpc_connector_id`) - Both required and properly documented as auto-computed
+- Cloud Run resource sizing - Provides necessary flexibility, properly used
+- Cloud Build toggle - Kept for gradual migration to GitHub Actions
+
+**Documentation Improvements:**
+- VPC Connector variables now have clear comments indicating they are auto-computed from networking module
+- Bootstrap job env vars clarified with inline comments about required fields
+
+---
+
+### Earlier Quality Improvements (v1.1)
+
+This infrastructure has been reviewed for edge cases, variable duplication, and inconsistencies. Earlier improvements included:
+
+**Issue #1 - RESOLVED: Destruction Control Variable Consolidation**
+- **Problem:** Three conflicting variables for bucket destruction: `storage_force_destroy`, `allow_destroy`, `force_destroy`
+- **Fix:** Consolidated to single `allow_destroy` source of truth at platform level
+- **Storage module variables renamed:** All now use `storage_` prefix (`storage_allow_destroy`, `storage_cors_allowed_origins`)
+- **Result:** Users set `allow_destroy = true/false` in environment once; applies consistently across all resources
+
+**Issue #3 - RESOLVED: Variable Naming Consistency**
+- **Problem:** Inconsistent variable prefixes across modules (some `cloud_sql_`, some just `deletion_protection_enabled`)
+- **Fix:** Storage module now follows `storage_` prefix convention
+- **Benefit:** Developers can easily identify which module a variable affects
+
+**Issue #4 - RESOLVED: Firestore Database Name Visibility**
+- **Problem:** Auto-computed database name `cstudio-{environment}` was not visible to users
+- **Fix:** Added `firestore_database_name` output to environment layer
+- **Usage:** Run `terraform output firestore_database_name` after plan/apply to verify
+- **Benefit:** Users can verify correct database before applying configuration
+
+**Issue #2 & #5 - Pending: Bootstrap Environment Variable Protection**
+- **Status:** Identified for refinement in upcoming release
+- **Description:** Bootstrap job lacks full protected variable mechanism (like backend service)
+- **Planned:** Will implement protected variables pattern for critical database configuration
+- **Tracking:** Enhancement planned for future release
+
+### Best Practices
+
+1. **Always verify outputs after planning:**
+   ```bash
+   terraform plan
+   terraform output firestore_database_name
+   ```
+
+2. **Never manually override auto-computed variables:**
+   - `ENVIRONMENT` and `FIREBASE_DB` are protected
+   - Attempting to set them in `be_env_vars` will be overridden (expected behavior)
+
+3. **Use single `allow_destroy` for dev/prod safety:**
+   - Development: `allow_destroy = true` (allows cleanup)
+   - Production: `allow_destroy = false` (prevents accidents)
+
+4. **Reference ARCHITECTURE.md for variable naming convention:**
+   - All variables follow strict naming patterns
+   - Use this guide to avoid configuration mistakes
+
+---
+
+## 📚 Documentation Index
+
+For comprehensive guides on specific topics, refer to:
+
+| Document | Purpose | When to Use |
+|----------|---------|------------|
+| **[ARCHITECTURE.md](./ARCHITECTURE.md)** | Network design, VPC setup, data flow diagrams, security architecture, variable naming convention | Understanding infrastructure organization and determining correct variable names |
+| **[TERRAFORM_OUTPUTS_AND_CICD.md](./TERRAFORM_OUTPUTS_AND_CICD.md)** | Accessing terraform outputs, CI/CD integration, bash script patterns, GitHub Actions examples | Using outputs in scripts, migrating to GitHub Actions, CI/CD automation |
+
+### Quick CI/CD Reference
+
+#### For Bash Scripts
+
+Extract outputs in your bash scripts using these patterns:
+
+**Single Value (simple):**
+```bash
+PROJECT_ID=$(terraform output -raw gcp_project_id 2>/dev/null)
+```
+
+**Multiple Values (one call):**
+```bash
+OUTPUTS=$(terraform output -json)
+PROJECT_ID=$(echo "$OUTPUTS" | jq -r .gcp_project_id.value)
+FRONTEND_SECRETS=$(echo "$OUTPUTS" | jq -r .frontend_secrets.value[])
+```
+
+**Optional Outputs (with fallback):**
+```bash
+BACKEND_URL=$(terraform output -raw backend_service_url 2>/dev/null || echo "")
+```
+
+For detailed patterns, examples, and error handling → See [TERRAFORM_OUTPUTS_AND_CICD.md - Section 3.5](./TERRAFORM_OUTPUTS_AND_CICD.md#35-real-world-bash-script-patterns)
+
+#### For GitHub Actions Workflows
+
+Extract and use outputs in your GitHub Actions pipelines:
+
+```yaml
+- name: Get Infrastructure Outputs
+  id: infra
+  run: |
+    cd infra/environments/${{ env.ENV_NAME }}
+    terraform init
+    TF_OUT=$(terraform output -json)
+    echo "project=$(echo $TF_OUT | jq -r .gcp_project_id.value)" >> $GITHUB_OUTPUT
+    echo "sql_conn=$(echo $TF_OUT | jq -r .cloud_sql_connection_name.value)" >> $GITHUB_OUTPUT
+
+- name: Use Outputs
+  run: |
+    echo "Project: ${{ steps.infra.outputs.project }}"
+    echo "SQL: ${{ steps.infra.outputs.sql_conn }}"
+```
+
+For complete workflow examples → See [TERRAFORM_OUTPUTS_AND_CICD.md - Section 5-6](./TERRAFORM_OUTPUTS_AND_CICD.md#5-modern-github-actions-approach)
 

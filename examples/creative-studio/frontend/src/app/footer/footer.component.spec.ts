@@ -15,6 +15,8 @@
  */
 
 import {ComponentFixture, TestBed} from '@angular/core/testing';
+import {MatToolbarModule} from '@angular/material/toolbar';
+import {RouterTestingModule} from '@angular/router/testing';
 
 import {FooterComponent} from './footer.component';
 
@@ -25,6 +27,7 @@ describe('FooterComponent', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       declarations: [FooterComponent],
+      imports: [MatToolbarModule, RouterTestingModule],
     }).compileComponents();
 
     fixture = TestBed.createComponent(FooterComponent);

@@ -1,0 +1,208 @@
+# Copyright 2025 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Cloud Build pipeline for database bootstrap/initialization
+#
+# Purpose: Automatically build, push, and deploy a bootstrap Docker image to a Cloud Run Job,
+# then execute database initialization (migrations, seeding, asset creation).
+#
+# Trigger: On push to configured branch when backend/bootstrap/** files change
+#
+# Process:
+#   1. Build separate bootstrap container image
+#   2. Push image to Artifact Registry
+#   3. Update Cloud Run Job with the new bootstrap image
+#      (Note: Job configuration is created and managed by Terraform)
+#   4. Execute the Cloud Run Job
+#
+# Job Lifecycle:
+#   - Terraform creates the Cloud Run Job with placeholder image and full configuration:
+#     * Environment variables (DB credentials, private IP setting, etc.)
+#     * VPC Connector (for private Cloud SQL access)
+#     * Service account and resource limits
+#   - Cloud Build updates only the container image when code changes
+#   - Terraform ignores image changes via lifecycle.ignore_changes
+#
+# The Cloud Run Job connects to Cloud SQL (public or private IP based on configuration) and runs:
+#   - Alembic migrations (database schema)
+#   - Seed data population
+#   - Admin user creation
+#   - Asset initialization
+#
+# This approach provides clean separation of concerns:
+# - Terraform: Manages infrastructure configuration (env vars, VPC, permissions, resources)
+# - Cloud Build: Manages application deployment (image building, pushing, execution)
+
+steps:
+  # Step 1: Build bootstrap container image (separate from main backend)
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'Build Bootstrap Image'
+    env: ['DOCKER_BUILDKIT=1']
+    args:
+      - 'build'
+      - '-t'
+      - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO_NAME}/${_BOOTSTRAP_IMAGE_NAME}:$SHORT_SHA'
+      - '-f'
+      - 'Dockerfile.bootstrap'
+      - '.'
+    dir: 'examples/creative-studio/backend'
+
+  # Step 2: Push bootstrap image to Google Artifact Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'Push Bootstrap Image'
+    args:
+      - 'push'
+      - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO_NAME}/${_BOOTSTRAP_IMAGE_NAME}:$SHORT_SHA'
+
+  # Step 3: Deploy Cloud Run Job with the new bootstrap image
+  # Note: Job configuration (env vars, VPC, resources) is created and managed by Terraform.
+  # Cloud Build creates the job on first run with all configuration from Terraform.
+  # On subsequent runs, it updates only the container image.
+  # We check if the job exists first and use create/update accordingly.
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    id: 'Update Job Image'
+    env:
+      - 'PROJECT_ID=$PROJECT_ID'
+      - 'SHORT_SHA=$SHORT_SHA'
+      - 'BOOTSTRAP_IMAGE_NAME=${_BOOTSTRAP_IMAGE_NAME}'
+      - 'REPO_NAME=${_REPO_NAME}'
+      - 'REGION=${_REGION}'
+      - 'BOOTSTRAP_JOB_NAME=${_BOOTSTRAP_JOB_NAME}'
+      - 'VPC_CONNECTOR_NAME=${_VPC_CONNECTOR_NAME}'
+      - 'BOOTSTRAP_SERVICE_ACCOUNT=${_BOOTSTRAP_SERVICE_ACCOUNT}'
+      - 'CLOUD_SQL_INSTANCE=${_CLOUD_SQL_INSTANCE}'
+      - 'BOOTSTRAP_ENV_VARS=${_BOOTSTRAP_ENV_VARS}'
+      - 'BOOTSTRAP_SECRETS=${_BOOTSTRAP_SECRETS}'
+      - 'BOOTSTRAP_CPU=${_BOOTSTRAP_CPU}'
+      - 'BOOTSTRAP_MEMORY=${_BOOTSTRAP_MEMORY}'
+      - 'BOOTSTRAP_TIMEOUT=${_BOOTSTRAP_TIMEOUT}'
+    script: |
+      #!/bin/bash
+      set -e
+
+      IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO_NAME}/${BOOTSTRAP_IMAGE_NAME}:${SHORT_SHA}"
+
+      echo "=== Deployment Configuration ==="
+      echo "IMAGE: $IMAGE"
+      echo "JOB_NAME: $BOOTSTRAP_JOB_NAME"
+      echo "REGION: $REGION"
+      echo "VPC_CONNECTOR_NAME: $VPC_CONNECTOR_NAME"
+      echo "SERVICE_ACCOUNT: $BOOTSTRAP_SERVICE_ACCOUNT"
+      echo "CLOUD_SQL_INSTANCE: $CLOUD_SQL_INSTANCE"
+      echo "ENV_VARS: $BOOTSTRAP_ENV_VARS"
+      echo "SECRETS: $BOOTSTRAP_SECRETS"
+      echo "CPU: $BOOTSTRAP_CPU"
+      echo "MEMORY: $BOOTSTRAP_MEMORY"
+      echo "TIMEOUT: $BOOTSTRAP_TIMEOUT"
+      echo "PROJECT_ID: $PROJECT_ID"
+      echo "SHORT_SHA: $SHORT_SHA"
+      echo "===================================="
+
+      # Determine if job exists to set appropriate action (create or update)
+      if gcloud run jobs describe "$BOOTSTRAP_JOB_NAME" --region="$REGION" --project="${PROJECT_ID}" 2>/dev/null >/dev/null; then
+        ACTION='update'
+        echo "Job found, will UPDATE with full configuration"
+      else
+        ACTION='create'
+        echo "Job not found, will CREATE with full configuration"
+      fi
+
+      # Build and display the full command
+      CMD="gcloud run jobs ${ACTION} ${BOOTSTRAP_JOB_NAME} \
+        --image=${IMAGE} \
+        --region=${REGION} \
+        --project=${PROJECT_ID} \
+        --vpc-connector=projects/${PROJECT_ID}/locations/${REGION}/connectors/${VPC_CONNECTOR_NAME} \
+        --vpc-egress=private-ranges-only \
+        --service-account=${BOOTSTRAP_SERVICE_ACCOUNT} \
+        --set-cloudsql-instances=${CLOUD_SQL_INSTANCE} \
+        --set-env-vars=${BOOTSTRAP_ENV_VARS} \
+        --set-secrets=${BOOTSTRAP_SECRETS} \
+        --cpu=${BOOTSTRAP_CPU} \
+        --memory=${BOOTSTRAP_MEMORY} \
+        --task-timeout=${BOOTSTRAP_TIMEOUT} \
+        --parallelism=1 \
+        --max-retries=1 \
+        --tasks=1"
+      echo "Executing: $CMD"
+
+      # Execute the command (create or update with all configuration)
+      gcloud run jobs ${ACTION} "$BOOTSTRAP_JOB_NAME" \
+        --image="$IMAGE" \
+        --region="$REGION" \
+        --project="${PROJECT_ID}" \
+        --vpc-connector="projects/${PROJECT_ID}/locations/${REGION}/connectors/${VPC_CONNECTOR_NAME}" \
+        --vpc-egress='private-ranges-only' \
+        --service-account="$BOOTSTRAP_SERVICE_ACCOUNT" \
+        --set-cloudsql-instances="$CLOUD_SQL_INSTANCE" \
+        --set-env-vars="$BOOTSTRAP_ENV_VARS" \
+        --set-secrets="$BOOTSTRAP_SECRETS" \
+        --cpu="$BOOTSTRAP_CPU" \
+        --memory="$BOOTSTRAP_MEMORY" \
+        --task-timeout="$BOOTSTRAP_TIMEOUT" \
+        --parallelism=1 \
+        --max-retries=1 \
+        --tasks=1
+
+  # Step 4: Execute the Cloud Run Job and wait for completion
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    id: 'Execute Bootstrap Job'
+    entrypoint: 'gcloud'
+    args:
+      - 'run'
+      - 'jobs'
+      - 'execute'
+      - ${_BOOTSTRAP_JOB_NAME}
+      - --region=${_REGION}
+      - --project=${PROJECT_ID}
+      - '--wait'
+
+# Substitution variables (defaults, can be overridden by Cloud Build trigger)
+# These are set dynamically by Terraform trigger configuration
+substitutions:
+  # Image and Repository
+  _BOOTSTRAP_IMAGE_NAME: 'cstudio-bootstrap'
+  _REPO_NAME: 'cs-bootstrap-sandbox-repo'
+  _REGION: 'us-central1'
+
+  # Job Configuration
+  _BOOTSTRAP_JOB_NAME: 'cstudio-bootstrap-sandbox'
+  _BOOTSTRAP_SERVICE_ACCOUNT: 'cs-bootstrap-sandbox@${PROJECT_ID}.iam.gserviceaccount.com'
+
+  # VPC and Networking
+  _VPC_CONNECTOR_NAME: 'cs-sandbox-cs-connector'
+  _VPC_CONNECTOR_ID: 'projects/${PROJECT_ID}/locations/us-central1/connectors/cs-sandbox-cs-connector'
+
+  # Cloud SQL
+  _CLOUD_SQL_INSTANCE: '${PROJECT_ID}:us-central1:creative-studio-db-c3353262'
+
+  # Resource Configuration
+  _BOOTSTRAP_CPU: '2'
+  _BOOTSTRAP_MEMORY: '4Gi'
+  _BOOTSTRAP_TIMEOUT: '3600s'
+
+  # Environment Variables (comma-separated key=value pairs)
+  # NOTE: These defaults are ALWAYS overridden by Cloud Build trigger substitutions from Terraform
+  # Terraform constructs the complete _BOOTSTRAP_ENV_VARS from the platform module's bootstrap_job_env_vars
+  # This includes: USE_CLOUD_SQL, INSTANCE_CONNECTION_NAME, USE_CLOUD_SQL_PRIVATE_IP, DB_NAME, DB_USER, PROJECT_ID, GENMEDIA_BUCKET, ENVIRONMENT
+  # Plus any user-provided variables (LOG_LEVEL, ADMIN_USER_EMAIL, etc.)
+  # CRITICAL: ADMIN_USER_EMAIL must be provided by Terraform for admin user creation
+  _BOOTSTRAP_ENV_VARS: 'USE_CLOUD_SQL=true,INSTANCE_CONNECTION_NAME=PROJECT:REGION:INSTANCE,USE_CLOUD_SQL_PRIVATE_IP=true,DB_NAME=creative_studio,DB_USER=studio_user,PROJECT_ID=PROJECT,GENMEDIA_BUCKET=BUCKET,ENVIRONMENT=development,ADMIN_USER_EMAIL=admin@example.com'
+
+  # Secrets (comma-separated KEY=secret-name:version pairs)
+  _BOOTSTRAP_SECRETS: 'DB_PASS=creative-studio-db-password:latest'
+
+# Logging configuration
+options:
+  logging: CLOUD_LOGGING_ONLY

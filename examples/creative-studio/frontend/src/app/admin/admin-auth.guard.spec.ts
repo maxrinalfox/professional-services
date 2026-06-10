@@ -15,15 +15,27 @@
  */
 
 import {TestBed} from '@angular/core/testing';
-import {CanActivateFn} from '@angular/router';
-
+import {Router} from '@angular/router';
+import {MatSnackBar} from '@angular/material/snack-bar';
+import {HttpClientTestingModule} from '@angular/common/http/testing';
 import {AdminAuthGuard} from './admin-auth.guard';
+import {AuthService} from '../common/services/auth.service';
+import {UserService} from '../common/services/user.service';
 
 describe('AdminAuthGuard', () => {
   let service: AdminAuthGuard;
 
   beforeEach(() => {
-    TestBed.configureTestingModule({});
+    TestBed.configureTestingModule({
+      imports: [HttpClientTestingModule],
+      providers: [
+        AdminAuthGuard,
+        {provide: AuthService, useValue: {}},
+        {provide: Router, useValue: {}},
+        {provide: UserService, useValue: {}},
+        {provide: MatSnackBar, useValue: {}},
+      ],
+    });
     service = TestBed.inject(AdminAuthGuard);
   });
 

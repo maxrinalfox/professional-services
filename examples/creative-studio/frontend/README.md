@@ -38,6 +38,8 @@ The same for Test and Production
 
 
 ## Deploy to Firebase
+
+### Local Deployment
 ```bash
   npm run build-dev
 
@@ -46,5 +48,32 @@ The same for Test and Production
   firebase use --add <your gcp project>
   firebase deploy
 ```
+
+### Automated Deployment (Cloud Build CI/CD)
+
+This project uses a **two-stage Cloud Build pipeline**:
+
+**Stage 1: `cloudbuild.yaml` (Build Project)**
+- Installs dependencies
+- Builds the Angular application
+- Triggers the deployment to the target project
+
+**Stage 2: `cloudbuild-deploy.yaml` (Target Project)**
+- Injects environment variables and secrets from Cloud Build substitutions
+- Validates all required configuration is present
+- Builds the final production image
+- Deploys to Firebase Hosting
+
+#### Why Two Files?
+This multi-project pattern allows:
+- **Security separation**: Build and deployment can happen in different GCP projects
+- **Environment isolation**: Dev, staging, and production can have separate configurations
+- **Reduced blast radius**: Credentials only exist where needed
+
+#### Configuration
+The deployment pipeline is configured in Terraform:
+- File: `infra/modules/services/frontend/main.tf`
+- Cloud Build trigger automatically runs on code push
+- Environment variables and secrets are injected via build substitutions
 
 

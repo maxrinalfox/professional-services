@@ -20,47 +20,202 @@ terraform {
 }
 
 provider "google" {
-  project = var.gcp_project_id
-  region  = var.gcp_region
+  project = local.gcp_project_id
+  region  = local.gcp_region
 }
 
 provider "google-beta" {
-  project = var.gcp_project_id
-  region  = var.gcp_region
+  project               = local.gcp_project_id
+  region                = local.gcp_region
+  user_project_override = true # Use resource's project for quota checks (fixes Identity Toolkit quota issues)
 }
 
-# --- Enable the required Google Cloud APIs ---
-resource "google_project_service" "apis" {
-  # Use a for_each loop to enable each API from the variable list
-  for_each = toset(var.apis_to_enable)
-
-  project = var.gcp_project_id
-  service = each.key
-
-  # This prevents Terraform from disabling APIs when you run `terraform destroy`
-  disable_on_destroy = false
+provider "google-beta" {
+  alias                 = "no_user_project_override"
+  user_project_override = false
 }
 
-# Call the platform module, passing in all the required variables.
+# ============================================================================
+# ENVIRONMENT CONFIGURATION
+# ============================================================================
+# Inline values with clear comments. Modify these for your environment.
+# For advanced customization or multiple environments, use terraform.auto.tfvars
+# ============================================================================
+
+locals {
+  # === GCP PROJECT & REGION ===
+  gcp_project_id = "YOUR_GCP_PROJECT_ID"  # TODO: Replace with your GCP project ID
+  gcp_region     = "us-central1"          # GCP region for all resources
+
+  # === ENVIRONMENT IDENTITY ===
+  environment = "development"  # Environment name (used in resource naming)
+  # NOTE: Service names are automatically generated from environment by the platform module
+  # Pattern: cstudio-{service}-{environment}
+  # Do NOT override service_name variables - they are computed, not configurable
+
+  # === GITHUB CONFIGURATION ===
+  # ⚠️ REQUIRED: Cloud Build GitHub Connection (manual setup)
+  # Before running terraform apply, you MUST create a Cloud Build GitHub connection:
+  # 1. Go to: https://console.cloud.google.com/cloud-build/connections
+  # 2. Create connection, select "GitHub (Cloud Build GitHub App)"
+  # 3. Authenticate and authorize the app
+  # 4. Copy the connection name (e.g., "gh-myaccount-con")
+  # 5. Update github_conn_name below with your connection name
+  #
+  # Why manual? GCP doesn't expose a Terraform resource for v2 connections + GitHub OAuth requires user interaction
+  # See: infra/README.md (Section 5) and infra/QUICK_START.md (Step 5) for full details
+  #
+  github_conn_name   = "github-connection-name"  # ⚠️ Replace with your connection name
+  github_repo_owner  = "your-github-username"    # GitHub org or username
+  github_repo_name   = "creative-studio"         # Repository name
+  github_branch_name = "main"                    # Trigger on this branch
+
+  # === BACKEND ENVIRONMENT VARIABLES ===
+  # NOTE: ENVIRONMENT and FIREBASE_DB are automatically set by the platform module.
+  # Users should only customize application-level variables like LOG_LEVEL.
+  # The platform module auto-computes:
+  # - ENVIRONMENT = local.environment
+  # - FIREBASE_DB = "cstudio-${local.environment}" (matches firestore_database_name)
+  be_env_vars = {
+    LOG_LEVEL                      = "INFO"
+    IDENTITY_PLATFORM_ALLOWED_ORGS = ""
+  }
+
+  # === BACKEND RUNTIME SECRETS ===
+  # Maps environment variable names to Secret Manager secret names
+  backend_runtime_secrets = {
+    "GOOGLE_TOKEN_AUDIENCE" = "OAUTH_CLIENT_ID"  # Map env var to unified OAuth secret
+  }
+
+  # === CLOUD RUN RESOURCE SIZING ===
+  be_cpu    = "2000m"   # Backend CPU (1 vCPU = 1000m)
+  be_memory = "2048Mi"  # Backend memory
+  fe_cpu    = "2000m"   # Frontend CPU
+  fe_memory = "2048Mi"  # Frontend memory
+
+  # === CLOUD BUILD TRIGGERS ===
+  enable_cloud_build            = true  # Enable CI/CD triggers (recommended: true)
+  require_approval_for_deploy   = false # Dev: no approval required. Prod: true (best practice to prevent accidental deployments)
+
+  # === CLOUD SQL DATABASE ===
+  cloud_sql_public_ip_enabled = true  # Dev: true (public). Prod: false (VPC only)
+
+  # === FIREBASE IDENTITY PLATFORM ===
+  enable_identity_platform = true  # Enable user authentication
+
+  # === DESTRUCTION CONTROL ===
+  allow_destroy = true  # Dev: true (allow easy cleanup). Prod: false (prevent accidents)
+  # NOTE: Cloud SQL deletion_protection is automatically set to !allow_destroy
+  # (Dev: allow_destroy=true → deletion_protection=false; Prod: allow_destroy=false → deletion_protection=true)
+
+  # === VPC NETWORKING (for private Cloud SQL) ===
+  vpc_enable                = false            # Dev: false. Prod: true for private database
+  vpc_primary_subnet_cidr   = "10.0.0.0/24"   # Primary subnet for Cloud Run
+  vpc_connector_subnet_cidr = "10.0.1.0/28"   # Subnet for Serverless VPC Connector
+
+  # === CLOUD RUN ACCESS CONTROL ===
+  backend_invoker_identities = []  # Empty = public access. Add "user:email@example.com" to restrict
+
+  # === BOOTSTRAP JOB (Database Bootstrap) ===
+  # The bootstrap job is always enabled to initialize the database
+  bootstrap_admin_user_email = "admin@example.com"  # Email for initial admin user (REQUIRED - change for your deployment)
+
+  # === STORAGE CONFIGURATION ===
+  storage_cors_allowed_origins = ["*"]  # Dev: "*". Prod: specify exact domains
+
+  # === FIRESTORE CONFIGURATION ===
+  # Note: firestore_database_name is auto-computed by platform module as "cstudio-${environment}"
+  # Firestore deletion protection is automatically enabled when allow_destroy = false (production)
+}
+
+# ============================================================================
+# INFRASTRUCTURE DEPLOYMENT
+# ============================================================================
+# Call the platform module with the configuration above
+# ============================================================================
+
+# ============================================================================
+# PLATFORM MODULE - Main Orchestrator for All Infrastructure
+# ============================================================================
+# Deploys: Firebase, Cloud SQL, Firestore, Cloud Storage, VPC, Cloud Run,
+# Cloud Build Triggers, Secrets, IAM, and Cloud Run Jobs
+# See: infra/modules/platform/ and infra/ARCHITECTURE.md for details
+# ============================================================================
+
 module "creative_studio_platform" {
   source = "../../modules/platform"
 
-  gcp_project_id            = var.gcp_project_id
-  gcp_region                = var.gcp_region
-  environment               = var.environment
-  backend_service_name      = var.backend_service_name
-  backend_custom_audiences  = var.backend_custom_audiences
-  be_env_vars               = var.be_env_vars
-  frontend_service_name     = var.frontend_service_name
-  frontend_custom_audiences = var.frontend_custom_audiences
-  github_conn_name          = var.github_conn_name
-  github_repo_owner         = var.github_repo_owner
-  github_repo_name          = var.github_repo_name
-  github_branch_name        = var.github_branch_name
+  # Project & Environment
+  gcp_project_id = local.gcp_project_id
+  gcp_region     = local.gcp_region
+  environment    = local.environment
 
-  frontend_secrets       = var.frontend_secrets
-  backend_secrets        = var.backend_secrets
-  fe_build_substitutions = var.fe_build_substitutions
+  # GitHub (see locals above for github_conn_name requirement)
+  github_conn_name   = local.github_conn_name
+  github_repo_owner  = local.github_repo_owner
+  github_repo_name   = local.github_repo_name
+  github_branch_name = local.github_branch_name
 
-  depends_on = [ google_project_service.apis ]
+  # Backend Service
+  be_env_vars             = local.be_env_vars
+  backend_runtime_secrets = local.backend_runtime_secrets
+  be_cpu                  = local.be_cpu
+  be_memory               = local.be_memory
+
+  # Cloud Build
+  enable_cloud_build         = local.enable_cloud_build
+  require_approval_for_deploy = local.require_approval_for_deploy
+
+  # Databases
+  cloud_sql_public_ip_enabled = local.cloud_sql_public_ip_enabled
+  enable_identity_platform    = local.enable_identity_platform
+
+  # Destruction Control
+  allow_destroy = local.allow_destroy
+
+  # Networking
+  vpc_enable                = local.vpc_enable
+  vpc_primary_subnet_cidr   = local.vpc_primary_subnet_cidr
+  vpc_connector_subnet_cidr = local.vpc_connector_subnet_cidr
+
+  # Access Control
+  backend_invoker_identities = local.backend_invoker_identities
+
+  # Bootstrap Job Configuration
+  bootstrap_admin_user_email = local.bootstrap_admin_user_email
+
+  # Storage & Firestore
+  storage_cors_allowed_origins = local.storage_cors_allowed_origins
 }
+
+# ============================================================================
+# OUTPUTS - Show deployment results and next steps
+# ============================================================================
+# output "module_all" {
+#   description = "All outputs from the platform module (complete infrastructure state)"
+#   value       = module.creative_studio_platform
+# }
+
+output "infrastructure_ready" {
+  description = "Infrastructure deployment summary with all critical endpoints and configuration"
+  value = {
+    project_id              = local.gcp_project_id
+    region                  = local.gcp_region
+    environment             = local.environment
+    backend_url             = module.creative_studio_platform.backend_service_url
+    frontend_url            = "https://${local.gcp_project_id}.web.app"
+    firestore_database_name = module.creative_studio_platform.firestore_database_name
+    cloud_sql_connection    = module.creative_studio_platform.cloud_sql_connection_name
+  }
+}
+
+output "secret_population_commands" {
+  description = "Helper commands to populate OAUTH_CLIENT_ID secret after terraform apply"
+  value       = try(module.creative_studio_platform.app_secrets.secret_population_commands, null)
+}
+
+output "post_apply_instructions" {
+  description = "Step-by-step instructions to complete infrastructure setup after terraform apply"
+  value       = module.creative_studio_platform.post_apply_instructions
+}
+

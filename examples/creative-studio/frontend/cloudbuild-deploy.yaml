@@ -23,39 +23,119 @@ steps:
   # 2. Inject Secrets and Config from the build environment
   - name: 'gcr.io/cloud-builders/gcloud'
     id: 'Inject Environment Variables'
-    entrypoint: 'bash'
-    args:
-      - '-c'
-      - |
-        # Inject into Angular app (environment.prod.ts)
-        sed -i "s|BACKEND_URL_PLACEHOLDER|$${_BACKEND_URL}/api|g" src/environments/environment.prod.ts
-        sed -i "s|GOOGLE_CLIENT_ID_PLACEHOLDER|$${GOOGLE_CLIENT_ID}|g" src/environments/environment.prod.ts
-        # Inject Firebase config
-        sed -i "s|FIREBASE_API_KEY_PLACEHOLDER|$${FIREBASE_API_KEY}|g" src/environments/environment.prod.ts
-        sed -i "s|FIREBASE_AUTH_DOMAIN_PLACEHOLDER|$${FIREBASE_AUTH_DOMAIN}|g" src/environments/environment.prod.ts
-        sed -i "s|FIREBASE_PROJECT_ID_PLACEHOLDER|$${FIREBASE_PROJECT_ID}|g" src/environments/environment.prod.ts
-        sed -i "s|FIREBASE_STORAGE_BUCKET_PLACEHOLDER|$${FIREBASE_STORAGE_BUCKET}|g" src/environments/environment.prod.ts
-        sed -i "s|FIREBASE_SENDER_ID_PLACEHOLDER|$${FIREBASE_MESSAGING_SENDER_ID}|g" src/environments/environment.prod.ts
-        sed -i "s|FIREBASE_APP_ID_PLACEHOLDER|$${FIREBASE_APP_ID}|g" src/environments/environment.prod.ts
-        sed -i "s|FIREBASE_MEASUREMENT_ID_PLACEHOLDER|$${FIREBASE_MEASUREMENT_ID}|g" src/environments/environment.prod.ts
-
-        # Inject into Firebase config (firebase.json)
-        sed -i "s|SITE_ID_PLACEHOLDER|${PROJECT_ID}|g" firebase.json
-        sed -i "s|BACKEND_SERVICE_ID_PLACEHOLDER|$${_BACKEND_SERVICE_ID}|g" firebase.json
-    dir: examples/creative-studio/frontend
-    env:
-      - '_BACKEND_URL=${_BACKEND_URL}'
-      - '_FE_SERVICE_NAME=${_FE_SERVICE_NAME}'
-      - '_BACKEND_SERVICE_ID=${_BACKEND_SERVICE_ID}'
     secretEnv:
-      - FIREBASE_API_KEY
-      - FIREBASE_AUTH_DOMAIN
-      - FIREBASE_PROJECT_ID
-      - FIREBASE_STORAGE_BUCKET
-      - FIREBASE_MESSAGING_SENDER_ID
-      - FIREBASE_APP_ID
-      - FIREBASE_MEASUREMENT_ID
-      - GOOGLE_CLIENT_ID
+      - 'OAUTH_CLIENT_ID'
+    env:
+      - 'BACKEND_URL=${_BACKEND_URL}'
+      - 'FIREBASE_API_KEY=${_FIREBASE_API_KEY}'
+      - 'FIREBASE_AUTH_DOMAIN=${_FIREBASE_AUTH_DOMAIN}'
+      - 'FIREBASE_PROJECT_ID_SDK=${_FIREBASE_PROJECT_ID_SDK}'
+      - 'FIREBASE_STORAGE_BUCKET=${_FIREBASE_STORAGE_BUCKET}'
+      - 'FIREBASE_MESSAGING_SENDER_ID=${_FIREBASE_MESSAGING_SENDER_ID}'
+      - 'FIREBASE_APP_ID=${_FIREBASE_APP_ID}'
+      - 'FIREBASE_MEASUREMENT_ID=${_FIREBASE_MEASUREMENT_ID}'
+      - 'BACKEND_SERVICE_ID=${_BACKEND_SERVICE_ID}'
+      - 'FIREBASE_PROJECT_ID=${_FIREBASE_PROJECT_ID}'
+      - 'PROJECT_ID=${PROJECT_ID}'
+    waitFor: ['Install Dependencies']
+    script: |
+      #!/bin/bash
+      set -e
+
+      echo "📝 Pre-validation: Displaying all environment variables..."
+      echo ""
+      echo "=== CONFIGURATION VALUES (from Cloud Build substitutions) ==="
+      echo "BACKEND_URL: $BACKEND_URL"
+      echo "FIREBASE_API_KEY: $FIREBASE_API_KEY"
+      echo "FIREBASE_AUTH_DOMAIN: $FIREBASE_AUTH_DOMAIN"
+      echo "FIREBASE_PROJECT_ID_SDK: $FIREBASE_PROJECT_ID_SDK"
+      echo "FIREBASE_STORAGE_BUCKET: $FIREBASE_STORAGE_BUCKET"
+      echo "FIREBASE_MESSAGING_SENDER_ID: $FIREBASE_MESSAGING_SENDER_ID"
+      echo "FIREBASE_APP_ID: $FIREBASE_APP_ID"
+      echo "FIREBASE_MEASUREMENT_ID: $FIREBASE_MEASUREMENT_ID"
+      echo "BACKEND_SERVICE_ID: $BACKEND_SERVICE_ID"
+      echo "FIREBASE_PROJECT_ID: $FIREBASE_PROJECT_ID"
+      echo "OAUTH_CLIENT_ID (from Secret Manager): $OAUTH_CLIENT_ID"
+      echo "PROJECT_ID (from Cloud Build): $PROJECT_ID"
+      echo ""
+
+      # Validate that all required variables are set (fail fast if any are empty)
+      echo "🔍 VALIDATION: Checking for empty variables..."
+      VALIDATION_ERRORS=""
+
+      [ -z "$BACKEND_URL" ] && VALIDATION_ERRORS="${VALIDATION_ERRORS}❌ BACKEND_URL is empty\n"
+      [ -z "$FIREBASE_API_KEY" ] && VALIDATION_ERRORS="${VALIDATION_ERRORS}❌ FIREBASE_API_KEY is empty\n"
+      [ -z "$FIREBASE_AUTH_DOMAIN" ] && VALIDATION_ERRORS="${VALIDATION_ERRORS}❌ FIREBASE_AUTH_DOMAIN is empty\n"
+      [ -z "$FIREBASE_PROJECT_ID_SDK" ] && VALIDATION_ERRORS="${VALIDATION_ERRORS}❌ FIREBASE_PROJECT_ID_SDK is empty\n"
+      [ -z "$FIREBASE_STORAGE_BUCKET" ] && VALIDATION_ERRORS="${VALIDATION_ERRORS}❌ FIREBASE_STORAGE_BUCKET is empty\n"
+      [ -z "$FIREBASE_MESSAGING_SENDER_ID" ] && VALIDATION_ERRORS="${VALIDATION_ERRORS}❌ FIREBASE_MESSAGING_SENDER_ID is empty\n"
+      [ -z "$FIREBASE_APP_ID" ] && VALIDATION_ERRORS="${VALIDATION_ERRORS}❌ FIREBASE_APP_ID is empty\n"
+      [ -z "$FIREBASE_MEASUREMENT_ID" ] && VALIDATION_ERRORS="${VALIDATION_ERRORS}❌ FIREBASE_MEASUREMENT_ID is empty\n"
+      [ -z "$BACKEND_SERVICE_ID" ] && VALIDATION_ERRORS="${VALIDATION_ERRORS}❌ BACKEND_SERVICE_ID is empty\n"
+      [ -z "$FIREBASE_PROJECT_ID" ] && VALIDATION_ERRORS="${VALIDATION_ERRORS}❌ FIREBASE_PROJECT_ID is empty\n"
+      [ -z "$OAUTH_CLIENT_ID" ] && VALIDATION_ERRORS="${VALIDATION_ERRORS}❌ OAUTH_CLIENT_ID is empty\n"
+
+      if [ -n "$VALIDATION_ERRORS" ]; then
+        echo ""
+        echo "⛔ CRITICAL VALIDATION FAILURE - Build cannot proceed:"
+        echo -e "$VALIDATION_ERRORS"
+        echo ""
+        echo "This indicates that Cloud Build substitutions are not being passed to the trigger."
+        echo "Check the Cloud Build trigger configuration in Terraform:"
+        echo "  - File: infra/modules/services/frontend/main.tf"
+        echo "  - Verify build_substitutions are correctly configured"
+        echo "  - Verify trigger is receiving GitHub webhook events"
+        exit 1
+      else
+        echo "✅ All required variables are present and non-empty"
+      fi
+      echo ""
+
+      echo "📝 Injecting configuration into application files..."
+      echo ""
+
+      # Inject into Angular app (environment.prod.ts)
+      echo "Injecting backend URL into environment.prod.ts..."
+      sed -i "s|BACKEND_URL_PLACEHOLDER|${BACKEND_URL}/api|g" src/environments/environment.prod.ts
+
+      echo "Injecting OAuth Client ID into environment.prod.ts..."
+      sed -i "s|GOOGLE_CLIENT_ID_PLACEHOLDER|${OAUTH_CLIENT_ID}|g" src/environments/environment.prod.ts
+
+      # Inject Firebase config from substitutions (auto-discovered via Terraform)
+      echo "Injecting Firebase SDK configuration into environment.prod.ts..."
+      sed -i "s|FIREBASE_API_KEY_PLACEHOLDER|${FIREBASE_API_KEY}|g" src/environments/environment.prod.ts
+      sed -i "s|FIREBASE_AUTH_DOMAIN_PLACEHOLDER|${FIREBASE_AUTH_DOMAIN}|g" src/environments/environment.prod.ts
+      sed -i "s|FIREBASE_PROJECT_ID_PLACEHOLDER|${FIREBASE_PROJECT_ID_SDK}|g" src/environments/environment.prod.ts
+      sed -i "s|FIREBASE_STORAGE_BUCKET_PLACEHOLDER|${FIREBASE_STORAGE_BUCKET}|g" src/environments/environment.prod.ts
+      sed -i "s|FIREBASE_SENDER_ID_PLACEHOLDER|${FIREBASE_MESSAGING_SENDER_ID}|g" src/environments/environment.prod.ts
+      sed -i "s|FIREBASE_APP_ID_PLACEHOLDER|${FIREBASE_APP_ID}|g" src/environments/environment.prod.ts
+      sed -i "s|FIREBASE_MEASUREMENT_ID_PLACEHOLDER|${FIREBASE_MEASUREMENT_ID}|g" src/environments/environment.prod.ts
+
+      # Inject into Firebase config (firebase.json)
+      echo "Injecting Firebase project configuration..."
+      sed -i "s|SITE_ID_PLACEHOLDER|${FIREBASE_PROJECT_ID}|g" firebase.json
+      sed -i "s|BACKEND_SERVICE_ID_PLACEHOLDER|${BACKEND_SERVICE_ID}|g" firebase.json
+
+      echo ""
+      echo "📝 Post-validation: Verifying injected values..."
+      echo ""
+      echo "=== VERIFICATION ==="
+      echo "Checking environment.prod.ts for injected values:"
+      grep "apiKey:" src/environments/environment.prod.ts
+      grep "authDomain:" src/environments/environment.prod.ts
+      grep "projectId:" src/environments/environment.prod.ts
+      grep "storageBucket:" src/environments/environment.prod.ts
+      grep "messagingSenderId:" src/environments/environment.prod.ts
+      grep "appId:" src/environments/environment.prod.ts
+      grep "measurementId:" src/environments/environment.prod.ts
+      grep "GOOGLE_CLIENT_ID:" src/environments/environment.prod.ts
+      grep "backendURL:" src/environments/environment.prod.ts
+      echo ""
+      echo "Checking firebase.json for injected values:"
+      grep "hosting:" firebase.json | head -3
+      echo ""
+      echo "✅ All configuration injections completed successfully!"
+    dir: examples/creative-studio/frontend
 
   # 3. Build the application
   - name: 'node:20-alpine' # Use the same version
@@ -80,26 +160,34 @@ steps:
     waitFor: ['Build Angular App']
     dir: examples/creative-studio/frontend
 
-# This section makes the secrets available as environment variables during the build
+  # 5. Summary
+  - name: 'gcr.io/cloud-builders/gcloud'
+    id: 'Build Summary'
+    script: |
+      #!/bin/bash
+      set -e
+
+      echo "✅ Frontend deployment completed successfully!"
+      echo ""
+      echo "Summary:"
+      echo "────────────────────────────────────────────"
+      echo "✓ Dependencies injected"
+      echo "✓ Frontend built with valid configuration"
+      echo "✓ Deployed to Firebase Hosting"
+      echo ""
+      echo "Frontend URL: https://$PROJECT_ID.firebaseapp.com"
+      echo ""
+      echo "Next steps: Test login functionality"
+    env:
+      - 'PROJECT_ID=${PROJECT_ID}'
+    waitFor: ['Deploy to Firebase Hosting']
+
+# This section makes the unified OAuth credential available as an environment variable during the build
+# Firebase SDK secrets are passed via Cloud Build substitutions (_FIREBASE_*) instead
 availableSecrets:
   secretManager:
-    - versionName: projects/${PROJECT_ID}/secrets/GOOGLE_CLIENT_ID/versions/latest
-      env: 'GOOGLE_CLIENT_ID'
-    # Firebase secrets
-    - versionName: projects/${PROJECT_ID}/secrets/FIREBASE_API_KEY/versions/latest
-      env: 'FIREBASE_API_KEY'
-    - versionName: projects/${PROJECT_ID}/secrets/FIREBASE_AUTH_DOMAIN/versions/latest
-      env: 'FIREBASE_AUTH_DOMAIN'
-    - versionName: projects/${PROJECT_ID}/secrets/FIREBASE_PROJECT_ID/versions/latest
-      env: 'FIREBASE_PROJECT_ID'
-    - versionName: projects/${PROJECT_ID}/secrets/FIREBASE_STORAGE_BUCKET/versions/latest
-      env: 'FIREBASE_STORAGE_BUCKET'
-    - versionName: projects/${PROJECT_ID}/secrets/FIREBASE_MESSAGING_SENDER_ID/versions/latest
-      env: 'FIREBASE_MESSAGING_SENDER_ID'
-    - versionName: projects/${PROJECT_ID}/secrets/FIREBASE_APP_ID/versions/latest
-      env: 'FIREBASE_APP_ID'
-    - versionName: projects/${PROJECT_ID}/secrets/FIREBASE_MEASUREMENT_ID/versions/latest
-      env: 'FIREBASE_MEASUREMENT_ID'
+    - versionName: projects/${PROJECT_ID}/secrets/OAUTH_CLIENT_ID/versions/latest
+      env: 'OAUTH_CLIENT_ID'
 
 options:
   logging: CLOUD_LOGGING_ONLY
