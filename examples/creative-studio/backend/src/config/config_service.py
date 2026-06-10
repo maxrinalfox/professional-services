@@ -81,7 +81,7 @@ class ConfigService(BaseSettings):
     USE_CLOUD_SQL_PRIVATE_IP: bool = False
 
     # --- Veo ---
-    VEO_MODEL_ID: str = "veo-2.0-generate-001"
+    VEO_MODEL_ID: str = "veo-3.1-generate-001"
 
     # --- VTO ---
     VTO_MODEL_ID: str = "virtual-try-on-001"
